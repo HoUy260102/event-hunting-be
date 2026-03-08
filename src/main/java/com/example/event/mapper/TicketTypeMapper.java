@@ -98,12 +98,10 @@ public class TicketTypeMapper {
             }
             return TicketTypeStatus.ON_SALE;
         }
-
         // Nếu không trong khung giờ bán: Kiểm tra xem là chưa tới hay đã qua
         if (activeTier.getSaleStartTime().isAfter(now)) {
             return TicketTypeStatus.COMING_SOON;
         }
-
         return TicketTypeStatus.EXPIRED;
     }
 

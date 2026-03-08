@@ -24,6 +24,5 @@ public class ShowInfoDTO {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime endTime;
     private ShowStatus status;
-    private ShowStatus showTimeStatus;
     private List<TicketTypeInfoDTO> ticketTypes;
 }

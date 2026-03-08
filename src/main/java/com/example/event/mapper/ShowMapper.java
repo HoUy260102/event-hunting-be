@@ -34,7 +34,7 @@ public class ShowMapper {
                 .map(ticketTypeMapper::toInfoDTO)
                 .collect(Collectors.toList());
         showInfoDTO.setTicketTypes(ticketTypeInfoDTOS);
-        showInfoDTO.setShowTimeStatus(calculateShowStatus(show, ticketTypeInfoDTOS));
+        showInfoDTO.setStatus(calculateShowStatus(show, ticketTypeInfoDTOS));
         return showInfoDTO;
     }
 
