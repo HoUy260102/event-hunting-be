@@ -22,8 +22,12 @@ public class CreateTicketTypeReq {
     @NotNull(message = "Vui lòng chọn hình thức chỗ ngồi")
     private SeatingType seatingType;
     private String sectionId;
+    private String seatMapSvg;
 
     @Valid
     @NotEmpty(message = "Phải có ít nhất một đợt mở bán (Tier)")
     private List<CreateTicketTierReq> ticketTiers;
+
+    @Valid
+    private List<CreateSeatReq> seats;
 }

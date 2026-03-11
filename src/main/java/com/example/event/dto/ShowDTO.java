@@ -19,6 +19,7 @@ public class ShowDTO {
     private String id;
     private Integer minOrder;
     private Integer maxOrder;
+    private Long minPrice;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime startTime;

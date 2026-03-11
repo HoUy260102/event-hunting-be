@@ -3,17 +3,15 @@ package com.example.event.service.Impl;
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
 import com.example.event.dto.ShowDTO;
-import com.example.event.dto.request.*;
-import com.example.event.entity.Event;
-import com.example.event.entity.Show;
-import com.example.event.entity.TicketTier;
-import com.example.event.entity.TicketType;
+import com.example.event.dto.request.CreateShowReq;
+import com.example.event.dto.request.CreateTicketTypeReq;
+import com.example.event.dto.request.UpdateShowReq;
+import com.example.event.dto.request.UpdateTicketTypeReq;
+import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.ShowMapper;
-import com.example.event.repository.EventRepository;
-import com.example.event.repository.ShowRepository;
-import com.example.event.repository.TicketTierRepository;
-import com.example.event.repository.TicketTypeRepository;
+import com.example.event.repository.*;
+import com.example.event.service.SeatService;
 import com.example.event.service.ShowService;
 import com.example.event.service.TicketTierService;
 import com.example.event.service.TicketTypeService;
@@ -33,8 +31,10 @@ public class ShowServiceImpl implements ShowService {
     private final SecurityUtils securityUtils;
     private final TicketTypeService ticketTypeService;
     private final TicketTierService ticketTierService;
+    private final SeatService seatService;
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketTierRepository ticketTierRepository;
+    private final SeatRepository seatRepository;
     private final ShowMapper showMapper;
     private final EventRepository eventRepository;
     private final ShowValidator showValidator;
@@ -78,7 +78,8 @@ public class ShowServiceImpl implements ShowService {
 
             // tạo ticket tiers
             List<TicketTier> tiersToSave = new ArrayList<>();
-
+            // Tạo seats
+            List<Seat> seatsToSave = new ArrayList<>();
             for (int j = 0; j < showReq.getTicketTypes().size(); j++) {
 
                 CreateTicketTypeReq typeReq = showReq.getTicketTypes().get(j);
@@ -90,11 +91,17 @@ public class ShowServiceImpl implements ShowService {
                                 savedType,
                                 creatorId
                         );
-
+                List<Seat> seats =
+                        seatService.createSeats(
+                                typeReq.getSeats(),
+                                savedType,
+                                creatorId
+                        );
                 tiersToSave.addAll(tiers);
+                seatsToSave.addAll(seats);
             }
-
-            ticketTierRepository.saveAll(tiersToSave);
+            if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
+            if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
         }
     }
 
@@ -168,9 +175,8 @@ public class ShowServiceImpl implements ShowService {
 
         ticketTypeRepository.saveAll(updatedTypes);
         List<TicketTier> tiersToSave = new ArrayList<>();
-
+        List<Seat> seatsToSave = new ArrayList<>();
         for (int i = 0; i < showReq.getTicketTypes().size(); i++) {
-
             UpdateTicketTypeReq typeReq = showReq.getTicketTypes().get(i);
             TicketType savedType = updatedTypes.get(i);
 
@@ -180,10 +186,18 @@ public class ShowServiceImpl implements ShowService {
                             savedType,
                             updatorId
                     );
+            List<Seat> seats =
+                    seatService.updateTicketTiers(
+                            typeReq.getSeats(),
+                            savedType,
+                            updatorId
+                    );
             updatedTypes.get(i).setTicketTiers(tiers);
             tiersToSave.addAll(tiers);
+            updatedTypes.get(i).setSeats(seats);
+            seatsToSave.addAll(seats);
         }
-
+        seatRepository.saveAll(seatsToSave);
         ticketTierRepository.saveAll(tiersToSave);
         savedShow.setTicketTypes(updatedTypes);
         updateEventTime(event);
@@ -276,8 +290,10 @@ public class ShowServiceImpl implements ShowService {
         );
 
         ticketTypeRepository.saveAll(createdTypes);
+        // Tạo tiers
         List<TicketTier> tiersToSave = new ArrayList<>();
-
+        // Tạo seats
+        List<Seat> seatsToSave = new ArrayList<>();
         for (int i = 0; i < showReq.getTicketTypes().size(); i++) {
 
             CreateTicketTypeReq typeReq = showReq.getTicketTypes().get(i);
@@ -289,10 +305,19 @@ public class ShowServiceImpl implements ShowService {
                             savedType,
                             creatorId
                     );
+            List<Seat> seats =
+                    seatService.createSeats(
+                            typeReq.getSeats(),
+                            savedType,
+                            creatorId
+                    );
             createdTypes.get(i).setTicketTiers(tiers);
+            createdTypes.get(i).setSeats(seats);
             tiersToSave.addAll(tiers);
+            seatsToSave.addAll(seats);
         }
-        ticketTierRepository.saveAll(tiersToSave);
+        if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
+        if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
         savedShow.setTicketTypes(createdTypes);
         updateEventTime(event);
         return showMapper.toDTO(show);

@@ -33,6 +33,8 @@ public class TicketType {
     private SeatingType seatingType;
     private String sectionId;
     private Long queueNo = 0L;
+    @Column(name = "seat_map_svg", columnDefinition = "LONGTEXT")
+    private String seatMapSvg;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "show_id", nullable = false)
@@ -41,6 +43,10 @@ public class TicketType {
     @OneToMany(mappedBy = "ticketType")
     @Fetch(FetchMode.SUBSELECT)
     private List<TicketTier> ticketTiers;
+
+    @OneToMany(mappedBy = "ticketType")
+    @Fetch(FetchMode.SUBSELECT)
+    private List<Seat> seats;
 
     private LocalDateTime createdAt;
     private String createdBy;

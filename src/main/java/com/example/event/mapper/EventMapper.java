@@ -1,9 +1,6 @@
 package com.example.event.mapper;
 
-import com.example.event.dto.EventDTO;
-import com.example.event.dto.EventInfoDTO;
-import com.example.event.dto.EventSummaryDTO;
-import com.example.event.dto.ShowSummaryDTO;
+import com.example.event.dto.*;
 import com.example.event.entity.Event;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -38,9 +35,10 @@ public class EventMapper {
         eventInfoDTO.setOrganizerLogo(fileMapper.toDTO(event.getOrganizerLogo()));
         eventInfoDTO.setProvince(provinceMapper.toDTO(event.getProvince()));
         eventInfoDTO.setCategory(categoryMapper.toDTO(event.getCategory()));
-        eventInfoDTO.setShows(event.getShows().stream()
+        List<ShowInfoDTO> showInfoDTOS = event.getShows().stream()
                 .map(showMapper::toInfoDTO)
-                .collect(Collectors.toList()));
+                .collect(Collectors.toList());
+        eventInfoDTO.setShows(showInfoDTOS);
         return eventInfoDTO;
     }
 
