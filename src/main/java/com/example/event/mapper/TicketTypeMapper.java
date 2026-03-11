@@ -23,12 +23,17 @@ import java.util.stream.Collectors;
 public class TicketTypeMapper {
     private final ModelMapper modelMapper;
     private final TicketTierMapper ticketTierMapper;
+    private final SeatMapper seatMapper;
 
     public TicketTypeDTO toDTO(TicketType ticketType) {
         TicketTypeDTO ticketTypeDTO = modelMapper.map(ticketType, TicketTypeDTO.class);
         ticketTypeDTO.setTicketTiers(ticketType.getTicketTiers().stream()
                 .filter((ticketTier -> ticketTier.getDeletedAt() == null))
                 .map((ticketTierMapper::toDTO))
+                .collect(Collectors.toList()));
+        ticketTypeDTO.setSeats(ticketType.getSeats().stream()
+                .filter((ticketTier -> ticketTier.getDeletedAt() == null))
+                .map((seatMapper::toDTO))
                 .collect(Collectors.toList()));
         return ticketTypeDTO;
     }

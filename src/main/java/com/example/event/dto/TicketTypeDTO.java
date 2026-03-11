@@ -22,9 +22,11 @@ public class TicketTypeDTO {
     private TicketTypeStatus status;
     private SeatingType seatingType;
     private String sectionId;
+    private String seatMapSvg;
     private Long queueNo;
 
     private List<TicketTierDTO> ticketTiers;
+    private List<SeatDTO> seats;
 
     private LocalDateTime createdAt;
     private String createdBy;

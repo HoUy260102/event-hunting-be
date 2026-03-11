@@ -276,20 +276,9 @@ public class EventServiceImpl implements EventService {
         shows.forEach(show -> {
             show.getTicketTypes().forEach(type -> {
                 type.getTicketTiers().size();
+                type.getSeats().size();
             });
         });
-//        List<String> showIds = shows.stream().map(Show::getId).collect(Collectors.toList());
-//        List<TicketType> ticketTypes = ticketTypeRepository.findTicketTypesByShow_IdInAndDeletedAtIsNull(showIds);
-//        List<String> typeIds = ticketTypes.stream().map(TicketType::getId).collect(Collectors.toList());
-//        List<TicketTier> ticketTiers = ticketTierRepository.findTicketTiersByTicketType_IdInAndDeletedAtIsNull(typeIds);
-//        Map<String, List<TicketTier>> tierMap = ticketTiers.stream().
-//                collect(Collectors.groupingBy(tier -> tier.getTicketType().getId()));
-//        Map<String, List<TicketType>> typeMap = ticketTypes.stream()
-//                .peek(type -> type.setTicketTiers(tierMap.getOrDefault(type.getId(), new ArrayList<>())))
-//                .collect(Collectors.groupingBy(type -> type.getShow().getId()));
-//        for (Show show : shows) {
-//            show.setTicketTypes(typeMap.getOrDefault(show.getId(), new ArrayList<>()));
-//        }
         event.setShows(shows);
         return eventMapper.toInfoDTO(event);
     }

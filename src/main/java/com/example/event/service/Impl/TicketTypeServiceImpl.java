@@ -38,6 +38,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
             ticketType.setSoldQuantity(0);
             ticketType.setReservedQuantity(0);
             ticketType.setStatus(TicketTypeStatus.ACTIVE);
+            ticketType.setSeatMapSvg(ticketTypeReq.getSeatMapSvg());
             ticketType.setSeatingType(ticketTypeReq.getSeatingType());
             ticketType.setSectionId(ticketTypeReq.getSectionId());
             ticketType.setShow(show);
@@ -80,6 +81,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                 ticketType.setReservedQuantity(0);
                 ticketType.setStatus(TicketTypeStatus.ACTIVE);
                 ticketType.setSeatingType(ticketTypeReq.getSeatingType());
+                ticketType.setSeatMapSvg(ticketTypeReq.getSeatMapSvg());
                 ticketType.setSectionId(ticketTypeReq.getSectionId());
                 ticketType.setShow(show);
 
@@ -102,6 +104,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                 ticketType.setStatus(ticketType.getStatus());
                 ticketType.setSeatingType(ticketTypeReq.getSeatingType());
                 ticketType.setSectionId(ticketTypeReq.getSectionId());
+                ticketType.setSeatMapSvg(ticketTypeReq.getSeatMapSvg());
                 ticketType.setShow(show);
 
                 ticketType.setUpdatedAt(LocalDateTime.now());
