@@ -1,6 +1,7 @@
 package com.example.event.service;
 
 import com.example.event.constant.ShowStatus;
+import com.example.event.dto.ShowBookingDTO;
 import com.example.event.dto.ShowDTO;
 import com.example.event.dto.request.CreateShowReq;
 import com.example.event.dto.request.UpdateShowReq;
@@ -15,6 +16,7 @@ public interface ShowService {
     ShowDTO createShow(CreateShowReq showReq, String eventId);
     ShowDTO updateShow(UpdateShowReq showReq, String showId,
                      String eventId);
+    ShowBookingDTO findShowBookingById(String id);
     void updateShowStatus(String showId, ShowStatus status);
     List<ShowDTO> findShowsByEventId(String eventId);
 }

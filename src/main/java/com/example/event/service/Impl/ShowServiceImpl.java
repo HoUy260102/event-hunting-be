@@ -2,6 +2,7 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
+import com.example.event.dto.ShowBookingDTO;
 import com.example.event.dto.ShowDTO;
 import com.example.event.dto.request.CreateShowReq;
 import com.example.event.dto.request.CreateTicketTypeReq;
@@ -205,6 +206,21 @@ public class ShowServiceImpl implements ShowService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ShowBookingDTO findShowBookingById(String id) {
+        Show show = Optional.ofNullable(showRepository.findShowById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
+        if (show.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.SHOW_NOT_FOUND);
+        }
+        show.getTicketTypes().forEach(type -> {
+            type.getTicketTiers().size();
+            type.getSeats().size();
+        });
+        return showMapper.toBookingDTO(show);
+    }
+
+    @Override
     @Transactional
     public void updateShowStatus(String showId, ShowStatus status) {
         String updatorId = securityUtils.getCurrentUserId();
@@ -233,6 +249,7 @@ public class ShowServiceImpl implements ShowService {
         show.setStatus(newStatus);
         show.setUpdatedAt(LocalDateTime.now());
         show.setUpdatedBy(updatorId);
+        updateEventTime(show.getEvent());
         showRepository.save(show);
     }
 

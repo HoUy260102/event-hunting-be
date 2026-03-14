@@ -1,5 +1,6 @@
 package com.example.event.controller;
 
+import com.example.event.dto.ShowBookingDTO;
 import com.example.event.dto.request.UpdateShowStatusReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.service.ShowService;
@@ -18,6 +19,17 @@ public class ShowController {
         showService.updateShowStatus(id, status.getStatus());
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/{id}/booking")
+    public ResponseEntity<?> findShowBookingById(@PathVariable String id) {
+        ShowBookingDTO showBookingDTO = showService.findShowBookingById(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(showBookingDTO)
                 .message("Thành công.")
                 .build();
         return ResponseEntity.status(HttpStatus.OK).body(response);
