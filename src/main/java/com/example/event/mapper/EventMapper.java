@@ -28,6 +28,14 @@ public class EventMapper {
         return eventDTO;
     }
 
+    public EventSearchPublicDTO toSearchPublicDTO(Event event) {
+        EventSearchPublicDTO eventDTO = modelMapper.map(event, EventSearchPublicDTO.class);
+        eventDTO.setPoster(fileMapper.toDTO(event.getPoster()));
+        eventDTO.setProvince(provinceMapper.toDTO(event.getProvince()));
+        eventDTO.setCategory(categoryMapper.toDTO(event.getCategory()));
+        return eventDTO;
+    }
+
     public EventInfoDTO toInfoDTO(Event event) {
         EventInfoDTO eventInfoDTO = modelMapper.map(event, EventInfoDTO.class);
         eventInfoDTO.setBanner(fileMapper.toDTO(event.getBanner()));
@@ -41,6 +49,7 @@ public class EventMapper {
         eventInfoDTO.setShows(showInfoDTOS);
         return eventInfoDTO;
     }
+
 
     public EventSummaryDTO toSummaryDTO(Event event) {
         EventSummaryDTO eventSummaryDTO = EventSummaryDTO.builder()

@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ShowDTO {
+public class ShowBookingDTO {
     private String id;
     private Integer minOrder;
     private Integer maxOrder;
@@ -23,16 +23,9 @@ public class ShowDTO {
     private LocalDateTime startTime;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime endTime;
+    private ShowStatus status;
     private SeatMapType seatMapType;
     private String seatMapSvg;
-    private ShowStatus status;
+    private List<TicketTypeBookingDTO> ticketTypes;
 
-    private List<TicketTypeDTO> ticketTypes;
-
-    private LocalDateTime createdAt;
-    private String createdBy;
-    private LocalDateTime updatedAt;
-    private String updatedBy;
-    private LocalDateTime deletedAt;
-    private String deletedBy;
 }

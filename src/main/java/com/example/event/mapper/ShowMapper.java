@@ -34,8 +34,19 @@ public class ShowMapper {
                 .map(ticketTypeMapper::toInfoDTO)
                 .collect(Collectors.toList());
         showInfoDTO.setTicketTypes(ticketTypeInfoDTOS);
-        showInfoDTO.setStatus(calculateShowStatus(show, ticketTypeInfoDTOS));
+        showInfoDTO.setStatus(calculateShowStatusFromInfo(show, ticketTypeInfoDTOS));
         return showInfoDTO;
+    }
+
+    public ShowBookingDTO toBookingDTO(Show show) {
+        ShowBookingDTO showBookingDTO = modelMapper.map(show, ShowBookingDTO.class);
+        List<TicketTypeBookingDTO> ticketTypeBookingDTOS = show.getTicketTypes().stream()
+                .filter(ticketType -> ticketType.getDeletedAt() == null && ticketType.getStatus() != TicketTypeStatus.INACTIVE)
+                .map(ticketTypeMapper::toBookingDTO)
+                .collect(Collectors.toList());
+        showBookingDTO.setTicketTypes(ticketTypeBookingDTOS);
+        showBookingDTO.setStatus(calculateShowStatusFromBooking(show, ticketTypeBookingDTOS));
+        return showBookingDTO;
     }
 
     public ShowSummaryDTO toSummaryDTO(Show show) {
@@ -87,7 +98,31 @@ public class ShowMapper {
         return ShowStatus.HAPPENING;
     }
 
-    private ShowStatus calculateShowStatus(Show show, List<TicketTypeInfoDTO> ticketTypes) {
+    private ShowStatus calculateShowStatusFromInfo(Show show, List<TicketTypeInfoDTO> ticketTypes) {
+        LocalDateTime now = LocalDateTime.now();
+        if (show.getDeletedAt() != null) return ShowStatus.DELETED;
+        if (show.getStatus() == ShowStatus.CANCELLED) return ShowStatus.CANCELLED;
+        if (show.getStatus() == ShowStatus.POSTPONED) return ShowStatus.POSTPONED;
+        if (now.isAfter(show.getEndTime())) return ShowStatus.FINISHED;
+        // Nếu tất cả các TicketType đều có trạng thái SOLD_OUT
+        boolean isAllSoldOut = ticketTypes.stream()
+                .allMatch(type -> type.getStatus() == TicketTypeStatus.SOLD_OUT);
+        if (isAllSoldOut) {
+            return ShowStatus.SOLD_OUT;
+        }
+        boolean isAnyOnSale = ticketTypes.stream()
+                .anyMatch(type -> type.getStatus() == TicketTypeStatus.ON_SALE);
+        if (isAnyOnSale) {
+            return ShowStatus.ON_SALE;
+        }
+        // Nếu chưa hết vé thì quay về tính theo thời gian
+        if (!now.isBefore(show.getStartTime()) && now.isBefore(show.getEndTime())) {
+            return ShowStatus.HAPPENING;
+        }
+        return ShowStatus.UPCOMING;
+    }
+
+    private ShowStatus calculateShowStatusFromBooking(Show show, List<TicketTypeBookingDTO> ticketTypes) {
         LocalDateTime now = LocalDateTime.now();
         if (show.getDeletedAt() != null) return ShowStatus.DELETED;
         if (show.getStatus() == ShowStatus.CANCELLED) return ShowStatus.CANCELLED;

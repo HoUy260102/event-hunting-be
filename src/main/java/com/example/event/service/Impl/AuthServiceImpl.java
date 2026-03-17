@@ -81,8 +81,7 @@ public class AuthServiceImpl implements AuthService {
             //Tạo refresh token
             String refeshToken = jwtUtils.generateToken(user.getEmail(), null, "refresh");
             //Tìm kiếm session trong db nếu không có trả session mới
-            Session session = Optional.ofNullable(sessionRepository.findByDeviceIdAndUser_Id(deviceId, user.getId()))
-                    .orElse(new Session());
+            Session session = new Session();
             session.setUser(user);
             session.setRevoked(false);
             session.setRefreshToken(refeshToken);

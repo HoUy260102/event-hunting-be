@@ -2,10 +2,7 @@ package com.example.event.mapper;
 
 import com.example.event.constant.TicketTierStatus;
 import com.example.event.constant.TicketTypeStatus;
-import com.example.event.dto.TicketTierSummaryDTO;
-import com.example.event.dto.TicketTypeDTO;
-import com.example.event.dto.TicketTypeInfoDTO;
-import com.example.event.dto.TicketTypeSummaryDTO;
+import com.example.event.dto.*;
 import com.example.event.entity.TicketTier;
 import com.example.event.entity.TicketType;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +69,47 @@ public class TicketTypeMapper {
         ticketTypeDto.setStatus(calculateStatus(ticketType, activeTier, validTiers, now));
         return ticketTypeDto;
     }
+
+    public TicketTypeBookingDTO toBookingDTO(TicketType ticketType) {
+        TicketTypeBookingDTO ticketTypeBookingDTO = modelMapper.map(ticketType, TicketTypeBookingDTO.class);
+        LocalDateTime now = LocalDateTime.now();
+        //Lấy danh sách hợp lệ (không xóa, không inactive)
+        List<TicketTier> validTiers = ticketType.getTicketTiers().stream()
+                .filter(tt -> tt.getDeletedAt() == null && tt.getStatus() != TicketTierStatus.INACTIVE)
+                .sorted(Comparator.comparing(TicketTier::getSaleStartTime))
+                .collect(Collectors.toList());
+
+        TicketTier activeTier = validTiers.stream()
+                .filter(tt -> !now.isBefore(tt.getSaleStartTime()) && now.isBefore(tt.getSaleEndTime()))
+                .findFirst()
+                .orElse(null);
+
+        // Nếu không có tier nào trong khung giờ, lấy cái cao giá nhất
+        if (activeTier == null) {
+            activeTier = validTiers.stream()
+                    .max(Comparator.comparing(TicketTier::getPrice))
+                    .orElse(null);
+        }
+
+        if (activeTier != null) {
+            ticketTypeBookingDTO.setTierId(activeTier.getId());
+            ticketTypeBookingDTO.setTierName(activeTier.getName());
+            ticketTypeBookingDTO.setTierPrice(activeTier.getPrice());
+            ticketTypeBookingDTO.setTierStatus(activeTier.getStatus());
+            ticketTypeBookingDTO.setTierDescription(activeTier.getDescription());
+        }
+
+        if (!ticketType.getSeats().isEmpty()) {
+            ticketTypeBookingDTO.setSeats(ticketType.getSeats()
+                    .stream()
+                    .map(seatMapper::toDTO)
+                    .collect(Collectors.toList()));
+        }
+        //Tính Status dựa trên chính thông tin Tier đã chọn và danh sách validTiers
+        ticketTypeBookingDTO.setStatus(calculateStatus(ticketType, activeTier, validTiers, now));
+        return ticketTypeBookingDTO;
+    }
+
 
     public TicketTypeSummaryDTO toSummaryDTO(TicketType ticketType) {
         TicketTypeSummaryDTO ticketTypeSummaryDTO = modelMapper.map(ticketType, TicketTypeSummaryDTO.class);
