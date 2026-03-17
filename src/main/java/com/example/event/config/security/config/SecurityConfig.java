@@ -65,6 +65,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> {
                     requests
                             .requestMatchers(
+                                    "/categories",
+                                    "/events/public/search",
+                                    "/events/*/info",
                                     "/auth/login",
                                     "/auth/refresh-token",
                                     "/auth/resend-verify",

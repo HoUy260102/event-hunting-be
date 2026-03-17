@@ -53,6 +53,13 @@ public class RateLimit extends OncePerRequestFilter {
 
         String key = "rate:path:" + path  + ":" + ip;
 
+        if ("/auth/resend-verify".equals(path)) {
+            String email = request.getParameter("email");
+            if (email != null && !email.trim().equals("")) {
+                key += ":" + email;
+            }
+        }
+
         redisTemplate.opsForZSet().add(key, member, now);
         redisTemplate.expire(key, windowSec + 2, TimeUnit.SECONDS);
         redisTemplate.opsForZSet().removeRangeByScore(key, 0, windowStart);

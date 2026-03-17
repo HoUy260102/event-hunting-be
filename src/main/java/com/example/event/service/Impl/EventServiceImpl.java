@@ -7,11 +7,10 @@ import com.example.event.constant.FileStatus;
 import com.example.event.constant.FileType;
 import com.example.event.dto.EventDTO;
 import com.example.event.dto.EventInfoDTO;
+import com.example.event.dto.EventSearchPublicDTO;
 import com.example.event.dto.EventSummaryDTO;
-import com.example.event.dto.request.CreateEventReq;
-import com.example.event.dto.request.EventSearchReq;
-import com.example.event.dto.request.UpdateEventReq;
-import com.example.event.dto.request.UpdateEventStatusReq;
+import com.example.event.dto.request.*;
+import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.EventMapper;
@@ -24,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +45,7 @@ public class EventServiceImpl implements EventService {
     private final ShowService showService;
     private final ShowRepository showRepository;
     private static final Map<EventStatus, List<EventStatus>> STATUS_TRANSITIONS = new HashMap<>();
+
     static {
         STATUS_TRANSITIONS.put(EventStatus.DRAFT, Arrays.asList(EventStatus.PUBLISHED, EventStatus.REJECTED));
         STATUS_TRANSITIONS.put(EventStatus.PUBLISHED, Arrays.asList(EventStatus.CANCELLED));
@@ -357,6 +358,43 @@ public class EventServiceImpl implements EventService {
         }
         Page<Event> events = eventRepository.findAll(spec, pageable);
         return events.map(eventMapper::toDTO);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req) {
+        LocalDateTime now = LocalDateTime.now();
+        Specification<Event> spec = Specification.where(EventSpecification.isNotDeleted());
+        if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
+            spec = spec.and(EventSpecification.hasName(req.getKeyword()));
+        }
+        if (req.getProvinceId() != null) {
+            spec = spec.and(EventSpecification.hasProvinceId(req.getProvinceId()));
+        }
+        if (req.getCategoryIds() != null && req.getCategoryIds().size() > 0) {
+            spec = spec.and(EventSpecification.hasCategoryIds(req.getCategoryIds()));
+        }
+        if (req.getStartTime() != null || req.getEndTime() != null) {
+            spec = spec.and(EventSpecification.isBetweenDates(req.getStartTime(), req.getEndTime()));
+        }
+        if (req.getMinPrice() != null) {
+            spec = spec.and(EventSpecification.hasMinPrice(req.getMinPrice()));
+        }
+        if (req.getNextId() != null) {
+            spec = spec.and(EventSpecification.hasNextId(req.getNextId()));
+        }
+        spec = spec.and(EventSpecification.orderByStatusAndDate(now));
+        int pageSize = (req.getSize() != null) ? req.getSize() : 8;
+        Pageable pageable = PageRequest.of(0, pageSize);
+        Slice<Event> eventSlice = eventRepository.findAll(spec, pageable);
+        List<EventSearchPublicDTO> dtos = eventSlice.getContent().stream()
+                .map(eventMapper::toSearchPublicDTO)
+                .collect(Collectors.toList());
+        String nextKeysetId = eventSlice.hasNext() ? dtos.get(dtos.size() - 1).getId() : null;
+        return new KeysetPageResponse<>(
+                dtos,
+                nextKeysetId,
+                eventSlice.hasNext());
     }
 
     private List<String> extractIdsToDelete(List<String> oldIds, List<String> newIds) {

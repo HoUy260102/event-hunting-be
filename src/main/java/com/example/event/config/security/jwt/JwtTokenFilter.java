@@ -18,6 +18,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
 
@@ -69,8 +70,21 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     }
                 }
             }
+        } catch (JwtAuthenticationException e) {
+            response.setContentType("application/json");
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            ErrorResponse errorResponse = ErrorResponse.builder()
+                    .code(e.getErrorCode().name())
+                    .status(HttpStatus.UNAUTHORIZED.value())
+                    .message(e.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+            ObjectMapper mapper = new ObjectMapper();
+            String json = mapper.writeValueAsString(errorResponse);
+            response.getWriter().write(json);
+            return;
         } catch (AuthenticationException | AccessDeniedException e) {
-          throw e;
+            throw e;
         } catch (Exception e) {
             response.setContentType("application/json");
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -90,6 +104,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
     private boolean isByPassToken(HttpServletRequest request) {
         String path = request.getServletPath();
+        AntPathMatcher pathMatcher = new AntPathMatcher();
 
         if (path.startsWith("/ws")
                 || path.startsWith("/topic")
@@ -99,14 +114,19 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         List<Pair<String, String>> bypassTokens = new ArrayList<>(Arrays.asList(
                 Pair.of("/auth/login", "POST"),
-                Pair.of("/auth/refresh-token","GET"),
+                Pair.of("/auth/refresh-token", "GET"),
                 Pair.of("/auth/signup", "POST"),
                 Pair.of("/auth/verify", "GET"),
-                Pair.of("/auth/resend-verify", "POST")
+                Pair.of("/auth/resend-verify", "POST"),
+
+                Pair.of("/categories", "GET"),
+                Pair.of("/events/public/search", "GET"),
+                Pair.of("/events/*/info", "GET")
         ));
 
         return bypassTokens.stream().anyMatch(
-                pair -> pair.getSecond().equals(request.getMethod()) && request.getServletPath().equals(pair.getFirst())
+                pair -> pair.getSecond().equals(request.getMethod())
+                        && pathMatcher.match(pair.getFirst(), path)
         );
     }
 }

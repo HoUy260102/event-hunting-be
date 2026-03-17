@@ -1,11 +1,9 @@
 package com.example.event.controller;
 
-import com.example.event.dto.EventDTO;
-import com.example.event.dto.EventInfoDTO;
-import com.example.event.dto.EventSummaryDTO;
-import com.example.event.dto.ShowDTO;
+import com.example.event.dto.*;
 import com.example.event.dto.request.*;
 import com.example.event.dto.response.ApiResponse;
+import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.service.EventService;
 import com.example.event.service.ShowService;
 import jakarta.validation.Valid;
@@ -114,6 +112,17 @@ public class EventController {
     @GetMapping("/search")
     public ResponseEntity<?> searchEventForAdmin(@Valid EventSearchReq req) {
         Page<EventDTO> events = eventService.getEventSearchForAdmin(req);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(events)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/public/search")
+    public ResponseEntity<?> searchEventForPublic(@Valid EventSearchPublicReq req) {
+        KeysetPageResponse<EventSearchPublicDTO, String> events = eventService.getEventSearchPublic(req);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(events)

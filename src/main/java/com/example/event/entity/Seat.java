@@ -24,8 +24,13 @@ public class Seat {
     private String seatCode;
     @Enumerated(EnumType.STRING)
     private SeatStatus status;
+    private LocalDateTime holdExpiresAt;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reserved_by_id")
+    private User reservedBy;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ticket_type_id", nullable = false)
     private TicketType ticketType;
 
