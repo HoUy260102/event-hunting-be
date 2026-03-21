@@ -38,6 +38,39 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, String> 
             @Param("deletorId") String deletorId
     );
 
+    @Modifying
+    @Query("UPDATE TicketType t SET t.soldQuantity = t.soldQuantity + :qty, " +
+            "t.updatedAt = :now," +
+            "t.updatedBy = :updatorId " +
+            "WHERE t.id = :id " +
+            "AND (t.soldQuantity + :qty) <= t.totalQuantity " +
+            "AND t.deletedAt IS NULL")
+    int incrementSoldQuantity(@Param("id") String id,
+                              @Param("qty") Integer qty,
+                              @Param("now") LocalDateTime now,
+                              @Param("updatorId") String updatorId);
+
+    @Modifying
+    @Query("UPDATE TicketType t SET t.reservedQuantity = t.reservedQuantity + :qty, " +
+            "t.updatedAt = :now, " +
+            "t.updatedBy = :updatorId " +
+            "WHERE t.id = :id AND (t.reservedQuantity + :qty) <= t.totalQuantity AND t.deletedAt IS NULL")
+    int incrementReservedQuantity(@Param("id") String id,
+                                  @Param("qty") Integer qty,
+                                  @Param("now") LocalDateTime now,
+                                  @Param("updatorId") String updatorId);
+
+    @Modifying
+    @Query("UPDATE TicketType tt SET " +
+            "tt.reservedQuantity = CASE WHEN (tt.reservedQuantity - :qty) < 0 THEN 0 ELSE (tt.reservedQuantity - :qty) END, " +
+            "tt.updatedAt = :now, " +
+            "tt.updatedBy = :updatorId " +
+            "WHERE tt.id = :id AND tt.deletedAt IS NULL")
+    int decrementReservedQuantity(@Param("id") String id,
+                                  @Param("qty") Integer qty,
+                                  @Param("now") LocalDateTime now,
+                                  @Param("updatorId") String updatorId);
+
     TicketType findTicketTypeById(String id);
     List<TicketType> findTicketTypesByShow_IdAndDeletedAtIsNull(String showId);
     List<TicketType> findTicketTypesByShow_IdInAndDeletedAtIsNull(List<String> showIds);

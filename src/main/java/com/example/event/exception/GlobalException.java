@@ -21,7 +21,9 @@ public class GlobalException {
         ErrorCode errorCode = exception.getErrorCode();
         ErrorResponse response = ErrorResponse.builder()
                 .code(errorCode.name())
-                .message(errorCode.getMessage())
+                .message((exception.getMessage() != null && !exception.getMessage().isEmpty())
+                        ? exception.getMessage()
+                        : errorCode.getMessage())
                 .details(exception.getDetails())
                 .status(errorCode.getHttpStatus().value())
                 .timestamp(LocalDateTime.now())

@@ -52,6 +52,30 @@ public interface TicketTierRepository extends JpaRepository<TicketTier, String> 
             @Param("deletorId") String deletorId
     );
 
+    @Modifying
+    @Query("UPDATE TicketTier tt SET tt.reservedQuantity = tt.reservedQuantity + :qty, " +
+            "tt.updatedAt = :now, " +
+            "tt.updatedBy = :updatorId " +
+            "WHERE tt.id = :id " +
+            "AND (tt.reservedQuantity + tt.soldQuantity + :qty) <= tt.limitQuantity " +
+            "AND tt.deletedAt IS NULL")
+    int incrementReservedQuantity(@Param("id") String id,
+                                  @Param("qty") Integer qty,
+                                  @Param("now") LocalDateTime now,
+                                  @Param("updatorId") String updatorId);
+
+
+    @Modifying
+    @Query("UPDATE TicketTier tt SET " +
+            "tt.reservedQuantity = CASE WHEN (tt.reservedQuantity - :qty) < 0 THEN 0 ELSE (tt.reservedQuantity - :qty) END, " +
+            "tt.updatedAt = :now, " +
+            "tt.updatedBy = :updatorId " +
+            "WHERE tt.id = :id AND tt.deletedAt IS NULL")
+    int decrementReservedQuantity(@Param("id") String id,
+                                  @Param("qty") Integer qty,
+                                  @Param("now") LocalDateTime now,
+                                  @Param("updatorId") String updatorId);
+
     TicketTier findTicketTierById(String id);
     List<TicketTier> findTicketTiersByTicketType_IdAndDeletedAtIsNull(String ticketTypeId);
     List<TicketTier> findTicketTiersByTicketType_IdInAndDeletedAtIsNull(List<String> typeIds);

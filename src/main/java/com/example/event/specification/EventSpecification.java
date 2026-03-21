@@ -29,6 +29,18 @@ public class EventSpecification {
                 id == null ? null : cb.equal(root.get("id"), id);
     }
 
+    public static Specification<Event> hasIdIn(List<String> ids) {
+        return (root, query, cb) -> {
+            if (ids == null) {
+                return null;
+            }
+            if (ids.isEmpty()) {
+                return cb.disjunction();
+            }
+            return root.get("id").in(ids);
+        };
+    }
+
     public static Specification<Event> hasProvinceId(String id) {
         return (root, query, cb) -> {
             if (id == null || id.isEmpty()) {

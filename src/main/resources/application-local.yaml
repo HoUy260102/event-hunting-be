@@ -33,3 +33,8 @@ cloudinary:
   api_key: 683667898891913
   api_secret: 64fij4Q8d3s8tQRPn9vVFH2XDSc
 
+vnpay:
+  tmn-code: "DFMB2P4Z"
+  hash-secret: "YJN6A3KRKMBWR8NEUQLSM7K1PKNHGE78"
+  url: "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
+  return-url: "http://localhost:8080/api/v1/payments/vnpay-callback"

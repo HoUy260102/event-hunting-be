@@ -12,12 +12,11 @@ import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.ShowMapper;
 import com.example.event.repository.*;
-import com.example.event.service.SeatService;
-import com.example.event.service.ShowService;
-import com.example.event.service.TicketTierService;
-import com.example.event.service.TicketTypeService;
+import com.example.event.service.*;
 import com.example.event.validation.ShowValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +26,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ShowServiceImpl implements ShowService {
     private final ShowRepository showRepository;
     private final SecurityUtils securityUtils;
@@ -39,6 +39,12 @@ public class ShowServiceImpl implements ShowService {
     private final ShowMapper showMapper;
     private final EventRepository eventRepository;
     private final ShowValidator showValidator;
+    private final RedisTemplate<String, String> redisTemplate;
+
+    private static final String KEY_TYPE_TOTAL = "ticket_type:{show:%s}:%s:total";
+    private static final String KEY_TYPE_RESERVED = "ticket_type:{show:%s}:%s:reserved";
+    private static final String KEY_TIER_LIMIT = "ticket_tier:{show:%s}:%s:limit";
+    private static final String KEY_TIER_RESERVED = "ticket_tier:{show:%s}:%s:reserved";
 
     @Override
     public void createShows(List<CreateShowReq> showsReq, Event event, String creatorId) {
@@ -245,6 +251,7 @@ public class ShowServiceImpl implements ShowService {
         }
         if (newStatus == ShowStatus.ACTIVE) {
             updateEventTime(show.getEvent());
+            syncShowStockToRedis(show);
         }
         show.setStatus(newStatus);
         show.setUpdatedAt(LocalDateTime.now());
@@ -370,7 +377,6 @@ public class ShowServiceImpl implements ShowService {
 
         List<Show> shows = showRepository
                 .findByEvent_IdAndDeletedAtIsNull(event.getId());
-
         if (shows.isEmpty()) return;
 
         LocalDateTime startTime = shows.stream()
@@ -388,9 +394,9 @@ public class ShowServiceImpl implements ShowService {
         Long minPrice = shows.stream()
                 .filter((show) -> show.getStatus() == ShowStatus.ACTIVE)
                 .flatMap((show) -> show.getTicketTypes().stream())
-                .filter((type) -> type.getStatus() == TicketTypeStatus.ACTIVE)
+                .filter((type) -> type.getStatus() == TicketTypeStatus.ACTIVE && type.getDeletedAt() == null)
                 .flatMap((type) -> type.getTicketTiers().stream())
-                .filter((tier) -> tier.getStatus() == TicketTierStatus.ACTIVE)
+                .filter((tier) -> tier.getStatus() == TicketTierStatus.ACTIVE && tier.getDeletedAt() == null)
                 .map(tier -> tier.getPrice())
                 .min(Long::compare)
                 .orElse(event.getMinPrice());
@@ -398,5 +404,37 @@ public class ShowServiceImpl implements ShowService {
         event.setEndTime(endTime);
         event.setMinPrice(minPrice);
         eventRepository.save(event);
+    }
+
+    void syncShowStockToRedis(Show show) {
+        String showId = show.getId();
+        for (TicketType type : show.getTicketTypes()) {
+            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED) continue;
+            String typeId = type.getId();
+            redisTemplate.opsForValue().set(
+                    String.format(KEY_TYPE_TOTAL, showId, typeId),
+                    String.valueOf(type.getTotalQuantity())
+            );
+
+            redisTemplate.opsForValue().setIfAbsent(
+                    String.format(KEY_TYPE_RESERVED, showId, typeId),
+                    "0"
+            );
+
+            for (TicketTier tier : type.getTicketTiers()) {
+                String tierId = tier.getId();
+
+                redisTemplate.opsForValue().set(
+                        String.format(KEY_TIER_LIMIT, showId, tierId),
+                        String.valueOf(tier.getLimitQuantity())
+                );
+
+                redisTemplate.opsForValue().setIfAbsent(
+                        String.format(KEY_TIER_RESERVED, showId, tierId),
+                        "0"
+                );
+            }
+        }
+        log.info("Đã đồng bộ dữ liệu Show {} lên Redis an toàn.", showId);
     }
 }

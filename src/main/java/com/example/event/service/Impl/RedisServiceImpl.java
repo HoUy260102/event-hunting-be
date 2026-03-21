@@ -22,6 +22,11 @@ public class RedisServiceImpl implements RedisService {
     }
 
     @Override
+    public <T> void set(String key, T value) {
+        redisTemplate.opsForValue().set(key, value);
+    }
+
+    @Override
     public <T> T get(String key, Class<T> tClass) {
         Object val = redisTemplate.opsForValue().get(key);
         if (val == null) return null;

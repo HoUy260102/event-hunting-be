@@ -121,7 +121,8 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
                 Pair.of("/categories", "GET"),
                 Pair.of("/events/public/search", "GET"),
-                Pair.of("/events/*/info", "GET")
+                Pair.of("/events/*/info", "GET"),
+                Pair.of("/payments/vnpay-callback", "GET")
         ));
 
         return bypassTokens.stream().anyMatch(

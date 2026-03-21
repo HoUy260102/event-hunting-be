@@ -365,8 +365,19 @@ public class EventServiceImpl implements EventService {
     public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req) {
         LocalDateTime now = LocalDateTime.now();
         Specification<Event> spec = Specification.where(EventSpecification.isNotDeleted());
+
+        // Search full text;
+        List<String> fullTextSearchEventIds = Collections.emptyList();
         if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
-            spec = spec.and(EventSpecification.hasName(req.getKeyword()));
+            String processedKey = Arrays.stream(req.getKeyword().trim().split("\\s+"))
+                    .collect(Collectors.joining(" "));
+            fullTextSearchEventIds = eventRepository.searchFullTextBoolean(processedKey)
+                    .stream()
+                    .map(event -> event.getId())
+                    .collect(Collectors.toList());
+        }
+        if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
+            spec = spec.and(EventSpecification.hasIdIn(fullTextSearchEventIds));
         }
         if (req.getProvinceId() != null) {
             spec = spec.and(EventSpecification.hasProvinceId(req.getProvinceId()));
