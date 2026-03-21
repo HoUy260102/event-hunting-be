@@ -65,6 +65,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> {
                     requests
                             .requestMatchers(
+                                    "/payments/vnpay-callback",
                                     "/categories",
                                     "/events/public/search",
                                     "/events/*/info",

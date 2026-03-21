@@ -24,5 +24,35 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
             @Param("deletorId") String deletorId
     );
 
+    @Modifying(clearAutomatically = true)
+    @Query("""
+                UPDATE Seat s 
+                SET s.status = 'HOLD',
+                    s.reservedBy.id = :userId,  
+                    s.updatedBy = :userId,
+                    s.updatedAt = :now
+                WHERE s.id = :seatId
+                  AND s.status = 'AVAILABLE'
+                  AND s.deletedAt IS NULL
+            """)
+    int holdSeat(@Param("seatId") String seatId,
+                 @Param("userId") String userId,
+                 @Param("now") LocalDateTime now);
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+                UPDATE Seat s 
+                SET s.status = 'AVAILABLE',
+                    s.reservedBy = null,
+                    s.updatedAt = :now
+                WHERE s.id IN (
+                    SELECT ri.seat.id FROM ReservationItem ri WHERE ri.reservation.id = :reservationId
+                )
+                AND s.status = 'HOLD'
+            """)
+    int releaseAllSeatsByReservation(@Param("reservationId") String reservationId,
+                                     @Param("now") LocalDateTime now);
+
     List<Seat> findSeatsByTicketType_IdAndDeletedAtIsNull(String ticketTypeId);
+    Seat findSeatById(String id);
 }
