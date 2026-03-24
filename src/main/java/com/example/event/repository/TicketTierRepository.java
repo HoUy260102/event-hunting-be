@@ -57,13 +57,24 @@ public interface TicketTierRepository extends JpaRepository<TicketTier, String> 
             "tt.updatedAt = :now, " +
             "tt.updatedBy = :updatorId " +
             "WHERE tt.id = :id " +
-            "AND (tt.reservedQuantity + tt.soldQuantity + :qty) <= tt.limitQuantity " +
+            "AND (tt.reservedQuantity + :qty) <= tt.limitQuantity " +
             "AND tt.deletedAt IS NULL")
     int incrementReservedQuantity(@Param("id") String id,
                                   @Param("qty") Integer qty,
                                   @Param("now") LocalDateTime now,
                                   @Param("updatorId") String updatorId);
 
+    @Modifying
+    @Query("UPDATE TicketTier tt SET tt.soldQuantity = tt.soldQuantity + :qty, " +
+            "tt.updatedAt = :now, " +
+            "tt.updatedBy = :updatorId " +
+            "WHERE tt.id = :id " +
+            "AND (tt.soldQuantity + :qty) <= tt.limitQuantity " +
+            "AND tt.deletedAt IS NULL")
+    int incrementSoldQuantity(@Param("id") String id,
+                                  @Param("qty") Integer qty,
+                                  @Param("now") LocalDateTime now,
+                                  @Param("updatorId") String updatorId);
 
     @Modifying
     @Query("UPDATE TicketTier tt SET " +

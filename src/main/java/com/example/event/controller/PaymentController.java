@@ -3,6 +3,7 @@ package com.example.event.controller;
 import com.example.event.dto.ReservationDTO;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.service.PaymentService;
+import com.example.event.service.TicketService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import java.util.Map;
 @RequestMapping("/payments")
 public class PaymentController {
     private final PaymentService paymentService;
+    private final TicketService ticketService;
 
     @PostMapping("/create_payment_url")
     public ResponseEntity<?> createPayment(@RequestBody ReservationDTO request, HttpServletRequest httpRequest) {
@@ -34,7 +36,7 @@ public class PaymentController {
         String reservationId = result.get("txnRef");
         String responseCode = result.get("responseCode");
         if ("OK".equals(result.get("status")) && "00".equals(responseCode)) {
-            System.out.println(reservationId);
+            paymentService.processPayment(result);
             return ResponseEntity.ok().body(result);
         } else {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);

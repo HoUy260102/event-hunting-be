@@ -98,14 +98,25 @@ public class ShowServiceImpl implements ShowService {
                                 savedType,
                                 creatorId
                         );
-                List<Seat> seats =
-                        seatService.createSeats(
-                                typeReq.getSeats(),
-                                savedType,
-                                creatorId
-                        );
+                List<Seat> currentTypeSeats = new ArrayList<>();
+                if (savedShow.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && savedType.getSeatingType() == SeatingType.SEATED) {
+                    // Tạo những ghế assigned
+                    currentTypeSeats =
+                            seatService.createSeats(
+                                    typeReq.getSeats(),
+                                    savedType,
+                                    creatorId
+                            );
+                } else {
+                    // Tạo những ghế unassigned
+                    currentTypeSeats =
+                            seatService.createUnassignedSeats(
+                                    savedType,
+                                    creatorId
+                            );
+                }
                 tiersToSave.addAll(tiers);
-                seatsToSave.addAll(seats);
+                seatsToSave.addAll(currentTypeSeats);
             }
             if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
             if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
@@ -193,16 +204,28 @@ public class ShowServiceImpl implements ShowService {
                             savedType,
                             updatorId
                     );
-            List<Seat> seats =
-                    seatService.updateTicketTiers(
-                            typeReq.getSeats(),
-                            savedType,
-                            updatorId
-                    );
-            updatedTypes.get(i).setTicketTiers(tiers);
+            List<Seat> currentTypeSeats = new ArrayList<>();
+            if (savedShow.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && savedType.getSeatingType() == SeatingType.SEATED) {
+                // Tạo những ghế assigned
+                currentTypeSeats =
+                        seatService.updateAssignedSeats(
+                                typeReq.getSeats(),
+                                savedType,
+                                updatorId
+                        );
+            } else {
+                // Tạo những ghế unassigned
+                currentTypeSeats =
+                        seatService.updateUnassignedSeats(
+                                savedType,
+                                typeReq.getTotalQuantity(),
+                                updatorId
+                        );
+            }
             tiersToSave.addAll(tiers);
-            updatedTypes.get(i).setSeats(seats);
-            seatsToSave.addAll(seats);
+            seatsToSave.addAll(currentTypeSeats);
+            updatedTypes.get(i).setTicketTiers(tiers);
+            updatedTypes.get(i).setSeats(currentTypeSeats);
         }
         seatRepository.saveAll(seatsToSave);
         ticketTierRepository.saveAll(tiersToSave);
@@ -329,16 +352,27 @@ public class ShowServiceImpl implements ShowService {
                             savedType,
                             creatorId
                     );
-            List<Seat> seats =
-                    seatService.createSeats(
-                            typeReq.getSeats(),
-                            savedType,
-                            creatorId
-                    );
-            createdTypes.get(i).setTicketTiers(tiers);
-            createdTypes.get(i).setSeats(seats);
+            List<Seat> currentTypeSeats = new ArrayList<>();
+            if (savedShow.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && savedType.getSeatingType() == SeatingType.SEATED) {
+                // Tạo những ghế assigned
+                currentTypeSeats =
+                        seatService.createSeats(
+                                typeReq.getSeats(),
+                                savedType,
+                                creatorId
+                        );
+            } else {
+                // Tạo những ghế unassigned
+                currentTypeSeats =
+                        seatService.createUnassignedSeats(
+                                savedType,
+                                creatorId
+                        );
+            }
             tiersToSave.addAll(tiers);
-            seatsToSave.addAll(seats);
+            seatsToSave.addAll(currentTypeSeats);
+            createdTypes.get(i).setTicketTiers(tiers);
+            createdTypes.get(i).setSeats(currentTypeSeats);
         }
         if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
         if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
@@ -409,7 +443,8 @@ public class ShowServiceImpl implements ShowService {
     void syncShowStockToRedis(Show show) {
         String showId = show.getId();
         for (TicketType type : show.getTicketTypes()) {
-            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED) continue;
+            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED)
+                continue;
             String typeId = type.getId();
             redisTemplate.opsForValue().set(
                     String.format(KEY_TYPE_TOTAL, showId, typeId),

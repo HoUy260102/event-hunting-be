@@ -1,5 +1,7 @@
 package com.example.event.mapper;
 
+import com.example.event.constant.SeatMapType;
+import com.example.event.constant.SeatingType;
 import com.example.event.constant.ShowStatus;
 import com.example.event.constant.TicketTypeStatus;
 import com.example.event.dto.*;
@@ -9,6 +11,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,10 +23,19 @@ public class ShowMapper {
 
     public ShowDTO toDTO(Show show) {
         ShowDTO showDTO = modelMapper.map(show, ShowDTO.class);
-        showDTO.setTicketTypes(show.getTicketTypes().stream()
+        List<TicketTypeDTO> ticketTypeDTOS = show.getTicketTypes().stream()
                 .filter((ticketType) -> ticketType.getDeletedAt() == null)
-                .map((ticketTypeMapper::toDTO))
-                .collect(Collectors.toList()));
+                .map(ticketType -> {
+                    TicketTypeDTO ticketTypeDTO = ticketTypeMapper.toDTO(ticketType);
+                    ticketTypeDTO.setSeats(
+                            showDTO.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS
+                                    && ticketType.getSeatingType() == SeatingType.SEATED ? ticketTypeDTO.getSeats()
+                                    : new ArrayList<>()
+                    );
+                    return ticketTypeDTO;
+                })
+                .collect(Collectors.toList());
+        showDTO.setTicketTypes(ticketTypeDTOS);
         return showDTO;
     }
 

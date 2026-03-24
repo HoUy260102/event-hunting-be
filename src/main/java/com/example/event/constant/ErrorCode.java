@@ -74,6 +74,7 @@ public enum ErrorCode {
 
     RESERVATION_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST, "Giữ chỗ này đã hủy."),
     RESERVATION_EXPIRED(HttpStatus.BAD_REQUEST, "Giữ chỗ này đã hết hạn."),
+    RESERVATION_PENDING(HttpStatus.BAD_REQUEST, "Giữ chỗ này đang được xử lý."),
     RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy reservation."),
     RESERVATION_ALREADY_PAID(HttpStatus.BAD_REQUEST, "Reservation này đã được thanh toán."),
     RESERVATION_QUANTITY_EXCEEDED(HttpStatus.BAD_REQUEST, "Số lượng vé vượt quá giới hạn tối đa cho phép của mỗi đơn hàng."),
@@ -84,9 +85,12 @@ public enum ErrorCode {
     INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "Số lượng vé không hợp lệ."),
     INVALID_AMOUNT(HttpStatus.BAD_REQUEST, "Số tiền không hợp lệ."),
 
+    TICKET_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được ticket."),
+    NOT_ENOUGH_SEATS(HttpStatus.BAD_REQUEST, "Rất tiếc, không đủ số lượng ghế trống cho loại vé này."),
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy ghế."),
     SEAT_ALREADY_RESERVED(HttpStatus.CONFLICT, "Ghế đã có người đặt hoặc đang được giữ."),
 
+    ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống.");
 
     private final String message;

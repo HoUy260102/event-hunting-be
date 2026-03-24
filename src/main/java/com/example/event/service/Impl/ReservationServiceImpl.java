@@ -3,6 +3,7 @@ package com.example.event.service.Impl;
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
 import com.example.event.dto.ReservationDTO;
+import com.example.event.dto.ReservationDetailDTO;
 import com.example.event.dto.SeatSocketDTO;
 import com.example.event.dto.request.ReservationItemReq;
 import com.example.event.dto.request.ReservationReq;
@@ -39,6 +40,30 @@ public class ReservationServiceImpl implements ReservationService {
     private final SeatRepository seatRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ReservationMapper reservationMapper;
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReservationDetailDTO findReservationSuccessById(String id) {
+        String userId = securityUtils.getCurrentUserId();
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationDetailById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
+        User user = reservation.getUser();
+        if (reservation.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+        }
+        if (!userId.equals(user.getId())) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+        if (reservation.getStatus() != ReservationStatus.PAID) {
+            switch (reservation.getStatus()){
+                case ReservationStatus.EXPIRED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+                case ReservationStatus.CANCELLED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+                case ReservationStatus.PENDING -> throw new AppException(ErrorCode.RESERVATION_PENDING);
+                default -> throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+            }
+        }
+        return reservationMapper.toDetailDto(reservation);
+    }
 
     @Override
     @Transactional
@@ -174,8 +199,8 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setCustomerEmail(req.getCustomerEmail());
             reservation.setCustomerName(req.getCustomerName());
             reservation.setCustomerPhone(req.getCustomerPhone());
-            reservation.setShowId(show.getId());
-            reservation.setEventId(event.getId());
+            reservation.setShow(show);
+            reservation.setEvent(event);
             reservation.setTotalAmount(totalAmount);
             reservation.setFinalAmount(totalAmount);
             reservation.setExpiresAt(now.plusSeconds(RESERVATION_TTL_SECONDS));
@@ -331,7 +356,7 @@ public class ReservationServiceImpl implements ReservationService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void releaseReservationResources(Reservation reservation, LocalDateTime now, ReservationStatus status, String updatedBy) {
         try {
-            String showId = reservation.getShowId();
+            String showId = reservation.getShow().getId();
             List<ReservationItem> items = reservation.getItems();
             // Phân loại Items
             List<ReservationItem> unassignedItems = new ArrayList<>();
@@ -374,7 +399,7 @@ public class ReservationServiceImpl implements ReservationService {
                         .userId(reservation.getUser().getId())
                         .seatCodes(seatCodes)
                         .build();
-                messagingTemplate.convertAndSend("/topic/show/" + reservation.getShowId() + "/seats", seatSocketDTO);
+                messagingTemplate.convertAndSend("/topic/show/" + showId + "/seats", seatSocketDTO);
             }
 
             reservation.setStatus(status);

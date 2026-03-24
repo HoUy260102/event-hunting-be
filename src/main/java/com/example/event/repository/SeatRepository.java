@@ -53,6 +53,22 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     int releaseAllSeatsByReservation(@Param("reservationId") String reservationId,
                                      @Param("now") LocalDateTime now);
 
+    @Query(value = "SELECT * FROM seat " +
+            "WHERE status = 'AVAILABLE' AND ticket_type_id = :typeId " +
+            "ORDER BY queue_no ASC " +
+            "LIMIT :quantity FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    List<Seat> findBestAvailableUnassignedSeats(@Param("typeId") String typeId, @Param("quantity") int quantity);
+
+    @Modifying
+    @Query("UPDATE Seat s " +
+            "SET s.status = 'BOOKED', " +
+            "s.updatedBy = :updatedBy, " +
+            "s.updatedAt = :now " +
+            "WHERE s.id IN :ids AND (s.status = 'AVAILABLE' or s.status = 'HOLD')")
+    void markSeatsAsBooked(@Param("ids") List<String> ids,
+                           @Param("updatedBy") String updatedBy,
+                           @Param("now") LocalDateTime now);
+
     List<Seat> findSeatsByTicketType_IdAndDeletedAtIsNull(String ticketTypeId);
     Seat findSeatById(String id);
 }

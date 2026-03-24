@@ -2,16 +2,25 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.VNPayConfig;
 import com.example.event.constant.ErrorCode;
+import com.example.event.constant.PaymentMethod;
+import com.example.event.constant.PaymentStatus;
+import com.example.event.constant.ReservationStatus;
 import com.example.event.dto.ReservationDTO;
+import com.example.event.dto.TicketSummaryDTO;
+import com.example.event.entity.Payment;
 import com.example.event.entity.Reservation;
+import com.example.event.entity.User;
 import com.example.event.exception.AppException;
+import com.example.event.repository.PaymentRepository;
 import com.example.event.repository.ReservationRepository;
 import com.example.event.service.PaymentService;
+import com.example.event.service.TicketService;
 import com.example.event.util.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -29,6 +38,8 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final VNPayUtil vnPayUtil;
     private final VNPayConfig vnPayConfig;
     private final ReservationRepository reservationRepository;
+    private final PaymentRepository paymentRepository;
+    private final TicketService ticketService;
 
     @Override
     public String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest) {
@@ -151,17 +162,96 @@ public class VNPaymentServiceImpl implements PaymentService {
 
         // 2. Kiểm tra chữ ký
         String signValue = vnPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
-
         Map<String, String> result = new HashMap<>();
         if (signValue.equals(vnp_SecureHash)) {
             result.put("status", "OK");
             result.put("message", "Thanh toán thành công");
             result.put("txnRef", fields.get("vnp_TxnRef"));
+            result.put("transactionNo", fields.get("vnp_TransactionNo"));
+            result.put("bankCode", fields.get("vnp_BankCode"));
+            result.put("amount", fields.get("vnp_Amount"));
+            result.put("payDate", fields.get("vnp_PayDate"));
+            result.put("orderInfo", fields.get("vnp_OrderInfo"));
             result.put("responseCode", fields.get("vnp_ResponseCode"));
         } else {
             result.put("status", "FAILED");
             result.put("message", "Chữ ký không hợp lệ");
         }
         return result;
+    }
+
+    @Override
+    @Transactional
+    public void processPayment(Map<String, String> result) {
+        String reservationId = result.get("txnRef");
+        String vnpayTransactionNo = result.get("transactionNo");
+        String bankCode = result.get("bankCode");
+        String responseCode = result.get("responseCode");
+        String rawAmount = result.get("amount");
+        String payDateStr = result.get("payDate");
+
+        Long finalAmount = (rawAmount != null) ? Long.parseLong(rawAmount) / 100 : 0L;
+        LocalDateTime paidAt = null;
+        if (payDateStr != null && !payDateStr.isEmpty()) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+            paidAt = LocalDateTime.parse(payDateStr, formatter);
+        }
+        PaymentStatus paymentStatus = "00".equals(responseCode)
+                ? PaymentStatus.SUCCESS
+                : PaymentStatus.FAILED;
+
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDateTime now = LocalDateTime.now(vnZone);
+
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationId))
+                .orElseThrow(() -> {
+                    log.error("Reservation {} không được tìm thấy.", reservationId);
+                    return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+                });
+        User user = reservation.getUser();
+
+        if (!reservation.getFinalAmount().equals(finalAmount)) {
+            log.error("[PAYMENT] Sai lệch số tiền! DB: {}, VNPAY: {}", reservation.getTotalAmount(), finalAmount);
+            throw new AppException(ErrorCode.INVALID_AMOUNT);
+        }
+
+        if (reservation.getStatus() != ReservationStatus.PENDING) {
+            log.warn("[PAYMENT] Đơn hàng {} đã được xử lý (Status: {})", reservation, reservation.getStatus());
+            switch (reservation.getStatus()) {
+                case ReservationStatus.PAID -> throw new AppException(ErrorCode.RESERVATION_ALREADY_PAID);
+                case ReservationStatus.EXPIRED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+                case ReservationStatus.CANCELLED -> throw new AppException(ErrorCode.RESERVATION_ALREADY_CANCELLED);
+                default -> throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+            }
+        }
+
+        Payment payment = new Payment();
+        payment.setTotalAmount(reservation.getTotalAmount());
+        payment.setFinalAmount(finalAmount);
+        payment.setStatus(paymentStatus);
+        payment.setTransactionNo(vnpayTransactionNo);
+        payment.setBankCode(bankCode);
+        payment.setMethod(PaymentMethod.VNPAY);
+        payment.setPaidAt(paidAt);
+        payment.setReservation(reservation);
+        payment.setUser(user);
+
+        payment.setCreatedAt(now);
+        payment.setCreatedBy(user.getId());
+        payment.setUpdatedAt(now);
+        payment.setUpdatedBy(user.getId());
+        paymentRepository.save(payment);
+        log.info("[PAYMENT] User {} | Payment {} đã được tạo", user.getId(), payment.getId());
+
+        reservation.setStatus(ReservationStatus.PAID);
+        reservation.setUpdatedAt(now);
+        reservation.setUpdatedBy(user.getId());
+        reservationRepository.save(reservation);
+        log.info("[PAYMENT] User {} | Reservation {} đã được thanh toán", user.getId(), reservation.getId());
+
+        if ("00".equals(responseCode)) {
+            List<TicketSummaryDTO> ticketDTOS = ticketService.generateTickets(reservationId);
+            log.info("[PAYMENT] Thanh toán thành công và đã sinh vé cho đơn hàng: {}", reservationId);
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.example.event.controller;
 
 import com.example.event.dto.ReservationDTO;
+import com.example.event.dto.ReservationDetailDTO;
 import com.example.event.dto.request.ReservationReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.service.ReservationService;
@@ -32,6 +33,17 @@ public class ReservationController {
         reservationService.cancelReservation(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/{id}/payment-success")
+    public ResponseEntity<?> findReservationSuccessById(@PathVariable String id) {
+        ReservationDetailDTO reservationDTO = reservationService.findReservationSuccessById(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(reservationDTO)
                 .message("Thành công.")
                 .build();
         return ResponseEntity.status(HttpStatus.OK).body(response);
