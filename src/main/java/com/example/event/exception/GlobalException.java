@@ -4,6 +4,7 @@ import com.example.event.constant.ErrorCode;
 import com.example.event.dto.response.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -29,6 +30,20 @@ public class GlobalException {
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(errorCode.getHttpStatus().value()).body(response);
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockException(
+            ObjectOptimisticLockingFailureException exception) {
+
+        ErrorResponse response = ErrorResponse.builder()
+                .code("OPTIMISTIC_LOCK_ERROR")
+                .status(HttpStatus.CONFLICT.value())
+                .message("Dữ liệu vừa có ai đó được cập nhật trước, vui lòng tải lại và thử lại.")
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(BadCredentialsException.class)

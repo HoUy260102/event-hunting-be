@@ -1,6 +1,7 @@
 package com.example.event.entity;
 
 import com.example.event.config.jpa.UlidID;
+import com.example.event.constant.CheckInMethod;
 import com.example.event.constant.TicketStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -27,7 +28,9 @@ public class Ticket {
 
     @Enumerated(EnumType.STRING)
     private TicketStatus status;
-    private LocalDateTime checkinAt;
+    @Enumerated(EnumType.STRING)
+    private CheckInMethod checkInMethod;
+    private LocalDateTime checkInAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "show_id")

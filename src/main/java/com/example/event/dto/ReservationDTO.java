@@ -18,6 +18,7 @@ public class ReservationDTO {
     private String id;
     private String showId;
     private String eventId;
+    private String voucherId;
 
     private String userId;
     private String customerName;
@@ -25,6 +26,7 @@ public class ReservationDTO {
     private String customerPhone;
 
     private Long totalAmount;
+    private Long discountAmount;
     private Long finalAmount;
 
     private ReservationStatus status;

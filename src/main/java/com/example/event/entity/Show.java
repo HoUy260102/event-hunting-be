@@ -43,6 +43,8 @@ public class Show {
     @Fetch(FetchMode.SUBSELECT)
     private List<TicketType> ticketTypes;
 
+    private Boolean isCleanedUp = false;
+
     private LocalDateTime createdAt;
     private String createdBy;
     private LocalDateTime updatedAt;

@@ -40,15 +40,24 @@ public class Reservation {
     private String customerPhone;
 
     private Long totalAmount;
+    private Long discountAmount = 0L;
     private Long finalAmount;
+
 
     @Enumerated(EnumType.STRING)
     private ReservationStatus status;
 
     private LocalDateTime expiresAt;
 
+    @OneToOne(mappedBy = "reservation")
+    private Payment payment;
+
     @OneToMany(mappedBy = "reservation")
     private List<ReservationItem> items = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private Voucher voucher;
 
     private LocalDateTime createdAt;
     private String createdBy;

@@ -1,8 +1,10 @@
 package com.example.event.service.Impl;
 
+import com.example.event.config.security.SecurityUtils;
 import com.example.event.config.security.jwt.JwtUtils;
 import com.example.event.config.security.user.CustomUserDetails;
 import com.example.event.constant.ErrorCode;
+import com.example.event.dto.AuthDTO;
 import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
 import com.example.event.dto.response.AuthResponse;
@@ -42,6 +44,7 @@ public class AuthServiceImpl implements AuthService {
     private final SessionRepository sessionRepository;
     private final RoleRepository roleRepository;
     private final JwtUtils jwtUtils;
+    private final SecurityUtils securityUtils;
     private final AuthMapper authMapper;
     private final RedisService redisService;
     private final SessionService sessionService;
@@ -104,6 +107,14 @@ public class AuthServiceImpl implements AuthService {
             recordLoginFail(req.getUsername(), deviceId, ipAddress);
             throw e;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthDTO getAuthInfo() {
+        String userId = securityUtils.getCurrentUserId();
+        User user = userRepository.findUserByIdWithDetails(userId);
+        return authMapper.toDTO(user);
     }
 
     @Override

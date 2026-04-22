@@ -1,11 +1,15 @@
 package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
+import com.example.event.constant.CheckInMethod;
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.TicketStatus;
+import com.example.event.dto.TicketDTO;
 import com.example.event.dto.TicketDetailDTO;
 import com.example.event.dto.TicketSummaryDTO;
 import com.example.event.dto.request.SearchTicketPublicReq;
+import com.example.event.dto.request.TicketCheckInReq;
+import com.example.event.dto.request.TicketSearchReq;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.TicketMapper;
@@ -37,6 +41,7 @@ public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final TicketMapper ticketMapper;
     private final ReservationRepository reservationRepository;
+    private final VoucherRepository voucherRepository;
     private final SecurityUtils securityUtils;
 
     @Override
@@ -59,8 +64,9 @@ public class TicketServiceImpl implements TicketService {
         User user = reservation.getUser();
         String creatorId = user.getId();
         Show show = reservation.getShow();
+        Voucher voucher = reservation.getVoucher();
         Event event = show.getEvent();
-
+        if (voucher != null) voucherRepository.increaseUsedQuantity(voucher.getId());
         List<ReservationItem> reservationItems = reservation.getItems();
         List<ReservationItem> unassignedItems = reservationItems.stream()
                 .filter(item -> item.getSeat() == null)
@@ -165,6 +171,7 @@ public class TicketServiceImpl implements TicketService {
                 throw new AppException(ErrorCode.TICKET_TIER_SOLD_OUT);
             }
         });
+
         return savedTickets.stream()
                 .map(ticketMapper::toSummaryDTO)
                 .collect(Collectors.toList());
@@ -190,4 +197,71 @@ public class TicketServiceImpl implements TicketService {
         Page<Ticket> tickets = ticketRepository.findAll(spec, pageable);
         return tickets.map(ticketMapper::toSummaryDTO);
     }
+
+    @Override
+    public Page<TicketDTO> getSearchTickets(TicketSearchReq req) {
+        Specification<Ticket> spec = Specification
+                .where(TicketSpecification.fetchReservation())
+                .and(TicketSpecification.isNotDeleted());
+        spec = spec.and(TicketSpecification.hasShowId(req.getShowId()));
+        if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
+            spec = spec.and(Specification.anyOf(TicketSpecification.hasReservationId(req.getKeyword()), TicketSpecification.hasId(req.getKeyword())));
+        }
+        if (req.getStatus() != null) {
+            switch (req.getStatus()) {
+                case "UNUSED":
+                    spec = spec.and(TicketSpecification.hasStatus(TicketStatus.UNUSED));
+                    break;
+                case "USED":
+                    spec = spec.and(TicketSpecification.hasStatus(TicketStatus.USED));
+                    break;
+                default:
+            }
+        }
+        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize());
+        Page<Ticket> tickets = ticketRepository.findAll(spec, pageable);
+        return tickets.map(ticketMapper::toDTO);
+    }
+
+    @Override
+    @Transactional
+    public TicketDTO checkinTicket(String code, TicketCheckInReq req) {
+        String userId = securityUtils.getCurrentUserId();
+        LocalDateTime now = LocalDateTime.now();
+        Ticket ticket;
+        CheckInMethod method;
+        switch (req.getCheckInMethod()) {
+            case CheckInMethod.QR_CODE :
+                ticket = Optional.ofNullable(ticketRepository.findTicketByQrCode(code))
+                        .orElseThrow(() -> new AppException(ErrorCode.TICKET_NOT_AVAILABLE));
+                method = CheckInMethod.QR_CODE;
+                break;
+            case TICKET_CODE:
+                ticket = Optional.ofNullable(ticketRepository.findTicketById(code))
+                        .orElseThrow(() -> new AppException(ErrorCode.TICKET_NOT_AVAILABLE));
+                method = CheckInMethod.TICKET_CODE;
+                break;
+            default:
+                throw new AppException(ErrorCode.TICKET_NOT_AVAILABLE);
+        }
+        if (ticket.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.TICKET_NOT_AVAILABLE);
+        }
+        Show show = ticket.getShow();
+        if (!show.getId().equals(req.getShowId())) {
+            throw new AppException(ErrorCode.TICKET_NOT_AVAILABLE);
+        }
+        if (ticket.getCheckInAt() != null || ticket.getStatus() == TicketStatus.USED) {
+            throw new AppException(ErrorCode.TICKET_ALREADY_CHECKED_IN);
+        }
+        ticket.setCheckInAt(now);
+        ticket.setStatus(TicketStatus.USED);
+        ticket.setCheckInMethod(method);
+
+        ticket.setUpdatedAt(now);
+        ticket.setUpdatedBy(userId);
+        ticketRepository.save(ticket);
+        return ticketMapper.toDTO(ticket);
+    }
+
 }

@@ -5,6 +5,7 @@ import com.example.event.constant.SeatingType;
 import com.example.event.constant.ShowStatus;
 import com.example.event.constant.TicketTypeStatus;
 import com.example.event.dto.*;
+import com.example.event.entity.Event;
 import com.example.event.entity.Show;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 public class ShowMapper {
     private final ModelMapper modelMapper;
     private final TicketTypeMapper ticketTypeMapper;
+    private final FileMapper fileMapper;
 
     public ShowDTO toDTO(Show show) {
         ShowDTO showDTO = modelMapper.map(show, ShowDTO.class);
@@ -61,6 +63,15 @@ public class ShowMapper {
         return showBookingDTO;
     }
 
+    public ShowDetailDTO toDetailDTO(Show show) {
+        ShowDetailDTO showDetailDTO = modelMapper.map(show, ShowDetailDTO.class);
+        Event event = show.getEvent();
+        showDetailDTO.setEventName(event.getName());
+        showDetailDTO.setEventLocation(event.getLocation());
+        showDetailDTO.setEventPoster(fileMapper.toDTO(event.getPoster()));
+        return showDetailDTO;
+    }
+
     public ShowSummaryDTO toSummaryDTO(Show show) {
         ShowSummaryDTO showSummaryDTO = ShowSummaryDTO.builder()
                 .id(show.getId())
@@ -92,13 +103,23 @@ public class ShowMapper {
 
     private ShowStatus calculateShowSummaryStatus(Show show, List<TicketTypeSummaryDTO> ticketTypes) {
         LocalDateTime now = LocalDateTime.now();
+        // Check các trạng thái đặc biệt
         if (show.getDeletedAt() != null) return ShowStatus.DELETED;
         if (show.getStatus() == ShowStatus.CANCELLED) return ShowStatus.CANCELLED;
         if (show.getStatus() == ShowStatus.POSTPONED) return ShowStatus.POSTPONED;
+        // Check thời gian diễn ra show
         if (now.isAfter(show.getEndTime())) return ShowStatus.FINISHED;
+        // Kiểm tra có type nào ĐANG MỞ BÁN không
+        boolean hasAnyOnSale = ticketTypes.stream()
+                .anyMatch(type -> type.getBusinessStatus() == TicketTypeStatus.ON_SALE);
+        if (hasAnyOnSale) return ShowStatus.ON_SALE;
+        // Kiểm tra có type nào SẮP MỞ BÁN không (COMING_SOON hoặc TIER_SOLD_OUT nhưng còn tier sau)
+        boolean hasAnyComingSoon = ticketTypes.stream()
+                .anyMatch(type -> type.getBusinessStatus() == TicketTypeStatus.COMING_SOON
+                        || type.getBusinessStatus() == TicketTypeStatus.TIER_SOLD_OUT);
+        if (hasAnyComingSoon) return ShowStatus.UPCOMING;
         // Nếu tất cả các TicketType đều có trạng thái SOLD_OUT
         boolean isAllSoldOut = ticketTypes.stream()
-                .filter(type -> type.getAdminStatus() == TicketTypeStatus.ACTIVE)
                 .allMatch(type -> type.getSoldQuantity() >= type.getTotalQuantity());
         if (isAllSoldOut) {
             return ShowStatus.SOLD_OUT;

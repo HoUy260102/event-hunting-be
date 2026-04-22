@@ -13,12 +13,32 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TicketTypeSummaryDTO {
+//    private String id;
+//    private String name;
+//
+//    private Integer totalQuantity;
+//    private Integer soldQuantity;
+//    private Long totalRevenue;
+//
+//    private TicketTypeStatus adminStatus;
+//    private TicketTypeStatus businessStatus;
+//
+//    private List<TicketTierSummaryDTO> ticketTiers;
+
     private String id;
     private String name;
+
     private Integer totalQuantity;
+    private Integer reservedQuantity;
+    private Integer availableQuantity;
     private Integer soldQuantity;
-    private Long totalRevenue;
+
+    private Long totalPrice;
+    private Long discountAmount;
+    private Long finalPrice;
+
     private TicketTypeStatus adminStatus;
     private TicketTypeStatus businessStatus;
+
     private List<TicketTierSummaryDTO> ticketTiers;
 }

@@ -1,5 +1,6 @@
 package com.example.event.dto;
 
+import com.example.event.constant.CheckInMethod;
 import com.example.event.constant.TicketStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
@@ -22,7 +23,8 @@ public class TicketDetailDTO {
     private String qrCode;
 
     private TicketStatus status;
-    private LocalDateTime checkinAt;
+    private LocalDateTime checkInAt;
+    private CheckInMethod checkInMethod;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime showStartTime;

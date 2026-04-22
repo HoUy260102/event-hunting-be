@@ -5,7 +5,6 @@ import com.example.event.entity.User;
 import com.example.event.exception.JwtAuthenticationException;
 import com.example.event.repository.UserRepository;
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import lombok.RequiredArgsConstructor;
@@ -80,6 +79,27 @@ public class JwtUtils {
                     .parseClaimsJws(token)
                     .getBody();
             return claims.getSubject();
+        } catch (ExpiredJwtException e) {
+            throw new JwtAuthenticationException(ErrorCode.TOKEN_EXPIRED);
+        } catch (SignatureException e) {
+            throw new JwtAuthenticationException(ErrorCode.TOKEN_SIGNATURE_INVALID);
+        } catch (MalformedJwtException e) {
+            throw new JwtAuthenticationException(ErrorCode.TOKEN_MALFORMED);
+        } catch (UnsupportedJwtException e) {
+            throw new JwtAuthenticationException(ErrorCode.TOKEN_UNSUPPORTED);
+        } catch (IllegalArgumentException e) {
+            throw new JwtAuthenticationException(ErrorCode.TOKEN_ILLEGAL_ARGUMENT);
+        }
+    }
+
+    public String getUserIdFromToken(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+            return claims.get("id").toString();
         } catch (ExpiredJwtException e) {
             throw new JwtAuthenticationException(ErrorCode.TOKEN_EXPIRED);
         } catch (SignatureException e) {

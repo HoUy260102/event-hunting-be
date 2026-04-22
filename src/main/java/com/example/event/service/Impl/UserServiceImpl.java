@@ -146,6 +146,44 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public UserDTO updateProfile(UpdateUserReq req) {
+        String updatorId = securityUtils.getCurrentUserId();
+        User updateUser = Optional.ofNullable(userRepository.findUserByIdForUpdate(updatorId)).orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_FOUND)
+        );
+        updateUser.setName(req.getName());
+        updateUser.setPhone(req.getPhone());
+        if (req.getDob() != null) updateUser.setDob(req.getDob());
+        if (req.getAddress() != null && !req.getAddress().trim().equals("")) updateUser.setAddress(req.getAddress());
+        String newAvatarId = req.getFileId();
+        File oldAvatar = updateUser.getAvatar();
+        if (newAvatarId != null && !newAvatarId.trim().isEmpty()) {
+            if (oldAvatar == null || !newAvatarId.equals(oldAvatar.getId())) {
+                File newAvatar = Optional.ofNullable(fileRepository.findFileById(newAvatarId))
+                        .orElseThrow(() -> new AppException(ErrorCode.FILE_NOT_FOUND));
+                if (newAvatar.getType() != FileType.IMAGE) {
+                    throw new AppException(ErrorCode.INVALID_FILE_TYPE);
+                }
+                newAvatar.setStatus(FileStatus.ACTIVE);
+                newAvatar.setReferenceId(updateUser.getId());
+                fileRepository.save(newAvatar);
+                if (oldAvatar != null) {
+                    oldAvatar.setReferenceId(null);
+                    oldAvatar.setStatus(FileStatus.DELETED);
+                    oldAvatar.setDeletedAt(LocalDateTime.now());
+                    fileRepository.save(oldAvatar);
+                }
+                updateUser.setAvatar(newAvatar);
+            }
+        }
+        updateUser.setUpdatedAt(LocalDateTime.now());
+        updateUser.setUpdatedBy(updatorId);
+        userRepository.save(updateUser);
+        return userMapper.toDTO(updateUser);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public UserDTO findUserById(String id) {
         User user = Optional.ofNullable(userRepository.findUserByIdWithDetails(id)).orElseThrow(

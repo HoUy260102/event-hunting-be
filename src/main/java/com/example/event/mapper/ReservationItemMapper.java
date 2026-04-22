@@ -16,6 +16,8 @@ public class ReservationItemMapper {
         reservationItemDTO.setTicketTierId(reservationItem.getTicketTier() != null ? reservationItem.getTicketTier().getId() : null);
         reservationItemDTO.setSeatId(reservationItem.getSeat() != null ? reservationItem.getSeat().getId() : null);
         reservationItemDTO.setSeatDisplayName(reservationItem.getSeat() != null ? reservationItem.getSeat().getRowName() + "-" +reservationItem.getSeat().getSeatNumber() : null);
+        reservationItemDTO.setDiscountAmount(reservationItem.getDiscountAmount() != null ? reservationItem.getDiscountAmount() : 0L);
+        reservationItemDTO.setFinalPrice(reservationItem.getFinalPrice() != null ? reservationItem.getFinalPrice() : reservationItem.getTotalPrice());
         return reservationItemDTO;
     }
 }

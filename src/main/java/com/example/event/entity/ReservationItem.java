@@ -43,6 +43,9 @@ public class ReservationItem {
     private Integer quantity;
     private Long totalPrice;
 
+    private Long discountAmount = 0L;
+    private Long finalPrice;
+
     private LocalDateTime createdAt;
     private String createdBy;
     private LocalDateTime updatedAt;

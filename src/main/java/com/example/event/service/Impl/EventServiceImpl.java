@@ -262,14 +262,16 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public EventDTO findEventById(String id) {
-        Event event = eventRepository.findEventByIdForDetails(id);
+        Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         return eventMapper.toDTO(event);
     }
 
     @Override
     @Transactional(readOnly = true)
     public EventInfoDTO findEventInfoById(String id) {
-        Event event = eventRepository.findEventByIdForDetails(id);
+        Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         if (event.getDeletedAt() != null) {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
@@ -287,7 +289,8 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public EventSummaryDTO getEventSummaryById(String id) {
-        Event event = eventRepository.findEventByIdForDetails(id);
+        Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         if (event.getDeletedAt() != null) {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }

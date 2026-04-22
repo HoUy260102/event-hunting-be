@@ -70,5 +70,6 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
                            @Param("now") LocalDateTime now);
 
     List<Seat> findSeatsByTicketType_IdAndDeletedAtIsNull(String ticketTypeId);
+    List<Seat> findSeatsByIdIn(List<String> ids);
     Seat findSeatById(String id);
 }

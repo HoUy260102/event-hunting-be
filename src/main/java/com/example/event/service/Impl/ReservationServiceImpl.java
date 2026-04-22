@@ -2,9 +2,7 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
-import com.example.event.dto.ReservationDTO;
-import com.example.event.dto.ReservationDetailDTO;
-import com.example.event.dto.SeatSocketDTO;
+import com.example.event.dto.*;
 import com.example.event.dto.request.ReservationItemReq;
 import com.example.event.dto.request.ReservationReq;
 import com.example.event.entity.*;
@@ -13,6 +11,8 @@ import com.example.event.mapper.ReservationMapper;
 import com.example.event.repository.*;
 import com.example.event.service.LockService;
 import com.example.event.service.ReservationService;
+import com.example.event.service.TicketQueueService;
+import com.example.event.service.VoucherService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -36,22 +36,26 @@ public class ReservationServiceImpl implements ReservationService {
     private final LockService lockService;
     private final ShowRepository showRepository;
     private final SecurityUtils securityUtils;
-    private static final long RESERVATION_TTL_SECONDS = 300L;
     private final SeatRepository seatRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final ReservationMapper reservationMapper;
+    private final TicketQueueService ticketQueueService;
+    private final VoucherRepository voucherRepository;
+    private final VoucherService voucherService;
+
+    private static final long RESERVATION_TTL_SECONDS = 300L;
+    private static final int EXTRA_PERIOD_SECONDS = 30;
 
     @Override
     @Transactional(readOnly = true)
     public ReservationDetailDTO findReservationSuccessById(String id) {
-        String userId = securityUtils.getCurrentUserId();
         Reservation reservation = Optional.ofNullable(reservationRepository.findReservationDetailById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
         User user = reservation.getUser();
         if (reservation.getDeletedAt() != null) {
             throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
         }
-        if (!userId.equals(user.getId())) {
+        if (!securityUtils.canAccessThisResource(user.getId())) {
             throw new AppException(ErrorCode.ACCESS_DENIED);
         }
         if (reservation.getStatus() != ReservationStatus.PAID) {
@@ -63,6 +67,29 @@ public class ReservationServiceImpl implements ReservationService {
             }
         }
         return reservationMapper.toDetailDto(reservation);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReservationSummaryDTO findReservationSummaryById(String id) {
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationDetailById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
+        User user = reservation.getUser();
+        if (reservation.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+        }
+        if (!securityUtils.canAccessThisResource(user.getId())) {
+            throw new AppException(ErrorCode.ACCESS_DENIED);
+        }
+        if (reservation.getStatus() != ReservationStatus.PAID) {
+            switch (reservation.getStatus()){
+                case ReservationStatus.EXPIRED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+                case ReservationStatus.CANCELLED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+                case ReservationStatus.PENDING -> throw new AppException(ErrorCode.RESERVATION_PENDING);
+                default -> throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+            }
+        }
+        return reservationMapper.toSummaryDto(reservation);
     }
 
     @Override
@@ -195,6 +222,8 @@ public class ReservationServiceImpl implements ReservationService {
             }
 
             // Tạo reservation
+            long reservationTTLSeconds = ticketQueueService.getRemainingTimeSeconds(show.getId(), user.getId());
+
             Reservation reservation = new Reservation();
             reservation.setCustomerEmail(req.getCustomerEmail());
             reservation.setCustomerName(req.getCustomerName());
@@ -203,7 +232,7 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setEvent(event);
             reservation.setTotalAmount(totalAmount);
             reservation.setFinalAmount(totalAmount);
-            reservation.setExpiresAt(now.plusSeconds(RESERVATION_TTL_SECONDS));
+            reservation.setExpiresAt(now.plusSeconds(reservationTTLSeconds + EXTRA_PERIOD_SECONDS));
             reservation.setStatus(ReservationStatus.PENDING);
             reservation.setUser(user);
             reservation.setCreatedBy(creatorId);
@@ -250,6 +279,7 @@ public class ReservationServiceImpl implements ReservationService {
                 item.setUnitPrice(unassignedItem.getUnitPrice());
                 item.setQuantity(unassignedItem.getQuantity());
                 item.setTotalPrice(unassignedItem.getUnitPrice() * unassignedItem.getQuantity());
+                item.setFinalPrice(unassignedItem.getUnitPrice() * unassignedItem.getQuantity());
                 item.setReservation(reservation);
                 item.setCreatedBy(creatorId);
                 item.setCreatedAt(now);
@@ -301,6 +331,7 @@ public class ReservationServiceImpl implements ReservationService {
                     item.setUnitPrice(assignedItem.getUnitPrice());
                     item.setQuantity(1);
                     item.setTotalPrice(assignedItem.getUnitPrice());
+                    item.setFinalPrice(assignedItem.getUnitPrice());
                     item.setSeat(seat);
                     item.setSeatCode(seat.getSeatCode());
                     item.setReservation(reservation);
@@ -353,10 +384,30 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public ReservationDTO findReservationAfterDiscount(String reservationId, String voucherId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        // Nếu không dùng voucher thì trả về reservation gốc
+        if (voucherId == null) {
+            return getReservationAfterDiscount(reservation, null);
+        }
+        // Nếu sử dụng voucher
+        Voucher voucher = voucherRepository.findById(voucherId)
+                .orElseThrow(() -> new AppException(ErrorCode.VOUCHER_NOT_FOUND));
+        // Validate voucher
+        voucherService.validateVoucherForReservation(voucherId, reservation);
+        ReservationDTO reservationDTO = getReservationAfterDiscount(reservation, voucher);
+        return reservationDTO;
+    }
+
+    @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void releaseReservationResources(Reservation reservation, LocalDateTime now, ReservationStatus status, String updatedBy) {
         try {
             String showId = reservation.getShow().getId();
+            Voucher voucher = reservation.getVoucher();
             List<ReservationItem> items = reservation.getItems();
             // Phân loại Items
             List<ReservationItem> unassignedItems = new ArrayList<>();
@@ -393,6 +444,11 @@ public class ReservationServiceImpl implements ReservationService {
             if (!seatedItems.isEmpty()) {
                 seatRepository.releaseAllSeatsByReservation(reservation.getId(), now);
             }
+
+            if (voucher != null) {
+                voucherRepository.decreaseReservedQuantity(voucher.getId());
+            }
+
             if (!seatCodes.isEmpty()) {
                 SeatSocketDTO seatSocketDTO = SeatSocketDTO.builder()
                         .action("UNLOCK")
@@ -479,4 +535,150 @@ public class ReservationServiceImpl implements ReservationService {
         }
     }
 
+    @Override
+    public void validateReservationForPayment(Reservation reservation) {
+        String resId = reservation.getId();
+
+        // 1. Reservation còn hạn không
+        if (LocalDateTime.now().isAfter(reservation.getExpiresAt())) {
+            log.warn("Payment validation failed: Reservation {} has expired at {}", resId, reservation.getExpiresAt());
+            throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+        }
+
+        // 2. Trạng thái có hợp lệ để thanh toán không
+        if (reservation.getStatus() != ReservationStatus.PENDING) {
+            log.warn("Payment validation failed: Reservation {} is in status {}, expected PENDING", resId, reservation.getStatus());
+            throw new AppException(ErrorCode.RESERVATION_NOT_PAYABLE);
+        }
+
+        // 3. Có items không
+        if (reservation.getItems() == null || reservation.getItems().isEmpty()) {
+            log.warn("Payment validation failed: Reservation {} has no items (empty/null)", resId);
+            throw new AppException(ErrorCode.RESERVATION_HAS_NO_ITEMS);
+        }
+
+        // 4. Số tiền hợp lệ không
+        if (reservation.getFinalAmount() <= 0) {
+            log.warn("Payment validation failed: Reservation {} has invalid final amount: {}", resId, reservation.getFinalAmount());
+            throw new AppException(ErrorCode.INVALID_AMOUNT);
+        }
+
+        log.info("Payment validation successful for Reservation: {}", resId);
+    }
+
+    @Override
+    public ReservationDTO calculateDiscount(Reservation reservation, Voucher voucher) {
+        return getReservationAfterDiscount(reservation, voucher);
+    }
+
+    @Override
+    public void applyDiscount(Reservation reservation, Voucher voucher, ReservationDTO calculated) {
+        Map<String, ReservationItemDTO> itemMap = calculated.getItems()
+                .stream()
+                .collect(Collectors.toMap(ReservationItemDTO::getId, item -> item));
+
+        for (ReservationItem item : reservation.getItems()) {
+            ReservationItemDTO calc = itemMap.get(item.getId());
+            if (calc == null) {
+                item.setDiscountAmount(0L);
+                item.setFinalPrice(item.getTotalPrice());
+            } else {
+                item.setDiscountAmount(calc.getDiscountAmount());
+                item.setFinalPrice(calc.getFinalPrice());
+            }
+            reservationItemRepository.save(item);
+        }
+
+        reservation.setVoucher(voucher);
+        reservation.setDiscountAmount(calculated.getDiscountAmount());
+        reservation.setFinalAmount(calculated.getFinalAmount());
+        reservation.setUpdatedAt(LocalDateTime.now());
+        reservationRepository.save(reservation);
+    }
+
+    @Override
+    public void resetDiscount(Reservation reservation) {
+        for (ReservationItem item : reservation.getItems()) {
+            item.setDiscountAmount(0L);
+            item.setFinalPrice(item.getTotalPrice());
+            reservationItemRepository.save(item);
+        }
+
+        reservation.setVoucher(null);
+        reservation.setDiscountAmount(0L);
+        reservation.setFinalAmount(reservation.getTotalAmount());
+        reservation.setUpdatedAt(LocalDateTime.now());
+        reservationRepository.save(reservation);
+    }
+
+    private ReservationDTO getReservationAfterDiscount(Reservation reservation, Voucher voucher) {
+        ReservationDTO dto = reservationMapper.toDto(reservation);
+        dto.setDiscountAmount(0L);
+        dto.setFinalAmount(reservation.getTotalAmount());
+        dto.getItems().forEach(item -> {
+            item.setDiscountAmount(0L);
+            item.setFinalPrice(item.getTotalPrice());
+        });
+
+        // Kiểu tra xem có voucher không
+        if (voucher == null) return dto;
+
+        // Kiểm tra điều kiện áp dụng Voucher
+        long totalAmount = reservation.getTotalAmount();
+
+        // Lọc danh sách các Item hợp lệ được áp dụng giảm giá
+        List<ReservationItemDTO> eligibleItems = dto.getItems().stream()
+                .filter(i -> voucher.getTicketTypes() == null
+                        || voucher.getTicketTypes().isEmpty()
+                        || voucher.getTicketTypes().stream().anyMatch(t -> t.getId().equals(i.getTicketTypeId())))
+                .collect(Collectors.toList());
+
+        // Nếu không có item nào thỏa mãn điều kiện voucher
+        if (eligibleItems.isEmpty()) {
+            dto.setDiscountAmount(0L);
+            dto.setFinalAmount(totalAmount);
+            return dto;
+        }
+
+        long eligibleTotal = eligibleItems.stream().mapToLong(ReservationItemDTO::getTotalPrice).sum();
+
+        // Tính toán tổng số tiền giảm
+        long totalDiscount = 0L;
+        if (voucher.getDiscountType() == DiscountType.PERCENT) {
+            totalDiscount = eligibleTotal * voucher.getDiscountValue() / 100;
+            if (voucher.getMaxDiscountValue() != null) {
+                totalDiscount = Math.min(totalDiscount, voucher.getMaxDiscountValue());
+            }
+        } else {
+            totalDiscount = Math.min(voucher.getDiscountValue(), eligibleTotal);
+        }
+
+        // Phân bổ số tiền giảm vào từng Item hợp lệ
+        long remainingDiscount = totalDiscount;
+        for (int i = 0; i < eligibleItems.size(); i++) {
+            ReservationItemDTO item = eligibleItems.get(i);
+            long itemDiscount;
+
+            if (i == eligibleItems.size() - 1) {
+                // Item cuối cùng nhận toàn bộ phần tiền giảm còn lại để tránh sai số làm tròn
+                itemDiscount = remainingDiscount;
+            } else {
+                // Tính tỷ lệ giảm dựa trên giá trị của item đó trong tổng số các item hợp lệ
+                itemDiscount = totalDiscount * item.getTotalPrice() / eligibleTotal;
+                remainingDiscount -= itemDiscount;
+            }
+
+            item.setDiscountAmount(itemDiscount);
+            item.setFinalPrice(item.getTotalPrice() - itemDiscount);
+        }
+
+        // Cập nhật lại thông tin tổng quát cho Reservation DTO
+        dto.setDiscountAmount(totalDiscount);
+        dto.setFinalAmount(totalAmount - totalDiscount);
+
+        log.info("Voucher {} applied to Res {}: Discount={}, Final={}",
+                voucher.getId(), reservation.getId(), totalDiscount, dto.getFinalAmount());
+
+        return dto;
+    }
 }

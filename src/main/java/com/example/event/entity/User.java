@@ -29,11 +29,6 @@ public class User {
 
     private String address;
     private Date dob;
-    
-//    private String organizerDescription;
-//    private String organizerEmail;
-//    private String organizerWebsiteUrl;
-//    private String organizerContactName;
 
     // Trạng thái khóa tài khoản
     private LocalDateTime lockAt;

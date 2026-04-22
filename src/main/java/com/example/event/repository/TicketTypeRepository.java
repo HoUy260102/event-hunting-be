@@ -73,6 +73,7 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, String> 
 
     TicketType findTicketTypeById(String id);
     List<TicketType> findTicketTypesByShow_IdAndDeletedAtIsNull(String showId);
+    List<TicketType> findTicketTypesByShow_Id(String showId);
     List<TicketType> findTicketTypesByShow_IdInAndDeletedAtIsNull(List<String> showIds);
 }
 

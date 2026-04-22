@@ -3,6 +3,7 @@ package com.example.event.mapper;
 import com.example.event.dto.ReservationDTO;
 import com.example.event.dto.ReservationDetailDTO;
 import com.example.event.dto.ReservationItemDTO;
+import com.example.event.dto.ReservationSummaryDTO;
 import com.example.event.entity.Event;
 import com.example.event.entity.Reservation;
 import com.example.event.entity.ReservationItem;
@@ -21,7 +22,26 @@ public class ReservationMapper {
 
     public ReservationDTO toDto(Reservation reservation) {
         ReservationDTO reservationDTO = modelMapper.map(reservation, ReservationDTO.class);
+        reservationDTO.setEventId(reservation.getEvent() != null ? reservation.getEvent().getId() : null);
+        reservationDTO.setShowId(reservation.getShow() != null ? reservation.getShow().getId() : null);
         reservationDTO.setUserId(reservation.getUser() != null ? reservation.getUser().getId() : null);
+        reservationDTO.setDiscountAmount(reservation.getDiscountAmount() != null ? reservation.getDiscountAmount() : 0L);
+        reservationDTO.setFinalAmount(reservation.getFinalAmount() != null ? reservation.getFinalAmount() : reservation.getTotalAmount());
+        reservationDTO.setItems(reservation.getItems()
+                .stream()
+                .map(reservationItemMapper::toDto)
+                .collect(Collectors.toList()));
+        return reservationDTO;
+    }
+
+    public ReservationDetailDTO toDetailDto(Reservation reservation) {
+        ReservationDetailDTO reservationDTO = modelMapper.map(reservation, ReservationDetailDTO.class);
+        Show show = reservation.getShow();
+        Event event = reservation.getEvent();
+        reservationDTO.setShowStartTime(show.getStartTime());
+        reservationDTO.setShowEndTime(show.getEndTime());
+        reservationDTO.setEventName(event.getName());
+        reservationDTO.setEventLocation(event.getLocation());
         reservationDTO.setItems(reservation.getItems()
                 .stream()
                 .collect(Collectors.groupingBy(
@@ -49,8 +69,8 @@ public class ReservationMapper {
         return reservationDTO;
     }
 
-    public ReservationDetailDTO toDetailDto(Reservation reservation) {
-        ReservationDetailDTO reservationDTO = modelMapper.map(reservation, ReservationDetailDTO.class);
+    public ReservationSummaryDTO toSummaryDto(Reservation reservation) {
+        ReservationSummaryDTO reservationDTO = modelMapper.map(reservation, ReservationSummaryDTO.class);
         Show show = reservation.getShow();
         Event event = reservation.getEvent();
         reservationDTO.setShowStartTime(show.getStartTime());
@@ -59,8 +79,30 @@ public class ReservationMapper {
         reservationDTO.setEventLocation(event.getLocation());
         reservationDTO.setItems(reservation.getItems()
                 .stream()
-                .map(reservationItemMapper::toDto)
+                .collect(Collectors.groupingBy(
+                        item -> item.getTicketType().getId(),
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> {
+                                    ReservationItem first = list.get(0);
+                                    return ReservationItemDTO.builder()
+                                            .ticketTypeId(first.getTicketType().getId())
+                                            .ticketTypeName(first.getTicketType().getName())
+                                            .quantity(list.stream().mapToInt(ReservationItem::getQuantity).sum())
+                                            .totalPrice(list.stream().mapToLong(ReservationItem::getTotalPrice).sum())
+                                            .unitPrice(first.getUnitPrice())
+                                            .seatId(null)
+                                            .seatCode(null)
+                                            .seatDisplayName(null)
+                                            .build();
+                                }
+                        )
+                ))
+                .values()
+                .stream()
                 .collect(Collectors.toList()));
+        reservationDTO.setPaymentMethod(reservation.getPayment().getMethod());
+        reservationDTO.setPaidAt(reservation.getPayment().getPaidAt());
         return reservationDTO;
     }
 }

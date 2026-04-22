@@ -131,6 +131,17 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @GetMapping("/{id}/shows/selection")
+    public ResponseEntity<?> findShowSelectionById(@PathVariable String id) {
+        List<ShowSelectionDTO> showSelectionDTO = showService.findShowSelectionByEventId(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(showSelectionDTO)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateEvent(@RequestBody UpdateEventReq req, @PathVariable String id) {
         EventDTO eventDTO = eventService.updateEvent(req, id);

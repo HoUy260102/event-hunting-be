@@ -1,5 +1,6 @@
 package com.example.event.mapper;
 
+import com.example.event.dto.TicketDTO;
 import com.example.event.dto.TicketDetailDTO;
 import com.example.event.dto.TicketSummaryDTO;
 import com.example.event.entity.Event;
@@ -48,6 +49,17 @@ public class TicketMapper {
         ticketDTO.setCustomerEmail(reservation.getCustomerEmail());
         ticketDTO.setCustomerPhone(reservation.getCustomerPhone());
 
+        return ticketDTO;
+    }
+
+    public TicketDTO toDTO(Ticket ticket) {
+        TicketDTO ticketDTO = modelMapper.map(ticket, TicketDTO.class);
+        Reservation reservation = ticket.getReservation();
+
+        ticketDTO.setReservationId(reservation.getId());
+        ticketDTO.setCustomerName(reservation.getCustomerName());
+        ticketDTO.setCustomerEmail(reservation.getCustomerEmail());
+        ticketDTO.setCustomerPhone(reservation.getCustomerPhone());
         return ticketDTO;
     }
 }

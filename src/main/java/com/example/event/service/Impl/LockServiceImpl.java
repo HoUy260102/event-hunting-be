@@ -4,7 +4,9 @@ import com.example.event.constant.ErrorCode;
 import com.example.event.dto.request.ReservationItemReq;
 import com.example.event.entity.ReservationItem;
 import com.example.event.exception.AppException;
+import com.example.event.repository.SeatRepository;
 import com.example.event.service.LockService;
+import com.example.event.service.TicketQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -12,6 +14,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,12 +23,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LockServiceImpl implements LockService {
     private final RedisTemplate<String, String> redisTemplate;
+    private final SeatRepository seatRepository;
+    private final TicketQueueService ticketQueueService;
+
     private static final int LOCK_TIMEOUT_SECONDS = 300;
+    private static final int EXTRA_PERIOD_SECONDS = 40;
 
     private static final String BULK_RESERVE_UNASSIGN_LUA = "local itemCount = #ARGV / 3 " +
             "if #ARGV % 3 ~= 0 then return 'ERR_INVALID_ARGV' end " +
             "if #KEYS ~= itemCount * 4 then return 'ERR_INVALID_KEYS' end " +
 
+            "local errors = {} " +
             "for i = 1, itemCount do " +
             "    local argIdx = (i - 1) * 3 " +
             "    local keyIdx = (i - 1) * 4 " +
@@ -41,9 +49,11 @@ public class LockServiceImpl implements LockService {
             "    local tierLimit = tonumber(redis.call('GET', KEYS[keyIdx + 3]) or '0') " +
             "    local tierRes   = tonumber(redis.call('GET', KEYS[keyIdx + 4]) or '0') " +
 
-            "    if (typeRes + buyQty) > typeTotal then return 'ERR_TYPE_FULL:' .. typeId end " +
-            "    if (tierRes + buyQty) > tierLimit then return 'ERR_TIER_FULL:' .. tierId end " +
+            "    if (typeRes + buyQty) > typeTotal then table.insert(errors, 'ERR_TYPE_FULL:' .. typeId) end " +
+            "    if (tierRes + buyQty) > tierLimit then table.insert(errors, 'ERR_TIER_FULL:' .. tierId) end " +
             "end " +
+
+            "if #errors > 0 then return table.concat(errors, ',') end " +
 
             "for i = 1, itemCount do " +
             "    local argIdx = (i - 1) * 3 " +
@@ -75,8 +85,14 @@ public class LockServiceImpl implements LockService {
 
     private static final String SEAT_LOCK_LUA =
             "local seatCount = #KEYS " +
+                    "local occupiedSeats = {} " +
                     "for i = 1, seatCount do " +
-                    "    if redis.call('EXISTS', KEYS[i]) == 1 then return 'ERR_SEAT_OCCUPIED:' .. ARGV[i + 2] end " +
+                    "    if redis.call('EXISTS', KEYS[i]) == 1 then " +
+                    "        table.insert(occupiedSeats, ARGV[i + 2]) " +
+                    "    end " +
+                    "end " +
+                    "if #occupiedSeats > 0 then " +
+                    "    return 'ERR_SEATS_OCCUPIED:' .. table.concat(occupiedSeats, ',') " +
                     "end " +
                     "for i = 1, seatCount do " +
                     "    redis.call('SET', KEYS[i], ARGV[1]) " +
@@ -107,13 +123,6 @@ public class LockServiceImpl implements LockService {
         script.setScriptText(text);
         script.setResultType(type);
         return script;
-    }
-
-    public void initEventData(String showId, String typeId, Long total, String tierId, Long limit) {
-        redisTemplate.opsForValue().set(String.format(KEY_TYPE_TOTAL, showId, typeId), total.toString());
-        redisTemplate.opsForValue().set(String.format(KEY_TIER_LIMIT, showId, tierId), limit.toString());
-        redisTemplate.opsForValue().setIfAbsent(String.format(KEY_TYPE_RESERVED, showId, typeId), "0");
-        redisTemplate.opsForValue().setIfAbsent(String.format(KEY_TIER_RESERVED, showId, tierId), "0");
     }
 
     @Override
@@ -155,22 +164,26 @@ public class LockServiceImpl implements LockService {
                 .sorted()
                 .collect(Collectors.toList());
         if (sortedSeatIds.isEmpty()) return;
-
+        long lockTimeOutSeconds = ticketQueueService.getRemainingTimeSeconds(showId, userId);
         List<String> keys = new ArrayList<>();
         List<String> args = new ArrayList<>();
         args.add(userId);
-        args.add(Integer.toString(LOCK_TIMEOUT_SECONDS));
+        args.add(Integer.toString((int) lockTimeOutSeconds) + EXTRA_PERIOD_SECONDS);
         sortedSeatIds.forEach(seatId -> {
             keys.add(String.format(KEY_SEAT_STATUS, showId, seatId));
             args.add(seatId);
         });
         try {
             String result = redisTemplate.execute(seatLockScript, keys, args.toArray());
-            if (result != null && result.startsWith("ERR_SEAT_OCCUPIED:")) {
-                String occupiedSeatId = result.substring(18);
-                log.warn("[SeatLock] Show {}: Ghế {} đã bị chiếm bởi người khác", showId, occupiedSeatId);
+            if (result != null && result.startsWith("ERR_SEATS_OCCUPIED:")) {
+                List<String> occupiedSeatIds = Arrays.asList(result.substring(19).split(","));
+                String occupiedSeats = seatRepository.findSeatsByIdIn(occupiedSeatIds)
+                        .stream()
+                        .map(seat -> seat.getRowName() + "-" + seat.getSeatNumber())
+                        .collect(Collectors.joining(", "));
+                log.warn("[SeatLock] Show {}: Ghế {} đã bị chiếm bởi người khác", showId, occupiedSeats);
                 throw new AppException(ErrorCode.SEAT_ALREADY_RESERVED,
-                        "Ghế " + occupiedSeatId + " đã có người chọn rồi bạn ơi!");
+                        "Ghế: " + occupiedSeats + " đã có người chọn rồi bạn ơi!");
             }
             if ("OK".equals(result)) {
                 String seatIdsForLog = sortedSeatIds.stream()
@@ -288,44 +301,46 @@ public class LockServiceImpl implements LockService {
             throw new RuntimeException("Phản hồi từ hệ thống không hợp lệ.");
         }
 
-        String failedId;
+        List<String> failedTypeIds = new ArrayList<>(Arrays.asList(result.split(",")))
+                .stream()
+                .filter(error -> error.startsWith("ERR_TYPE_FULL:"))
+                .map(e -> e.substring("ERR_TYPE_FULL:".length()))
+                .collect(Collectors.toList());
+        List<String> failedTierIds = new ArrayList<>(Arrays.asList(result.split(",")))
+                .stream()
+                .filter(error -> error.startsWith("ERR_TIER_FULL:"))
+                .map(e -> e.substring("ERR_TIER_FULL:".length()))
+                .collect(Collectors.toList());
 
-        if (result.startsWith("ERR_TYPE_FULL:")) {
-            failedId = result.substring("ERR_TYPE_FULL:".length());
-
-            String typeName = requests.stream()
-                    .filter(r -> r.getTicketTypeId().equals(failedId))
-                    .findFirst()
+        if (!failedTypeIds.isEmpty()) {
+            List<String> finalFailedTypeIds = failedTypeIds;
+            String typeNames = requests.stream()
+                    .filter(r -> finalFailedTypeIds.contains(r.getTicketTypeId()))
                     .map(ReservationItemReq::getTicketTypeName)
-                    .orElse("loại vé này");
-
-            log.warn("Ticket Type full: {}", failedId);
+                    .distinct()
+                    .collect(Collectors.joining(", "));
+            log.warn("Ticket Type full: {}", finalFailedTypeIds);
             throw new AppException(ErrorCode.TICKET_TYPE_FULL,
-                    "Loại vé " + typeName + " đã hết hàng!");
+                    "Các loại vé: " + typeNames + " đã hết hàng!");
         }
-
-        if (result.startsWith("ERR_TIER_FULL:")) {
-            failedId = result.substring("ERR_TIER_FULL:".length());
-
-            String tierName = requests.stream()
-                    .filter(r -> r.getTicketTierId().equals(failedId))
-                    .findFirst()
-                    .map(ReservationItemReq::getTicketTierName)
-                    .orElse("hạng vé này");
-
-            log.warn("Ticket Tier full: {}", failedId);
-            throw new AppException(ErrorCode.TICKET_TIER_FULL,
-                    "Hạng vé " + tierName + " đã đạt giới hạn đặt chỗ!");
+        if (!failedTierIds.isEmpty()) {
+            List<String> finalFailedTierIds = failedTierIds;
+            String tierNames = requests.stream()
+                    .filter(r -> finalFailedTierIds.contains(r.getTicketTierId()))
+                    .map(item -> item.getTicketTypeName() + "(" + item.getTicketTierName() + ")")
+                    .distinct()
+                    .collect(Collectors.joining(", "));
+            log.warn("Ticket Tier full: {}", finalFailedTierIds);
+            throw new AppException(ErrorCode.TICKET_TYPE_FULL,
+                    "Các hạng vé: " + tierNames + " đã đạt giới hạn xin quay lại vào khung giờ bán vé khác!");
         }
 
         if ("ERR_INVALID_QTY".equals(result)) {
             throw new RuntimeException("Số lượng vé không hợp lệ.");
         }
-
         if ("ERR_INVALID_ARGV".equals(result) || "ERR_INVALID_KEYS".equals(result)) {
             throw new RuntimeException("Dữ liệu đặt vé không hợp lệ.");
         }
-
         throw new RuntimeException("Đặt vé thất bại, vui lòng thử lại.");
     }
 }

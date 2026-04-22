@@ -31,15 +31,8 @@ public class PaymentController {
     }
 
     @GetMapping("/vnpay-callback")
-    public ResponseEntity<?> handleVNPayCallback(HttpServletRequest request) {
+    public void handleVNPayCallback(HttpServletRequest request) {
         Map<String, String> result = paymentService.processReturn(request);
-        String reservationId = result.get("txnRef");
-        String responseCode = result.get("responseCode");
-        if ("OK".equals(result.get("status")) && "00".equals(responseCode)) {
-            paymentService.processPayment(result);
-            return ResponseEntity.ok().body(result);
-        } else {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(result);
-        }
+        paymentService.processPayment(result);
     }
 }

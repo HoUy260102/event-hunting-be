@@ -23,4 +23,6 @@ public class ReservationItemDTO {
     private Long unitPrice;
     private Integer quantity;
     private Long totalPrice;
+    private Long discountAmount = 0L;
+    private Long finalPrice;
 }

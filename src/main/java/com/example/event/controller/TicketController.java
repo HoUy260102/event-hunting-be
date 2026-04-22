@@ -1,18 +1,18 @@
 package com.example.event.controller;
 
+import com.example.event.dto.TicketDTO;
 import com.example.event.dto.TicketDetailDTO;
 import com.example.event.dto.TicketSummaryDTO;
 import com.example.event.dto.request.SearchTicketPublicReq;
+import com.example.event.dto.request.TicketCheckInReq;
+import com.example.event.dto.request.TicketSearchReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/tickets")
@@ -31,6 +31,17 @@ public class TicketController {
         return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<?> findSearchTicket(TicketSearchReq req) {
+        Page<TicketDTO> ticketDTOS = ticketService.getSearchTickets(req);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(ticketDTOS)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
     @GetMapping("/my-tickets/{id}")
     public ResponseEntity<?> findTicketDetailById(@PathVariable String id) {
         TicketDetailDTO ticketDTOS = ticketService.getTicketDetailById(id);
@@ -38,6 +49,17 @@ public class TicketController {
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")
                 .data(ticketDTOS)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
+    @PostMapping("/{id}/check-in")
+    public ResponseEntity<?> findSearchTicket(@RequestBody TicketCheckInReq req, @PathVariable String id) {
+        TicketDTO ticketDTO = ticketService.checkinTicket(id, req);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(ticketDTO)
                 .build();
         return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
