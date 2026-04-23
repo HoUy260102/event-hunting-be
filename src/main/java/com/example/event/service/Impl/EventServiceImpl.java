@@ -1,10 +1,7 @@
 package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
-import com.example.event.constant.ErrorCode;
-import com.example.event.constant.EventStatus;
-import com.example.event.constant.FileStatus;
-import com.example.event.constant.FileType;
+import com.example.event.constant.*;
 import com.example.event.dto.*;
 import com.example.event.dto.request.*;
 import com.example.event.dto.response.KeysetPageResponse;
@@ -13,6 +10,7 @@ import com.example.event.exception.AppException;
 import com.example.event.mapper.EventMapper;
 import com.example.event.projection.TicketStatProjection;
 import com.example.event.repository.*;
+import com.example.event.service.EventInteractionService;
 import com.example.event.service.EventService;
 import com.example.event.service.ShowService;
 import com.example.event.specification.EventSpecification;
@@ -42,7 +40,9 @@ public class EventServiceImpl implements EventService {
     private final SecurityUtils securityUtils;
     private final EventRepository eventRepository;
     private final ShowService showService;
-    private final ShowRepository showRepository;
+    private final FavoriteRepository favoriteRepository;
+    private final EventInteractionService eventInteractionService;
+
     private static final Map<EventStatus, List<EventStatus>> STATUS_TRANSITIONS = new HashMap<>();
 
     static {
@@ -268,8 +268,9 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public EventInfoDTO findEventInfoById(String id) {
+        String userId = securityUtils.getCurrentUserId();
         Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(id))
                 .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         if (event.getDeletedAt() != null) {
@@ -283,6 +284,7 @@ public class EventServiceImpl implements EventService {
             });
         });
         event.setShows(shows);
+        if (userId != null && !userId.isEmpty()) eventInteractionService.addInteraction(id, userId, InteractionType.VIEW);
         return eventMapper.toInfoDTO(event);
     }
 
@@ -348,6 +350,8 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req) {
+        String userId = securityUtils.getCurrentUserId();
+
         LocalDateTime now = LocalDateTime.now();
         Specification<Event> spec = Specification.where(EventSpecification.isNotDeleted());
 
@@ -386,6 +390,26 @@ public class EventServiceImpl implements EventService {
         List<EventSearchPublicDTO> dtos = eventSlice.getContent().stream()
                 .map(eventMapper::toSearchPublicDTO)
                 .collect(Collectors.toList());
+
+        // Map isSaved vào mỗi event
+        if (userId != null && !dtos.isEmpty()) {
+            List<String> eventIds = dtos.stream()
+                    .map(EventSearchPublicDTO::getId)
+                    .collect(Collectors.toList());
+
+            // Lấy danh sách ID các event đã được user này save
+            Set<String> savedEventIds = favoriteRepository.findSavedEventIds(userId, eventIds);
+
+            // Map ngược lại vào DTO
+            dtos.forEach(dto -> {
+                if (savedEventIds.contains(dto.getId())) {
+                    dto.setIsSaved(true);
+                } else {
+                    dto.setIsSaved(false);
+                }
+            });
+        }
+
         String nextKeysetId = eventSlice.hasNext() ? dtos.get(dtos.size() - 1).getId() : null;
         return new KeysetPageResponse<>(
                 dtos,
@@ -510,6 +534,38 @@ public class EventServiceImpl implements EventService {
                 .soldQuantity(eventSoldQty)
                 .shows(shows)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KeysetPageResponse<EventSearchPublicDTO, String> getMyFavoriteEvents(BaseKeysetReq req) {
+        String userId = securityUtils.getCurrentUserId();
+
+        int pageSize = (req.getSize() != null) ? req.getSize() : 8;
+        Pageable pageable = PageRequest.of(0, pageSize);
+
+        // Lấy dữ liệu
+        Slice<Favorite> favoriteSlice = favoriteRepository.findMyFavoritesKeyset(
+                userId,
+                req.getNextId(),
+                pageable
+        );
+
+        // Map sang DTO
+        List<EventSearchPublicDTO> dtos = favoriteSlice.getContent().stream()
+                .map(f -> {
+                    EventSearchPublicDTO dto = eventMapper.toSearchPublicDTO(f.getEvent());
+                    dto.setIsSaved(true);
+                    return dto;
+                })
+                .collect(Collectors.toList());
+
+        // Lấy ID của bản ghi Favorite cuối cùng để làm nextId cho lần gọi sau
+        String nextKeysetId = (favoriteSlice.hasNext() && !dtos.isEmpty())
+                ? favoriteSlice.getContent().get(favoriteSlice.getContent().size() - 1).getId()
+                : null;
+
+        return new KeysetPageResponse<>(dtos, nextKeysetId, favoriteSlice.hasNext());
     }
 
     private List<String> extractIdsToDelete(List<String> oldIds, List<String> newIds) {

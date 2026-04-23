@@ -4,6 +4,8 @@ import com.example.event.dto.*;
 import com.example.event.dto.request.*;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.dto.response.KeysetPageResponse;
+import com.example.event.projection.EventTrendingProjection;
+import com.example.event.service.EventInteractionService;
 import com.example.event.service.EventService;
 import com.example.event.service.ShowService;
 import jakarta.validation.Valid;
@@ -22,6 +24,7 @@ import java.util.List;
 public class EventController {
     private final EventService eventService;
     private final ShowService showService;
+    private final EventInteractionService eventInteractionService;
 
     @PostMapping
     public ResponseEntity<?> createEvent(@Valid @RequestBody CreateEventReq req) {
@@ -76,6 +79,29 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @GetMapping("/my-favorites")
+    public ResponseEntity<?> getMyFavorites(
+            @Valid BaseKeysetReq req) {
+        KeysetPageResponse<EventSearchPublicDTO, String> events = eventService.getMyFavoriteEvents(req);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(events)
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/trending")
+    public ResponseEntity<?> getTrending() {
+        List<EventTrendingProjection> trendingEvents = eventInteractionService.getTopTrendingEvents();
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(trendingEvents)
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @GetMapping("/{id}/info")
     public ResponseEntity<?> findEventByIdForInfo(@PathVariable String id) {
         EventInfoDTO eventInfoDTO = eventService.findEventInfoById(id);
@@ -98,7 +124,7 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
-    @GetMapping("/{id}âshows")
+    @GetMapping("/{id}/shows")
     public ResponseEntity<?> findAllShowsByEventId(@PathVariable String id) {
         List<ShowDTO> shows = showService.findShowsByEventId(id);
         ApiResponse response = ApiResponse.builder()

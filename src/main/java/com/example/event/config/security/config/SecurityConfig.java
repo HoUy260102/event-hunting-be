@@ -68,6 +68,7 @@ public class SecurityConfig {
                                     "/payments/vnpay-callback",
                                     "/categories",
                                     "/events/public/search",
+                                    "/events/trending",
                                     "/events/*/info",
                                     "/auth/login",
                                     "/auth/refresh-token",

@@ -82,6 +82,9 @@ public enum ErrorCode {
     RESERVATION_QUANTITY_EXCEEDED(HttpStatus.BAD_REQUEST, "Số lượng vé vượt quá giới hạn tối đa cho phép của mỗi đơn hàng."),
     RESERVATION_QUANTITY_MINIMUM_NOT_MET(HttpStatus.BAD_REQUEST, "Số lượng vé chưa đạt mức tối thiểu yêu cầu cho mỗi đơn hàng."),
 
+    FAVORITE_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "Bạn đã lưu sự kiện này vào danh sách yêu thích rồi."),
+    FAVORITE_NOT_FOUND(HttpStatus.BAD_REQUEST, "Sự kiện này không tồn tại trong danh sách yêu thích của bạn."),
+
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy payment."),
     PAYMENT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "Payment này không hợp lệ."),
 
