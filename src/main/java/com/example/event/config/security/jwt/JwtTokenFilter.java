@@ -42,10 +42,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
-            if (isByPassToken(request)) {
-                filterChain.doFilter(request, response);
-                return;
-            }
             final String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 final String token = authHeader.substring(7).trim();
@@ -69,6 +65,9 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                     }
                 }
+            } else if (isByPassToken(request)) {
+                filterChain.doFilter(request, response);
+                return;
             }
         } catch (JwtAuthenticationException e) {
             response.setContentType("application/json");
@@ -121,6 +120,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
                 Pair.of("/categories", "GET"),
                 Pair.of("/events/public/search", "GET"),
+                Pair.of("/events/trending", "GET"),
                 Pair.of("/events/*/info", "GET"),
                 Pair.of("/payments/vnpay-callback", "GET")
         ));

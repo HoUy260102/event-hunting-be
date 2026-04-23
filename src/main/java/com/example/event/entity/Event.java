@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -63,6 +65,9 @@ public class Event {
 
     @OneToMany(mappedBy = "event")
     private List<Show> shows;
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    private Set<Favorite> favoritedBy = new HashSet<>();
 
     private LocalDateTime createdAt;
     private String createdBy;

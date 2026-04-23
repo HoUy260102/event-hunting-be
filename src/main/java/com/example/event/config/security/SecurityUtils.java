@@ -8,13 +8,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class SecurityUtils {
     public String getCurrentUserId() {
-        CustomUserDetails user =
-                (CustomUserDetails) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getPrincipal();
-
-        return user.getUser().getId();
+        var context = SecurityContextHolder.getContext();
+        if (context == null || context.getAuthentication() == null) {
+            return null;
+        }
+        Object principal = context.getAuthentication().getPrincipal();
+        if (principal instanceof CustomUserDetails user) {
+            return user.getUser().getId();
+        }
+        return null;
     }
 
     public boolean canAccessThisResource(String userId) {
