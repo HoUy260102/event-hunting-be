@@ -11,12 +11,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TicketTierSummaryDTO {
+
     private String id;
     private String name;
-    private Long price;
+    private Long unitPrice;
+
     private Integer limitQuantity;
     private Integer soldQuantity;
-    private Long totalRevenue;
+    private Integer reservedQuantity;
+
+    private Long totalPrice;
+    private Long discountAmount;
+    private Long finalPrice;
+
     private TicketTierStatus adminStatus;
     private TicketTierStatus businessStatus;
 }

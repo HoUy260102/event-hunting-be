@@ -5,19 +5,18 @@ import com.example.event.constant.ErrorCode;
 import com.example.event.constant.EventStatus;
 import com.example.event.constant.FileStatus;
 import com.example.event.constant.FileType;
-import com.example.event.dto.EventDTO;
-import com.example.event.dto.EventInfoDTO;
-import com.example.event.dto.EventSearchPublicDTO;
-import com.example.event.dto.EventSummaryDTO;
+import com.example.event.dto.*;
 import com.example.event.dto.request.*;
 import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.EventMapper;
+import com.example.event.projection.TicketStatProjection;
 import com.example.event.repository.*;
 import com.example.event.service.EventService;
 import com.example.event.service.ShowService;
 import com.example.event.specification.EventSpecification;
+import com.example.event.util.DateUtil;
 import com.example.event.validation.ShowValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -55,6 +54,7 @@ public class EventServiceImpl implements EventService {
 
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketTierRepository ticketTierRepository;
+    private final TicketRepository ticketRepository;
 
     @Override
     @Transactional
@@ -262,14 +262,16 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public EventDTO findEventById(String id) {
-        Event event = eventRepository.findEventByIdForDetails(id);
+        Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         return eventMapper.toDTO(event);
     }
 
     @Override
     @Transactional(readOnly = true)
     public EventInfoDTO findEventInfoById(String id) {
-        Event event = eventRepository.findEventByIdForDetails(id);
+        Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         if (event.getDeletedAt() != null) {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
@@ -282,23 +284,6 @@ public class EventServiceImpl implements EventService {
         });
         event.setShows(shows);
         return eventMapper.toInfoDTO(event);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public EventSummaryDTO getEventSummaryById(String id) {
-        Event event = eventRepository.findEventByIdForDetails(id);
-        if (event.getDeletedAt() != null) {
-            throw new AppException(ErrorCode.EVENT_NOT_FOUND);
-        }
-        List<Show> shows = event.getShows();
-        shows.forEach(show -> {
-            show.getTicketTypes().forEach(type -> {
-                type.getTicketTiers().size();
-            });
-        });
-        event.setShows(shows);
-        return eventMapper.toSummaryDTO(event);
     }
 
     private List<String> extractIdsToUpdate(List<String> oldIds, List<String> newIds) {
@@ -406,6 +391,125 @@ public class EventServiceImpl implements EventService {
                 dtos,
                 nextKeysetId,
                 eventSlice.hasNext());
+    }
+
+    @Override
+    public EventSummaryDTO getEventSummaryById(String eventId) {
+        List<TicketStatProjection> rows = ticketRepository.getStatByEvent(eventId);
+
+        // Lấy thông tin event từ row đầu (mọi row đều có cùng event info)
+        TicketStatProjection firstRow = rows.get(0);
+
+
+        Map<String, Map<String, List<TicketStatProjection>>> showMap = rows.stream()
+                .collect(Collectors.groupingBy(
+                        TicketStatProjection::getShowId,
+                        LinkedHashMap::new,
+                        Collectors.groupingBy(
+                                TicketStatProjection::getTicketTypeId,
+                                LinkedHashMap::new,
+                                Collectors.toList()
+                        )
+                ));
+
+        // ── Build ShowSummaryDTO list ──────────────────────
+        List<ShowSummaryDTO> shows = showMap.entrySet().stream()
+                .map(showEntry -> {
+                    Map<String, List<TicketStatProjection>> typeMap = showEntry.getValue();
+
+                    // Đại diện show: lấy row đầu tiên của show này
+                    TicketStatProjection showRow = typeMap.values().iterator().next().get(0);
+
+                    // ── Build TicketTypeSummaryDTO list ───
+                    List<TicketTypeSummaryDTO> ticketTypes = typeMap.entrySet().stream()
+                            .map(typeEntry -> {
+                                List<TicketStatProjection> tierRows = typeEntry.getValue();
+                                TicketStatProjection typeRow = tierRows.get(0);
+
+                                // ── Build TicketTierSummaryDTO list ───
+                                List<TicketTierSummaryDTO> tiers = tierRows.stream()
+                                        .map(r -> TicketTierSummaryDTO.builder()
+                                                .id(r.getTicketTierId())
+                                                .name(r.getTicketTierName())
+                                                .limitQuantity(r.getTicketTierLimitQuantity())
+                                                .soldQuantity(r.getTicketTierSoldQuantity())
+                                                .reservedQuantity(r.getTicketTierReservedQuantity())
+                                                .totalPrice(r.getTicketTierTotalPrice())
+                                                .discountAmount(r.getTicketTierTotalDiscountAmount())
+                                                .finalPrice(r.getTicketTierFinalPrice())
+                                                .unitPrice(r.getTicketTierUnitPrice())
+                                                .adminStatus(r.getTicketTierStatus())
+                                                .build())
+                                        .collect(Collectors.toList());
+
+                                // Tổng hợp tiền TicketType = sum các tier
+                                Long ttTotalPrice  = tiers.stream().mapToLong(t -> t.getTotalPrice() != null ? t.getTotalPrice() : 0L).sum();
+                                Long ttDiscount    = tiers.stream().mapToLong(t -> t.getDiscountAmount() != null ? t.getDiscountAmount() : 0L).sum();
+                                Long ttFinalPrice  = tiers.stream().mapToLong(t -> t.getFinalPrice() != null ? t.getFinalPrice() : 0L).sum();
+
+                                return TicketTypeSummaryDTO.builder()
+                                        .id(typeRow.getTicketTypeId())
+                                        .name(typeRow.getTypeTypeName())
+                                        .totalQuantity(typeRow.getTicketTypeTotalQuantity())
+                                        .soldQuantity(typeRow.getTicketTypeSoldQuantity())
+                                        .reservedQuantity(typeRow.getTicketTypeReservedQuantity())
+                                        .availableQuantity(typeRow.getTicketTypeAvailableQuantity())
+                                        .totalPrice(ttTotalPrice)
+                                        .discountAmount(ttDiscount)
+                                        .finalPrice(ttFinalPrice)
+                                        .adminStatus(typeRow.getTicketTypeStatus())
+                                        .businessStatus(typeRow.getTicketTypeStatus())
+                                        .ticketTiers(tiers)
+                                        .build();
+                            })
+                            .collect(Collectors.toList());
+
+                    // Tổng hợp Show = sum các ticketType
+                    Integer showTotalQty = ticketTypes.stream().mapToInt(t -> t.getTotalQuantity() != null ? t.getTotalQuantity() : 0).sum();
+                    Integer showSoldQty  = ticketTypes.stream().mapToInt(t -> t.getSoldQuantity() != null ? t.getSoldQuantity() : 0).sum();
+                    Long showTotal       = ticketTypes.stream().mapToLong(t -> t.getTotalPrice() != null ? t.getTotalPrice() : 0L).sum();
+                    Long showDiscount    = ticketTypes.stream().mapToLong(t -> t.getDiscountAmount() != null ? t.getDiscountAmount() : 0L).sum();
+                    Long showFinal       = ticketTypes.stream().mapToLong(t -> t.getFinalPrice() != null ? t.getFinalPrice() : 0L).sum();
+
+                    return ShowSummaryDTO.builder()
+                            .id(showRow.getShowId())
+                            .startDay(String.valueOf(showRow.getShowStartDay()))
+                            .startMonth(DateUtil.convertMonth(showRow.getShowStartMonth(), "en"))
+                            .startTime(showRow.getShowStartTime())
+                            .endTime(showRow.getShowEndTime())
+                            .status(showRow.getShowStatus())
+                            .totalQuantity(showTotalQty)
+                            .soldQuantity(showSoldQty)
+                            .totalAmount(showTotal)
+                            .discountAmount(showDiscount)
+                            .totalFinalAmount(showFinal)
+                            .ticketTypes(ticketTypes)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        // Tổng hợp Event = sum các show
+        Long eventTotalAmount = shows.stream().mapToLong(s -> s.getTotalAmount() != null ? s.getTotalAmount() : 0L).sum();
+        Long eventDiscountAmount = shows.stream().mapToLong(s -> s.getDiscountAmount() != null ? s.getDiscountAmount() : 0L).sum();
+        Long eventFinalAmount = shows.stream().mapToLong(s -> s.getTotalFinalAmount() != null ? s.getTotalFinalAmount() : 0L).sum();
+        Integer eventTotalQty = shows.stream().mapToInt(s -> s.getTotalQuantity() != null ? s.getTotalQuantity() : 0).sum();
+        Integer eventSoldQty  = shows.stream().mapToInt(s -> s.getSoldQuantity() != null ? s.getSoldQuantity() : 0).sum();
+
+        return EventSummaryDTO.builder()
+                .id(firstRow.getEventId())
+                .name(firstRow.getEventName())
+                .location(firstRow.getEventLocation())
+                .startTime(firstRow.getEventStartTime())
+                .endTime(firstRow.getEventEndTime())
+                .posterUrl(firstRow.getEventPosterUrl())
+                .status(firstRow.getEventStatus())
+                .totalAmount(eventTotalAmount)
+                .discountAmount(eventDiscountAmount)
+                .totalFinalAmount(eventFinalAmount)
+                .totalQuantity(eventTotalQty)
+                .soldQuantity(eventSoldQty)
+                .shows(shows)
+                .build();
     }
 
     private List<String> extractIdsToDelete(List<String> oldIds, List<String> newIds) {

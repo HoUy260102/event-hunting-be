@@ -13,8 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.awt.print.Pageable;
-
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
@@ -48,6 +46,17 @@ public class UserController {
     @PreAuthorize("hasAuthority('USER:UPDATE')")
     public ResponseEntity<?> updateUser(@Valid @RequestBody UpdateUserReq req, @PathVariable String id) {
         UserDTO userDTO = userService.updateUser(req, id);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(userDTO)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody UpdateUserReq req) {
+        UserDTO userDTO = userService.updateProfile(req);
         ApiResponse apiResponse = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")

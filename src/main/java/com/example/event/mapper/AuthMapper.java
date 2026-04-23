@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AuthMapper {
     private final ModelMapper modelMapper;
+
     public AuthDTO toDTO(User user) {
         AuthDTO authDTO = modelMapper.map(user, AuthDTO.class);
         authDTO.setRole(Optional.ofNullable(user.getRole())
@@ -29,6 +30,7 @@ public class AuthMapper {
                 .stream()
                 .map(per -> per.getCode())
                 .collect(Collectors.toList());
+        authDTO.setAvatarUrl(user.getAvatar().getUrl());
         authDTO.setPassword("");
         authDTO.setPermissions(permissions);
         return authDTO;

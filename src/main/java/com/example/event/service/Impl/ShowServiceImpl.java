@@ -2,8 +2,7 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
-import com.example.event.dto.ShowBookingDTO;
-import com.example.event.dto.ShowDTO;
+import com.example.event.dto.*;
 import com.example.event.dto.request.CreateShowReq;
 import com.example.event.dto.request.CreateTicketTypeReq;
 import com.example.event.dto.request.UpdateShowReq;
@@ -45,6 +44,7 @@ public class ShowServiceImpl implements ShowService {
     private static final String KEY_TYPE_RESERVED = "ticket_type:{show:%s}:%s:reserved";
     private static final String KEY_TIER_LIMIT = "ticket_tier:{show:%s}:%s:limit";
     private static final String KEY_TIER_RESERVED = "ticket_tier:{show:%s}:%s:reserved";
+    private final TicketRepository ticketRepository;
 
     @Override
     public void createShows(List<CreateShowReq> showsReq, Event event, String creatorId) {
@@ -98,14 +98,25 @@ public class ShowServiceImpl implements ShowService {
                                 savedType,
                                 creatorId
                         );
-                List<Seat> seats =
-                        seatService.createSeats(
-                                typeReq.getSeats(),
-                                savedType,
-                                creatorId
-                        );
+                List<Seat> currentTypeSeats = new ArrayList<>();
+                if (savedShow.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && savedType.getSeatingType() == SeatingType.SEATED) {
+                    // Tạo những ghế assigned
+                    currentTypeSeats =
+                            seatService.createSeats(
+                                    typeReq.getSeats(),
+                                    savedType,
+                                    creatorId
+                            );
+                } else {
+                    // Tạo những ghế unassigned
+                    currentTypeSeats =
+                            seatService.createUnassignedSeats(
+                                    savedType,
+                                    creatorId
+                            );
+                }
                 tiersToSave.addAll(tiers);
-                seatsToSave.addAll(seats);
+                seatsToSave.addAll(currentTypeSeats);
             }
             if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
             if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
@@ -193,22 +204,60 @@ public class ShowServiceImpl implements ShowService {
                             savedType,
                             updatorId
                     );
-            List<Seat> seats =
-                    seatService.updateTicketTiers(
-                            typeReq.getSeats(),
-                            savedType,
-                            updatorId
-                    );
-            updatedTypes.get(i).setTicketTiers(tiers);
+            List<Seat> currentTypeSeats = new ArrayList<>();
+            if (savedShow.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && savedType.getSeatingType() == SeatingType.SEATED) {
+                // Tạo những ghế assigned
+                currentTypeSeats =
+                        seatService.updateAssignedSeats(
+                                typeReq.getSeats(),
+                                savedType,
+                                updatorId
+                        );
+            } else {
+                // Tạo những ghế unassigned
+                currentTypeSeats =
+                        seatService.updateUnassignedSeats(
+                                savedType,
+                                typeReq.getTotalQuantity(),
+                                updatorId
+                        );
+            }
             tiersToSave.addAll(tiers);
-            updatedTypes.get(i).setSeats(seats);
-            seatsToSave.addAll(seats);
+            seatsToSave.addAll(currentTypeSeats);
+            updatedTypes.get(i).setTicketTiers(tiers);
+            updatedTypes.get(i).setSeats(currentTypeSeats);
         }
         seatRepository.saveAll(seatsToSave);
         ticketTierRepository.saveAll(tiersToSave);
         savedShow.setTicketTypes(updatedTypes);
         updateEventTime(event);
         return showMapper.toDTO(savedShow);
+    }
+
+    @Override
+    @Transactional
+    public ShowRegistryDTO findShowRegistryById(String id) {
+//        Show show = Optional.ofNullable(showRepository.findShowById(id))
+//                .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
+//        if (show.getDeletedAt() != null) {
+//            throw new AppException(ErrorCode.SHOW_NOT_FOUND);
+//        }
+//        Event event = show.getEvent();
+//        int totalTickets = ticketRepository.countTotalIssuedTickets(show.getId());
+//        int totalCheckedInTicket = ticketRepository.countTotalCheckedInTickets(show.getId());
+//        int totalRemainingTicket = ticketRepository.countTotalRemainingTickets(show.getId());
+//        ShowRegistryDTO showRegistryDTO = ShowRegistryDTO.builder()
+//                .eventName(event.getName())
+//                .eventLocation(event.getLocation())
+//                .totalTickets(totalTickets)
+//                .checkedInCount(totalCheckedInTicket)
+//                .remainingCount(totalRemainingTicket)
+//                .startTime(show.getStartTime())
+//                .endTime(show.getEndTime())
+//                .build();
+        ShowRegistryDTO showRegistryDTO = Optional.ofNullable(showRepository.findShowRegistryById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
+        return showRegistryDTO;
     }
 
     @Override
@@ -224,6 +273,17 @@ public class ShowServiceImpl implements ShowService {
             type.getSeats().size();
         });
         return showMapper.toBookingDTO(show);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ShowDetailDTO findShowDetailById(String id) {
+        Show show = Optional.ofNullable(showRepository.findShowById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
+        if (show.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.SHOW_NOT_FOUND);
+        }
+        return showMapper.toDetailDTO(show);
     }
 
     @Override
@@ -329,16 +389,27 @@ public class ShowServiceImpl implements ShowService {
                             savedType,
                             creatorId
                     );
-            List<Seat> seats =
-                    seatService.createSeats(
-                            typeReq.getSeats(),
-                            savedType,
-                            creatorId
-                    );
-            createdTypes.get(i).setTicketTiers(tiers);
-            createdTypes.get(i).setSeats(seats);
+            List<Seat> currentTypeSeats = new ArrayList<>();
+            if (savedShow.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && savedType.getSeatingType() == SeatingType.SEATED) {
+                // Tạo những ghế assigned
+                currentTypeSeats =
+                        seatService.createSeats(
+                                typeReq.getSeats(),
+                                savedType,
+                                creatorId
+                        );
+            } else {
+                // Tạo những ghế unassigned
+                currentTypeSeats =
+                        seatService.createUnassignedSeats(
+                                savedType,
+                                creatorId
+                        );
+            }
             tiersToSave.addAll(tiers);
-            seatsToSave.addAll(seats);
+            seatsToSave.addAll(currentTypeSeats);
+            createdTypes.get(i).setTicketTiers(tiers);
+            createdTypes.get(i).setSeats(currentTypeSeats);
         }
         if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
         if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
@@ -358,6 +429,22 @@ public class ShowServiceImpl implements ShowService {
             });
         });
         return shows.stream().map(showMapper::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ShowSelectionDTO> findShowSelectionByEventId(String eventId) {
+        Event event = Optional.ofNullable(eventRepository.findEventById(eventId))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
+        List<ShowSelectionDTO> showSelectionDTOS = showRepository.findShowsByEvent_Id(event.getId())
+                .stream()
+                .map(show -> {
+                    ShowSelectionDTO showSelectionDTO = new ShowSelectionDTO();
+                    showSelectionDTO.setId(show.getId());
+                    showSelectionDTO.setStartTime(show.getStartTime());
+                    showSelectionDTO.setEndTime(show.getEndTime());
+                    return showSelectionDTO;
+                }).collect(Collectors.toList());
+        return showSelectionDTOS;
     }
 
     @Transactional
@@ -409,7 +496,8 @@ public class ShowServiceImpl implements ShowService {
     void syncShowStockToRedis(Show show) {
         String showId = show.getId();
         for (TicketType type : show.getTicketTypes()) {
-            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED) continue;
+            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED)
+                continue;
             String typeId = type.getId();
             redisTemplate.opsForValue().set(
                     String.format(KEY_TYPE_TOTAL, showId, typeId),

@@ -74,19 +74,46 @@ public enum ErrorCode {
 
     RESERVATION_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST, "Giữ chỗ này đã hủy."),
     RESERVATION_EXPIRED(HttpStatus.BAD_REQUEST, "Giữ chỗ này đã hết hạn."),
+    RESERVATION_NOT_PAYABLE(HttpStatus.BAD_REQUEST, "Trạng thái giữ chỗ không hợp lệ."),
+    RESERVATION_HAS_NO_ITEMS(HttpStatus.BAD_REQUEST, "Đơn đặt chỗ của bạn không có dịch vụ nào. Vui lòng kiểm tra lại."),
+    RESERVATION_PENDING(HttpStatus.BAD_REQUEST, "Giữ chỗ này đang được xử lý."),
     RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy reservation."),
     RESERVATION_ALREADY_PAID(HttpStatus.BAD_REQUEST, "Reservation này đã được thanh toán."),
     RESERVATION_QUANTITY_EXCEEDED(HttpStatus.BAD_REQUEST, "Số lượng vé vượt quá giới hạn tối đa cho phép của mỗi đơn hàng."),
     RESERVATION_QUANTITY_MINIMUM_NOT_MET(HttpStatus.BAD_REQUEST, "Số lượng vé chưa đạt mức tối thiểu yêu cầu cho mỗi đơn hàng."),
+
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy payment."),
+    PAYMENT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "Payment này không hợp lệ."),
 
     TICKET_TYPE_FULL(HttpStatus.BAD_REQUEST, "Loại vé đã hết số lượng tổng cho phép."),
     TICKET_TIER_FULL(HttpStatus.BAD_REQUEST, "Hạng vé đã đạt giới hạn tối đa cho khu vực này."),
     INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "Số lượng vé không hợp lệ."),
     INVALID_AMOUNT(HttpStatus.BAD_REQUEST, "Số tiền không hợp lệ."),
 
+    TICKET_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được ticket."),
+    TICKET_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "Vé không hợp lệ."),
+    TICKET_ALREADY_CHECKED_IN(HttpStatus.BAD_REQUEST, "Vé này đã được check in."),
+    NOT_ENOUGH_SEATS(HttpStatus.BAD_REQUEST, "Rất tiếc, không đủ số lượng ghế trống cho loại vé này."),
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy ghế."),
     SEAT_ALREADY_RESERVED(HttpStatus.CONFLICT, "Ghế đã có người đặt hoặc đang được giữ."),
 
+    NOT_IN_QUEUE(HttpStatus.FORBIDDEN, "Bạn đang không ở trong hàng đợi vui lòng xếp hàng lại."),
+    BUYING_SESSION_EXPIRED(HttpStatus.FORBIDDEN, "Bạn đã hết thời gian mua vé."),
+    INVALID_QUEUE_TOKEN(HttpStatus.FORBIDDEN, "Bạn không có quyền vào trang này."),
+
+    VOUCHER_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu voucher không hợp lệ."),
+    VOUCHER_CODE_EXISTS(HttpStatus.CONFLICT, "Dữ liệu voucher code bị trùng vui lòng đổi code."),
+    VOUCHER_NOT_FOUND(HttpStatus.NOT_FOUND, "Dữ liệu voucher không tìm thấy."),
+    VOUCHER_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "Voucher này đã nằm trong thùng rác."),
+    VOUCHER_NOT_IN_TRASH(HttpStatus.BAD_REQUEST, "Voucher hiện không ở trạng thái chờ khôi phục."),
+    VOUCHER_EXHAUSTED(HttpStatus.BAD_REQUEST, "Voucher đã hết lượt sử dụng."),
+    VOUCHER_NOT_ACTIVE(HttpStatus.BAD_REQUEST, "Voucher này hiện tại không hoạt động."),
+    VOUCHER_NOT_STARTED(HttpStatus.BAD_REQUEST, "Thời gian áp dụng voucher chưa bắt đầu."),
+    VOUCHER_EXPIRED(HttpStatus.BAD_REQUEST, "Voucher này hiện tại đã hết hạn sử dụng."),
+    VOUCHER_NOT_APPLICABLE(HttpStatus.BAD_REQUEST, "Sự kiện không hỗ trợ voucher này."),
+    VOUCHER_MIN_ORDER_NOT_MET(HttpStatus.BAD_REQUEST, "Đơn hàng có giá trị nhỏ hơn giá trị tối thiểu."),
+
+    ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống.");
 
     private final String message;

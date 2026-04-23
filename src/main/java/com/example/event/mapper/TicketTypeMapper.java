@@ -45,17 +45,7 @@ public class TicketTypeMapper {
                 .sorted(Comparator.comparing(TicketTier::getSaleStartTime))
                 .collect(Collectors.toList());
 
-        TicketTier activeTier = validTiers.stream()
-                .filter(tt -> !now.isBefore(tt.getSaleStartTime()) && now.isBefore(tt.getSaleEndTime()))
-                .findFirst()
-                .orElse(null);
-
-        // Nếu không có tier nào trong khung giờ, lấy cái cao giá nhất
-        if (activeTier == null) {
-            activeTier = validTiers.stream()
-                    .max(Comparator.comparing(TicketTier::getPrice))
-                    .orElse(null);
-        }
+        TicketTier activeTier = findActiveTier(validTiers, now);
 
         if (activeTier != null) {
             ticketTypeDto.setTierId(activeTier.getId());
@@ -110,27 +100,12 @@ public class TicketTypeMapper {
         return ticketTypeBookingDTO;
     }
 
-
-    public TicketTypeSummaryDTO toSummaryDTO(TicketType ticketType) {
-        TicketTypeSummaryDTO ticketTypeSummaryDTO = modelMapper.map(ticketType, TicketTypeSummaryDTO.class);
-        List<TicketTierSummaryDTO> tierSummaryDTOS = ticketType.getTicketTiers()
-                .stream().filter(tier -> tier.getDeletedAt() == null)
-                .map(ticketTierMapper::toSummaryDTO)
-                .collect(Collectors.toList());
-        ticketTypeSummaryDTO.setTicketTiers(tierSummaryDTOS);
-        ticketTypeSummaryDTO.setAdminStatus(ticketType.getStatus());
-        ticketTypeSummaryDTO.setBusinessStatus(calculateSingleTierBusinessStatus(ticketType));
-        ticketTypeSummaryDTO.setTotalRevenue(tierSummaryDTOS.stream()
-                .mapToLong(TicketTierSummaryDTO::getTotalRevenue)
-                .sum());
-        return ticketTypeSummaryDTO;
-    }
-
     private TicketTypeStatus calculateStatus(TicketType ticketType, TicketTier activeTier, List<TicketTier> allTiers, LocalDateTime now) {
         if (ticketType.getStatus() == TicketTypeStatus.SUSPENDED) return TicketTypeStatus.SUSPENDED;
+        if (ticketType.getDeletedAt() != null) return TicketTypeStatus.DELETED;
         if (activeTier == null) return TicketTypeStatus.EXPIRED;
         // Kiểm tra loại vé đó còn hàng không
-        if (ticketType.getSoldQuantity() >= ticketType.getTotalQuantity()) return TicketTypeStatus.SOLD_OUT;
+        if (ticketType.getReservedQuantity() >= ticketType.getTotalQuantity()) return TicketTypeStatus.SOLD_OUT;
         // Nếu Tier được chọn đang trong thời gian bán
         if (!now.isBefore(activeTier.getSaleStartTime()) && now.isBefore(activeTier.getSaleEndTime())) {
             if (activeTier.getStatus() == TicketTierStatus.SUSPENDED) return TicketTypeStatus.SUSPENDED;
@@ -141,7 +116,7 @@ public class TicketTypeMapper {
             }
             return TicketTypeStatus.ON_SALE;
         }
-        // Nếu không trong khung giờ bán: Kiểm tra xem là chưa tới hay đã qua
+       // Nếu không trong khung giờ bán: Kiểm tra xem là chưa tới hay đã qua
         if (activeTier.getSaleStartTime().isAfter(now)) {
             return TicketTypeStatus.COMING_SOON;
         }
@@ -181,5 +156,26 @@ public class TicketTypeMapper {
 
         // Nếu tất cả đã qua khung giờ
         return TicketTypeStatus.EXPIRED;
+    }
+
+    private TicketTier findActiveTier(List<TicketTier> validTiers, LocalDateTime now) {
+        // Ưu tiên tier đang bán
+        TicketTier onSaleTier = validTiers.stream()
+                .filter(tt -> !now.isBefore(tt.getSaleStartTime()) && now.isBefore(tt.getSaleEndTime()))
+                .findFirst()
+                .orElse(null);
+
+        if (onSaleTier != null) return onSaleTier;
+
+        // Nếu chưa có tier nào bán, lấy tier sắp được mở bán nhất (tương lai gần nhất)
+        TicketTier upcomingTier = validTiers.stream()
+                .filter(tt -> tt.getSaleStartTime().isAfter(now))
+                .min(Comparator.comparing(TicketTier::getSaleStartTime))
+                .orElse(null);
+
+        if (upcomingTier != null) return upcomingTier;
+        return validTiers.stream()
+                .max(Comparator.comparing(TicketTier::getSaleEndTime))
+                .orElse(null);
     }
 }

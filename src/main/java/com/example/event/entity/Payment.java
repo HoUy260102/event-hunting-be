@@ -21,6 +21,7 @@ public class Payment {
     @UlidID
     private String id;
     private Long totalAmount;
+    private Long discountAmount = 0L;
     private Long finalAmount;
     @Enumerated(EnumType.STRING)
     private PaymentStatus status;
@@ -28,9 +29,11 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     private PaymentMethod method;
 
+    private LocalDateTime expiresAt;
     private LocalDateTime paidAt;
     private String bankCode;
     private String transactionNo;
+    private String responseCode;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reservation_id")
@@ -40,6 +43,10 @@ public class Payment {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @Column(columnDefinition = "TEXT")
-    private String paymentLog;
+    private LocalDateTime createdAt;
+    private String createdBy;
+    private LocalDateTime updatedAt;
+    private String updatedBy;
+    private LocalDateTime deletedAt;
+    private String deletedBy;
 }

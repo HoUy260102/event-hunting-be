@@ -10,18 +10,20 @@ public interface UserRepository extends JpaRepository<User, String>, JpaSpecific
     @Query("""
                 SELECT DISTINCT u FROM User u
                 LEFT JOIN FETCH u.role r
+                LEFT JOIN FETCH u.avatar a
                 LEFT JOIN FETCH r.permissions
                 WHERE u.email = :email
             """)
     User findUserByEmail(@Param("email") String email);
     @Query("SELECT u FROM User u " +
-            "LEFT JOIN FETCH u.avatar " +
-            "LEFT JOIN FETCH u.role " +
+            "LEFT JOIN FETCH u.avatar a " +
+            "LEFT JOIN FETCH u.role r " +
+            "LEFT JOIN FETCH r.permissions " +
             "WHERE u.id = :id")
     User findUserByIdWithDetails(@Param("id") String id);
     @Query("SELECT u FROM User u " +
-            "LEFT JOIN FETCH u.avatar " +
-            "LEFT JOIN FETCH u.role " +
+            "LEFT JOIN FETCH u.avatar a " +
+            "LEFT JOIN FETCH u.role r " +
             "WHERE u.id = :id")
     User findUserByIdForUpdate(@Param("id") String id);
     User findUserById(String id);

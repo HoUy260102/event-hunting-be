@@ -3,11 +3,13 @@ package com.example.event.service.Impl;
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.ShowStatus;
 import com.example.event.constant.TicketTypeStatus;
+import com.example.event.dto.TicketTypeSelectionDTO;
 import com.example.event.dto.request.CreateTicketTypeReq;
 import com.example.event.dto.request.UpdateTicketTypeReq;
 import com.example.event.entity.Show;
 import com.example.event.entity.TicketType;
 import com.example.event.exception.AppException;
+import com.example.event.repository.ShowRepository;
 import com.example.event.repository.TicketTierRepository;
 import com.example.event.repository.TicketTypeRepository;
 import com.example.event.service.TicketTypeService;
@@ -16,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -24,6 +29,7 @@ import java.util.stream.Collectors;
 public class TicketTypeServiceImpl implements TicketTypeService {
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketTierRepository ticketTierRepository;
+    private final ShowRepository showRepository;
 
     @Override
     public List<TicketType> createTicketTypes(List<CreateTicketTypeReq> ticketTypesReq,
@@ -113,6 +119,21 @@ public class TicketTypeServiceImpl implements TicketTypeService {
             }
         }
         return ticketTypesToSave;
+    }
+
+    @Override
+    public List<TicketTypeSelectionDTO> findTicketTypeSelectionByShowId(String showId) {
+        Show show = Optional.ofNullable(showRepository.findShowById(showId))
+                .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
+        List<TicketTypeSelectionDTO> ticketTypeSelectionDTOS = ticketTypeRepository.findTicketTypesByShow_Id(show.getId())
+                .stream()
+                .map(ticketType -> {
+                    TicketTypeSelectionDTO ticketTypeSelectionDTO = new TicketTypeSelectionDTO();
+                    ticketTypeSelectionDTO.setId(ticketType.getId());
+                    ticketTypeSelectionDTO.setName(ticketType.getName());
+                    return ticketTypeSelectionDTO;
+                }).collect(Collectors.toList());
+        return ticketTypeSelectionDTOS;
     }
 
     @Transactional

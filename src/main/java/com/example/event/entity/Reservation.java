@@ -27,23 +27,37 @@ public class Reservation {
     @JoinColumn(name = "user_id")
     private User user;
 
-    private String showId;
-    private String eventId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "show_id")
+    private Show show;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
 
     private String customerName;
     private String customerEmail;
     private String customerPhone;
 
     private Long totalAmount;
+    private Long discountAmount = 0L;
     private Long finalAmount;
+
 
     @Enumerated(EnumType.STRING)
     private ReservationStatus status;
 
     private LocalDateTime expiresAt;
 
+    @OneToOne(mappedBy = "reservation")
+    private Payment payment;
+
     @OneToMany(mappedBy = "reservation")
     private List<ReservationItem> items = new ArrayList<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private Voucher voucher;
 
     private LocalDateTime createdAt;
     private String createdBy;

@@ -1,5 +1,6 @@
 package com.example.event.controller;
 
+import com.example.event.dto.AuthDTO;
 import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
 import com.example.event.dto.response.ApiResponse;
@@ -24,6 +25,17 @@ import java.util.Map;
 public class AuthController {
     private final AuthService authService;
     private final SimpMessagingTemplate messagingTemplate;
+
+    @GetMapping("/me")
+    public ResponseEntity<?> getAuthInfo() {
+        AuthDTO authDTO = authService.getAuthInfo();
+        ApiResponse response = ApiResponse.builder()
+                .data(authDTO)
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.ok(response);
+    }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginReq loginReq, @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId, HttpServletRequest request) {

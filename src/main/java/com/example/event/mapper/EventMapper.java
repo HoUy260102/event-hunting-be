@@ -50,36 +50,4 @@ public class EventMapper {
         return eventInfoDTO;
     }
 
-
-    public EventSummaryDTO toSummaryDTO(Event event) {
-        EventSummaryDTO eventSummaryDTO = EventSummaryDTO.builder()
-                .id(event.getId())
-                .startDate(event.getStartTime())
-                .endDate(event.getEndTime())
-                .location(event.getLocation())
-                .name(event.getName())
-                .status(event.getStatus())
-                .build();
-        eventSummaryDTO.setPoster(fileMapper.toDTO(event.getPoster()));
-        List<ShowSummaryDTO> showSummaryDTOS = event.getShows()
-                .stream()
-                .filter(show -> show.getDeletedAt() == null)
-                .map(showMapper::toSummaryDTO)
-                .collect(Collectors.toList());
-        eventSummaryDTO.setShows(showSummaryDTOS);
-        //TODO: nhớ chỉ lấy show active thôi nha
-        eventSummaryDTO.setTotalQuantity(showSummaryDTOS
-                .stream()
-                .mapToInt(ShowSummaryDTO::getTotalQuantity)
-                .sum());
-        eventSummaryDTO.setSoldQuantity(showSummaryDTOS
-                .stream()
-                .mapToInt(ShowSummaryDTO::getSoldQuantity)
-                .sum());
-        eventSummaryDTO.setTotalRevenue(showSummaryDTOS
-                .stream()
-                .mapToLong(ShowSummaryDTO::getTotalRevenue)
-                .sum());
-        return eventSummaryDTO;
-    }
 }

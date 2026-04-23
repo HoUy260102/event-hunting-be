@@ -1,5 +1,5 @@
 package com.example.event.constant;
 
 public enum PaymentStatus {
-    UNPAID, COMPLETED, REFUNDED, FAILED
+    PENDING, UNPAID, SUCCESS, REFUNDED, FAILED
 }

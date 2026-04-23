@@ -1,14 +1,18 @@
 package com.example.event.mapper;
 
+import com.example.event.constant.SeatMapType;
+import com.example.event.constant.SeatingType;
 import com.example.event.constant.ShowStatus;
 import com.example.event.constant.TicketTypeStatus;
 import com.example.event.dto.*;
+import com.example.event.entity.Event;
 import com.example.event.entity.Show;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -17,13 +21,23 @@ import java.util.stream.Collectors;
 public class ShowMapper {
     private final ModelMapper modelMapper;
     private final TicketTypeMapper ticketTypeMapper;
+    private final FileMapper fileMapper;
 
     public ShowDTO toDTO(Show show) {
         ShowDTO showDTO = modelMapper.map(show, ShowDTO.class);
-        showDTO.setTicketTypes(show.getTicketTypes().stream()
+        List<TicketTypeDTO> ticketTypeDTOS = show.getTicketTypes().stream()
                 .filter((ticketType) -> ticketType.getDeletedAt() == null)
-                .map((ticketTypeMapper::toDTO))
-                .collect(Collectors.toList()));
+                .map(ticketType -> {
+                    TicketTypeDTO ticketTypeDTO = ticketTypeMapper.toDTO(ticketType);
+                    ticketTypeDTO.setSeats(
+                            showDTO.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS
+                                    && ticketType.getSeatingType() == SeatingType.SEATED ? ticketTypeDTO.getSeats()
+                                    : new ArrayList<>()
+                    );
+                    return ticketTypeDTO;
+                })
+                .collect(Collectors.toList());
+        showDTO.setTicketTypes(ticketTypeDTOS);
         return showDTO;
     }
 
@@ -49,44 +63,34 @@ public class ShowMapper {
         return showBookingDTO;
     }
 
-    public ShowSummaryDTO toSummaryDTO(Show show) {
-        ShowSummaryDTO showSummaryDTO = ShowSummaryDTO.builder()
-                .id(show.getId())
-                .startTime(show.getStartTime())
-                .endTime(show.getEndTime())
-                .build();
-        List<TicketTypeSummaryDTO> typeSummaryDTOS = show.getTicketTypes()
-                .stream()
-                .filter(ticketType -> ticketType.getDeletedAt() == null &&
-                        (ticketType.getStatus() == TicketTypeStatus.ACTIVE || ticketType.getStatus() == TicketTypeStatus.SUSPENDED))
-                .map(ticketTypeMapper::toSummaryDTO)
-                .collect(Collectors.toList());
-        LocalDateTime startTime = show.getStartTime();
-        showSummaryDTO.setTicketTypes(typeSummaryDTOS);
-        showSummaryDTO.setTotalQuantity(typeSummaryDTOS.stream()
-                .mapToInt(TicketTypeSummaryDTO::getTotalQuantity)
-                .sum());
-        showSummaryDTO.setSoldQuantity(typeSummaryDTOS.stream()
-                .mapToInt(TicketTypeSummaryDTO::getSoldQuantity)
-                .sum());
-        showSummaryDTO.setTotalRevenue(typeSummaryDTOS.stream()
-                .mapToLong(TicketTypeSummaryDTO::getTotalRevenue)
-                .sum());
-        showSummaryDTO.setStatus(calculateShowSummaryStatus(show, typeSummaryDTOS));
-        showSummaryDTO.setStartDay(String.valueOf(startTime.getDayOfMonth()));
-        showSummaryDTO.setStartMonth(String.valueOf(startTime.getMonth()));
-        return showSummaryDTO;
+    public ShowDetailDTO toDetailDTO(Show show) {
+        ShowDetailDTO showDetailDTO = modelMapper.map(show, ShowDetailDTO.class);
+        Event event = show.getEvent();
+        showDetailDTO.setEventName(event.getName());
+        showDetailDTO.setEventLocation(event.getLocation());
+        showDetailDTO.setEventPoster(fileMapper.toDTO(event.getPoster()));
+        return showDetailDTO;
     }
 
     private ShowStatus calculateShowSummaryStatus(Show show, List<TicketTypeSummaryDTO> ticketTypes) {
         LocalDateTime now = LocalDateTime.now();
+        // Check các trạng thái đặc biệt
         if (show.getDeletedAt() != null) return ShowStatus.DELETED;
         if (show.getStatus() == ShowStatus.CANCELLED) return ShowStatus.CANCELLED;
         if (show.getStatus() == ShowStatus.POSTPONED) return ShowStatus.POSTPONED;
+        // Check thời gian diễn ra show
         if (now.isAfter(show.getEndTime())) return ShowStatus.FINISHED;
+        // Kiểm tra có type nào ĐANG MỞ BÁN không
+        boolean hasAnyOnSale = ticketTypes.stream()
+                .anyMatch(type -> type.getBusinessStatus() == TicketTypeStatus.ON_SALE);
+        if (hasAnyOnSale) return ShowStatus.ON_SALE;
+        // Kiểm tra có type nào SẮP MỞ BÁN không (COMING_SOON hoặc TIER_SOLD_OUT nhưng còn tier sau)
+        boolean hasAnyComingSoon = ticketTypes.stream()
+                .anyMatch(type -> type.getBusinessStatus() == TicketTypeStatus.COMING_SOON
+                        || type.getBusinessStatus() == TicketTypeStatus.TIER_SOLD_OUT);
+        if (hasAnyComingSoon) return ShowStatus.UPCOMING;
         // Nếu tất cả các TicketType đều có trạng thái SOLD_OUT
         boolean isAllSoldOut = ticketTypes.stream()
-                .filter(type -> type.getAdminStatus() == TicketTypeStatus.ACTIVE)
                 .allMatch(type -> type.getSoldQuantity() >= type.getTotalQuantity());
         if (isAllSoldOut) {
             return ShowStatus.SOLD_OUT;

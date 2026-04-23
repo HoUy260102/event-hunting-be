@@ -11,7 +11,10 @@ public interface SeatService {
     List<Seat> createSeats(List<CreateSeatReq> seatsReq,
                                  TicketType ticketType,
                                  String creatorId);
-    List<Seat> updateTicketTiers(List<UpdateSeatReq> seatsReq,
+    List<Seat> createUnassignedSeats(TicketType ticketType,
+                                     String creatorId);
+    List<Seat> updateAssignedSeats(List<UpdateSeatReq> seatsReq,
                                        TicketType ticketType,
                                        String updatorId);
+    List<Seat> updateUnassignedSeats(TicketType ticketType, int newQuantity, String updatorId);
 }
