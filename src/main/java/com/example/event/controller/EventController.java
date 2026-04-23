@@ -87,8 +87,8 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
-    @GetMapping("/{id}/overview")
-    public ResponseEntity<?> findEventByIdForOverview(@PathVariable String id) {
+    @GetMapping("/{id}/summary")
+    public ResponseEntity<?> findEventByIdForSummary(@PathVariable String id) {
         EventSummaryDTO eventSummaryDTO = eventService.getEventSummaryById(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
@@ -98,7 +98,7 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
-    @GetMapping("/{id}/shows")
+    @GetMapping("/{id}âshows")
     public ResponseEntity<?> findAllShowsByEventId(@PathVariable String id) {
         List<ShowDTO> shows = showService.findShowsByEventId(id);
         ApiResponse response = ApiResponse.builder()

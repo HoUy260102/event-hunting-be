@@ -15,21 +15,6 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ShowSummaryDTO {
-//    private String id;
-//    private String startDay;
-//    private String startMonth;
-//
-//    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
-//    private LocalDateTime startTime;
-//    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
-//    private LocalDateTime endTime;
-//
-//    private ShowStatus status;
-//
-//    private Integer totalQuantity;
-//    private Integer soldQuantity;
-//    private Long totalRevenue;
-//    private List<TicketTypeSummaryDTO> ticketTypes;
 
     private String id;
     private String startDay;
@@ -47,7 +32,7 @@ public class ShowSummaryDTO {
 
     private Long totalAmount;
     private Long discountAmount;
-    private Long finalAmount;
+    private Long totalFinalAmount;
 
     private List<TicketTypeSummaryDTO> ticketTypes;
 }

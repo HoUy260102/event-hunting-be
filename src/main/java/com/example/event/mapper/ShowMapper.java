@@ -72,35 +72,6 @@ public class ShowMapper {
         return showDetailDTO;
     }
 
-    public ShowSummaryDTO toSummaryDTO(Show show) {
-        ShowSummaryDTO showSummaryDTO = ShowSummaryDTO.builder()
-                .id(show.getId())
-                .startTime(show.getStartTime())
-                .endTime(show.getEndTime())
-                .build();
-        List<TicketTypeSummaryDTO> typeSummaryDTOS = show.getTicketTypes()
-                .stream()
-                .filter(ticketType -> ticketType.getDeletedAt() == null &&
-                        (ticketType.getStatus() == TicketTypeStatus.ACTIVE || ticketType.getStatus() == TicketTypeStatus.SUSPENDED))
-                .map(ticketTypeMapper::toSummaryDTO)
-                .collect(Collectors.toList());
-        LocalDateTime startTime = show.getStartTime();
-        showSummaryDTO.setTicketTypes(typeSummaryDTOS);
-        showSummaryDTO.setTotalQuantity(typeSummaryDTOS.stream()
-                .mapToInt(TicketTypeSummaryDTO::getTotalQuantity)
-                .sum());
-        showSummaryDTO.setSoldQuantity(typeSummaryDTOS.stream()
-                .mapToInt(TicketTypeSummaryDTO::getSoldQuantity)
-                .sum());
-        showSummaryDTO.setTotalRevenue(typeSummaryDTOS.stream()
-                .mapToLong(TicketTypeSummaryDTO::getTotalRevenue)
-                .sum());
-        showSummaryDTO.setStatus(calculateShowSummaryStatus(show, typeSummaryDTOS));
-        showSummaryDTO.setStartDay(String.valueOf(startTime.getDayOfMonth()));
-        showSummaryDTO.setStartMonth(String.valueOf(startTime.getMonth()));
-        return showSummaryDTO;
-    }
-
     private ShowStatus calculateShowSummaryStatus(Show show, List<TicketTypeSummaryDTO> ticketTypes) {
         LocalDateTime now = LocalDateTime.now();
         // Check các trạng thái đặc biệt

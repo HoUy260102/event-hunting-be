@@ -100,21 +100,6 @@ public class TicketTypeMapper {
         return ticketTypeBookingDTO;
     }
 
-    public TicketTypeSummaryDTO toSummaryDTO(TicketType ticketType) {
-        TicketTypeSummaryDTO ticketTypeSummaryDTO = modelMapper.map(ticketType, TicketTypeSummaryDTO.class);
-        List<TicketTierSummaryDTO> tierSummaryDTOS = ticketType.getTicketTiers()
-                .stream().filter(tier -> tier.getDeletedAt() == null)
-                .map(ticketTierMapper::toSummaryDTO)
-                .collect(Collectors.toList());
-        ticketTypeSummaryDTO.setTicketTiers(tierSummaryDTOS);
-        ticketTypeSummaryDTO.setAdminStatus(ticketType.getStatus());
-        ticketTypeSummaryDTO.setBusinessStatus(calculateSingleTierBusinessStatus(ticketType));
-        ticketTypeSummaryDTO.setTotalRevenue(tierSummaryDTOS.stream()
-                .mapToLong(TicketTierSummaryDTO::getTotalRevenue)
-                .sum());
-        return ticketTypeSummaryDTO;
-    }
-
     private TicketTypeStatus calculateStatus(TicketType ticketType, TicketTier activeTier, List<TicketTier> allTiers, LocalDateTime now) {
         if (ticketType.getStatus() == TicketTypeStatus.SUSPENDED) return TicketTypeStatus.SUSPENDED;
         if (ticketType.getDeletedAt() != null) return TicketTypeStatus.DELETED;

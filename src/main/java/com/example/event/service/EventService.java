@@ -13,5 +13,5 @@ public interface EventService {
     EventDTO updateEvent(UpdateEventReq updateEventReq, String id);
     EventDTO findEventById(String id);
     EventInfoDTO findEventInfoById(String id);
-    EventSummaryDTO getEventSummaryById(String id);
+    EventSummaryDTO getEventSummaryById(String eventId);
 }

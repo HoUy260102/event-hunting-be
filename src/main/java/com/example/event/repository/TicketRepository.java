@@ -57,14 +57,14 @@ public interface TicketRepository extends JpaRepository<Ticket, String>, JpaSpec
                 e.endTime                               as eventEndTime,
                 e.status                                as eventStatus,
                 f.url                                   as eventPosterUrl,
-                
+            
                 s.id                                    as showId,
                 s.startTime                             as showStartTime,
                 s.endTime                               as showEndTime,
-                s.status                                as showStats,
-                EXTRACT(MONTH FROM s.startTime)         AS showStartDay,
-                EXTRACT(DAY FROM s.startTime)           AS showStartMonth,
-                
+                s.status                                as showStatus,
+                EXTRACT(DAY FROM s.startTime)           as showStartDay,
+                EXTRACT(MONTH FROM s.startTime)         as showStartMonth,
+            
                 tt.id                                   as ticketTypeId,
                 tt.name                                 as typeTypeName,
                 tt.totalQuantity                        as ticketTypeTotalQuantity,
@@ -72,26 +72,31 @@ public interface TicketRepository extends JpaRepository<Ticket, String>, JpaSpec
                 tt.reservedQuantity                     as ticketTypeReservedQuantity,
                 tt.totalQuantity - tt.reservedQuantity  as ticketTypeAvailableQuantity,
                 tt.status                               as ticketTypeStatus,
-                
+            
                 ti.id                                   as ticketTierId,
                 ti.name                                 as ticketTierName,
+                ti.price                                as ticketTierUnitPrice,
+                ti.status                               as ticketTierStatus,
                 ti.limitQuantity                        as ticketTierLimitQuantity,
                 ti.soldQuantity                         as ticketTierSoldQuantity,
                 ti.reservedQuantity                     as ticketTierReservedQuantity,
-                
+            
                 COALESCE(SUM(ri.totalPrice), 0)  as ticketTierTotalPrice,
-                COALESCE(SUM(ri.discountAmount), 0) as ticketTierTotalDiscountAmount,
-                COALESCE(SUM(ri.finalPrice), 0)     as ticketTierFinalPrice
-                
+                COALESCE(SUM(COALESCE(ri.discountAmount, 0)), 0) as ticketTierTotalDiscountAmount,
+                COALESCE(SUM(COALESCE(ri.finalPrice, ri.totalPrice)), 0) AS ticketTierFinalPrice            
             FROM Event e
             JOIN File f             ON f.referenceId = e.id AND f.folder = 'EVENT_POSTER' AND f.status = 'ACTIVE'
             JOIN Show s             ON s.event.id = e.id
             JOIN TicketType tt      ON tt.show.id = s.id
             JOIN TicketTier ti            ON ti.ticketType.id = tt.id
-            LEFT JOIN ReservationItem ri ON ri.ticketTier.id = ti.id
+            LEFT JOIN ReservationItem ri ON ri.ticketTier.id = ti.id AND ri.reservation.status = 'PAID'            
+            
             WHERE e.id = :eventId
-            GROUP BY s.id, tt.id, ti.id
+            GROUP BY e.id, e.name, e.location, e.startTime, e.endTime, e.status, f.url,
+                        s.id, s.startTime, s.endTime, s.status,
+                        tt.id, tt.name, tt.totalQuantity, tt.soldQuantity, tt.reservedQuantity, tt.status,
+                        ti.id, ti.name, ti.price, ti.status, ti.limitQuantity, ti.soldQuantity, ti.reservedQuantity
             ORDER BY s.startTime, tt.name, ti.name
             """)
-    List<TicketStatProjection> getStatByEvent(@Param("eventId") Long eventId);
+    List<TicketStatProjection> getStatByEvent(@Param("eventId") String eventId);
 }
