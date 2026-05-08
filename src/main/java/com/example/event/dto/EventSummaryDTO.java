@@ -19,6 +19,7 @@ public class EventSummaryDTO {
     private String id;
     private String name;
     private String location;
+    private String address;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime startTime;

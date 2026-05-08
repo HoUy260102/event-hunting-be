@@ -12,10 +12,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -120,5 +122,28 @@ public class AuthController {
                 .message("Thành công.")
                 .build();
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/google/url")
+    public ResponseEntity<?> getGoogleAuthUrl(@RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
+        String url = authService.buildGoogleAuthUrl(deviceId);
+        Map<String, String> result = new HashMap<>();
+        result.put("url", url);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(result)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/callback/google")
+    public ResponseEntity<String> callback(@RequestParam String code, @RequestParam String state) throws IOException {
+        String deviceId = state;
+        String result = authService.handleCallback(code, deviceId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .header("Cross-Origin-Opener-Policy", "unsafe-none")
+                .body(result);
     }
 }

@@ -30,7 +30,7 @@ public class Show {
     private LocalDateTime endTime;
     @Enumerated(EnumType.STRING)
     private SeatMapType seatMapType;
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "MEDIUMTEXT")
     private String seatMapSvg;
     @Enumerated(EnumType.STRING)
     private ShowStatus status;

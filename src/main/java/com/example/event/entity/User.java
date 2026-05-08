@@ -9,6 +9,9 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
+
 @Getter
 @Setter
 @AllArgsConstructor
@@ -48,6 +51,9 @@ public class User {
 
     // Liên kết hệ thống ngoài
     private String provider;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private Set<Favorite> favorites = new HashSet<>();
 
     // Thông tin meta
     private LocalDateTime createdAt;

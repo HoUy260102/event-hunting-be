@@ -42,10 +42,6 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
-            if (isByPassToken(request)) {
-                filterChain.doFilter(request, response);
-                return;
-            }
             final String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 final String token = authHeader.substring(7).trim();
@@ -53,6 +49,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 final String username = claims.getSubject();
                 final String sid = (String) claims.get("sid");
                 final String type = claims.get("type", String.class);
+                final String rv = claims.get("rv", String.class);
                 if (!type.equalsIgnoreCase("access")) {
                     throw new AccessDeniedException(ErrorCode.TOKEN_TYPE_INVALID.getMessage());
                 }
@@ -61,6 +58,11 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 }
                 if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     CustomUserDetails customUserDetails = (CustomUserDetails) customUserDetailsService.loadUserByUsername(username);
+                    Long permissionVer = customUserDetails.getUser().getRole().getPermissionVersion();
+                    Long jwtPermissionVer = Long.parseLong(rv.split(":")[1]);
+                    if (!permissionVer.equals(jwtPermissionVer)) {
+                        throw new JwtAuthenticationException(ErrorCode.TOKEN_INVALID);
+                    }
                     if (jwtUtils.validateToken(token)) {
                         UsernamePasswordAuthenticationToken authenticationToken =
                                 new UsernamePasswordAuthenticationToken(customUserDetails, null,
@@ -69,8 +71,15 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                     }
                 }
+            } else if (isByPassToken(request)) {
+                filterChain.doFilter(request, response);
+                return;
             }
         } catch (JwtAuthenticationException e) {
+            if (isByPassToken(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             response.setContentType("application/json");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             ErrorResponse errorResponse = ErrorResponse.builder()
@@ -84,6 +93,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
             response.getWriter().write(json);
             return;
         } catch (AuthenticationException | AccessDeniedException e) {
+            if (isByPassToken(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             throw e;
         } catch (Exception e) {
             response.setContentType("application/json");
@@ -115,12 +128,15 @@ public class JwtTokenFilter extends OncePerRequestFilter {
         List<Pair<String, String>> bypassTokens = new ArrayList<>(Arrays.asList(
                 Pair.of("/auth/login", "POST"),
                 Pair.of("/auth/refresh-token", "GET"),
+                Pair.of("/auth/callback/google", "GET"),
+                Pair.of("/auth/google/url", "GET"),
                 Pair.of("/auth/signup", "POST"),
                 Pair.of("/auth/verify", "GET"),
                 Pair.of("/auth/resend-verify", "POST"),
 
                 Pair.of("/categories", "GET"),
                 Pair.of("/events/public/search", "GET"),
+                Pair.of("/events/trending", "GET"),
                 Pair.of("/events/*/info", "GET"),
                 Pair.of("/payments/vnpay-callback", "GET")
         ));

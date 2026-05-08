@@ -53,6 +53,7 @@ public interface TicketRepository extends JpaRepository<Ticket, String>, JpaSpec
                 e.id                                    as eventId,
                 e.name                                  as eventName,
                 e.location                              as eventLocation,
+                e.address                               as eventAddress,
                 e.startTime                             as eventStartTime,
                 e.endTime                               as eventEndTime,
                 e.status                                as eventStatus,

@@ -9,7 +9,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -25,13 +27,17 @@ public class Event {
     private String descriptionHtml;
     @Column(columnDefinition = "TEXT")
     private String descriptionText;
-
     private String location;
+    private String address;
     @Enumerated(EnumType.STRING)
     private EventStatus status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Long minPrice;
+    @Column(columnDefinition = "TEXT")
+    private String rejectionReason;
+    private LocalDateTime reviewedAt;
+    private String reviewedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "province_id")
@@ -63,6 +69,9 @@ public class Event {
 
     @OneToMany(mappedBy = "event")
     private List<Show> shows;
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    private Set<Favorite> favoritedBy = new HashSet<>();
 
     private LocalDateTime createdAt;
     private String createdBy;

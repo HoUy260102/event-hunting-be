@@ -5,8 +5,10 @@ import com.example.event.dto.ReservationDTO;
 import com.example.event.dto.ReservationDetailDTO;
 import com.example.event.dto.ReservationSummaryDTO;
 import com.example.event.dto.request.ReservationReq;
+import com.example.event.dto.request.SearchReservationReq;
 import com.example.event.entity.Reservation;
 import com.example.event.entity.Voucher;
+import org.springframework.data.domain.Page;
 
 import java.time.LocalDateTime;
 
@@ -30,4 +32,6 @@ public interface ReservationService {
     void applyDiscount(Reservation reservation, Voucher voucher, ReservationDTO calculated);
 
     void resetDiscount(Reservation reservation);
+
+    Page<ReservationDetailDTO> getReservationsSearch(SearchReservationReq req);
 }

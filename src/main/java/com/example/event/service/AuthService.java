@@ -5,6 +5,8 @@ import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
 import com.example.event.dto.response.AuthResponse;
 
+import java.io.IOException;
+
 public interface AuthService {
     AuthResponse login(LoginReq req, String deviceId, String ipAddress);
     AuthDTO getAuthInfo();
@@ -13,4 +15,6 @@ public interface AuthService {
     void verify(String verifyToken);
     void resendVerify(String email);
     void signup(SignUpReq req, String deviceId);
+    String buildGoogleAuthUrl(String deviceId);
+    String handleCallback(String code, String deviceId) throws IOException;
 }

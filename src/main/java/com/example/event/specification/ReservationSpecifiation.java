@@ -1,0 +1,60 @@
+package com.example.event.specification;
+
+import com.example.event.constant.ReservationStatus;
+import com.example.event.entity.Reservation;
+import jakarta.persistence.criteria.JoinType;
+import org.springframework.data.jpa.domain.Specification;
+
+public class ReservationSpecifiation {
+
+    public static Specification<Reservation> fetchShowAndEvent() {
+        return (root, query, cb) -> {
+            if (query.getResultType() != Long.class) {
+                root.fetch("show", JoinType.LEFT)
+                        .fetch("event", JoinType.LEFT);
+                root.fetch("user", JoinType.LEFT);
+                query.distinct(true);
+            }
+            return null;
+        };
+    }
+
+    public static Specification<Reservation> hasId(String id) {
+        return (root, query, cb) ->
+                id == null ? null : cb.equal(root.get("id"), id);
+    }
+
+    public static Specification<Reservation> hasShowId(String id) {
+        return (root, query, cb) ->
+                id == null ? null : cb.equal(root.get("show").get("id"), id);
+    }
+
+    public static Specification<Reservation> hasEventId(String id) {
+        return (root, query, cb) -> {
+            if (id == null) return null;
+            return cb.equal(root.get("show").get("event").get("id"), id);
+        };
+    }
+
+    public static Specification<Reservation> hasUserId(String id) {
+        return (root, query, cb) -> {
+            if (id == null) return null;
+            return cb.equal(root.get("show").get("event").get("user").get("id"), id);
+        };
+    }
+
+    public static Specification<Reservation> hasStatus(ReservationStatus status) {
+        return (root, query, cb) ->
+                status == null ? null : cb.equal(root.get("status"), status);
+    }
+
+    public static Specification<Reservation> isNotDeleted() {
+        return (root, query, cb) -> cb.isNull(root.get("deletedAt"));
+    }
+
+    public static Specification<Reservation> isDeleted() {
+        return (root, query, cb) ->
+                cb.isNotNull(root.get("deletedAt"));
+    }
+
+}

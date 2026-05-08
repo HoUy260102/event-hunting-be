@@ -20,6 +20,7 @@ public class EventSearchPublicDTO {
     private String name;
 
     private String location;
+    private String address;
     @Enumerated(EnumType.STRING)
     private EventStatus status;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
@@ -27,6 +28,7 @@ public class EventSearchPublicDTO {
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime endTime;
     private Long minPrice;
+    private Boolean isSaved;
 
     private ProvinceDTO province;
     private CategoryDTO category;

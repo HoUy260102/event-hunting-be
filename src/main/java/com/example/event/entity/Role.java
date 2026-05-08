@@ -41,4 +41,7 @@ public class Role {
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
     private Set<Permission> permissions;
+
+    @Column(name = "permission_version", nullable = false)
+    private Long permissionVersion = 0L;
 }

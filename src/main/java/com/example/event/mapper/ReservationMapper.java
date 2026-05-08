@@ -9,9 +9,11 @@ import com.example.event.entity.Reservation;
 import com.example.event.entity.ReservationItem;
 import com.example.event.entity.Show;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 @Component
@@ -38,11 +40,18 @@ public class ReservationMapper {
         ReservationDetailDTO reservationDTO = modelMapper.map(reservation, ReservationDetailDTO.class);
         Show show = reservation.getShow();
         Event event = reservation.getEvent();
+        reservationDTO.setShowId(show.getId());
+        reservationDTO.setEventId(event.getId());
+        reservationDTO.setUserId(reservation.getUser().getId());
         reservationDTO.setShowStartTime(show.getStartTime());
         reservationDTO.setShowEndTime(show.getEndTime());
         reservationDTO.setEventName(event.getName());
         reservationDTO.setEventLocation(event.getLocation());
-        reservationDTO.setItems(reservation.getItems()
+        reservationDTO.setTotalAmount(reservation.getTotalAmount());
+        reservationDTO.setDiscountAmount(reservation.getDiscountAmount());
+        reservationDTO.setFinalAmount(reservation.getFinalAmount() != null ? reservation.getFinalAmount() : reservation.getTotalAmount());
+        reservationDTO.setItems(!Hibernate.isInitialized(reservation.getItems())
+                ? new ArrayList<>() : reservation.getItems()
                 .stream()
                 .collect(Collectors.groupingBy(
                         item -> item.getTicketType().getId(),
@@ -55,7 +64,8 @@ public class ReservationMapper {
                                             .ticketTypeName(first.getTicketType().getName())
                                             .quantity(list.stream().mapToInt(ReservationItem::getQuantity).sum())
                                             .totalPrice(list.stream().mapToLong(ReservationItem::getTotalPrice).sum())
-                                            .unitPrice(first.getUnitPrice())
+                                            .discountAmount(list.stream().mapToLong(item -> item.getDiscountAmount() != null ? item.getDiscountAmount() : 0L).sum())
+                                            .finalPrice(list.stream().mapToLong(item -> item.getFinalPrice() != null ? item.getFinalPrice() : 0L).sum()).unitPrice(first.getUnitPrice())
                                             .seatId(null)
                                             .seatCode(null)
                                             .seatDisplayName(null)
@@ -77,7 +87,9 @@ public class ReservationMapper {
         reservationDTO.setShowEndTime(show.getEndTime());
         reservationDTO.setEventName(event.getName());
         reservationDTO.setEventLocation(event.getLocation());
-        reservationDTO.setItems(reservation.getItems()
+        reservationDTO.setDiscountAmount(reservation.getDiscountAmount() != null ? reservation.getDiscountAmount() : 0L);
+        reservationDTO.setItems(!Hibernate.isInitialized(reservation.getItems())
+                ? new ArrayList<>() : reservation.getItems()
                 .stream()
                 .collect(Collectors.groupingBy(
                         item -> item.getTicketType().getId(),
@@ -90,6 +102,8 @@ public class ReservationMapper {
                                             .ticketTypeName(first.getTicketType().getName())
                                             .quantity(list.stream().mapToInt(ReservationItem::getQuantity).sum())
                                             .totalPrice(list.stream().mapToLong(ReservationItem::getTotalPrice).sum())
+                                            .discountAmount(list.stream().mapToLong(item -> item.getDiscountAmount() != null ? item.getDiscountAmount() : 0L).sum())
+                                            .finalPrice(list.stream().mapToLong(item -> item.getFinalPrice() != null ? item.getFinalPrice() : 0L).sum())
                                             .unitPrice(first.getUnitPrice())
                                             .seatId(null)
                                             .seatCode(null)

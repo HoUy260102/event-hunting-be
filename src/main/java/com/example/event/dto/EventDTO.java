@@ -16,6 +16,7 @@ public class EventDTO {
     private String id;
     private String name;
     private String location;
+    private String address;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private EventStatus status;
@@ -28,4 +29,8 @@ public class EventDTO {
     private FileDTO organizerLogo;
     private String organizerName;
     private String organizerInfo;
+    private String userId;
+    private String rejectionReason;
+    private LocalDateTime reviewedAt;
+    private String reviewedBy;
 }

@@ -23,6 +23,7 @@ public enum ErrorCode {
 
     USER_NOT_FOUND(HttpStatus.BAD_REQUEST, "User này không tồn tại."),
     USER_EXISTS(HttpStatus.BAD_REQUEST, "User này đã tồn tại."),
+    ACCOUNT_REGISTERED_WITH_GOOGLE(HttpStatus.CONFLICT, "Tài khoản này đã đăng ký bằng Google. Vui lòng đăng nhập bằng Google."),
     USER_VERIFIED(HttpStatus.BAD_REQUEST, "User này đã xác thực."),
     USER_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "User này chưa được xác thực."),
 
@@ -53,6 +54,7 @@ public enum ErrorCode {
 
     EVENT_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu sự kiện không hợp lệ."),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được event."),
+    EVENT_NOT_PENDING(HttpStatus.BAD_REQUEST, "Sự kiện không ở trạng thái chờ duyệt."),
 
     TICKET_TYPE_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được ticket type."),
     TICKET_TYPE_IN_ACTIVE(HttpStatus.BAD_REQUEST, "Loại vé này đã ngưng hoạt động."),
@@ -81,6 +83,9 @@ public enum ErrorCode {
     RESERVATION_ALREADY_PAID(HttpStatus.BAD_REQUEST, "Reservation này đã được thanh toán."),
     RESERVATION_QUANTITY_EXCEEDED(HttpStatus.BAD_REQUEST, "Số lượng vé vượt quá giới hạn tối đa cho phép của mỗi đơn hàng."),
     RESERVATION_QUANTITY_MINIMUM_NOT_MET(HttpStatus.BAD_REQUEST, "Số lượng vé chưa đạt mức tối thiểu yêu cầu cho mỗi đơn hàng."),
+
+    FAVORITE_ALREADY_EXISTS(HttpStatus.BAD_REQUEST, "Bạn đã lưu sự kiện này vào danh sách yêu thích rồi."),
+    FAVORITE_NOT_FOUND(HttpStatus.BAD_REQUEST, "Sự kiện này không tồn tại trong danh sách yêu thích của bạn."),
 
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy payment."),
     PAYMENT_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "Payment này không hợp lệ."),
@@ -114,6 +119,7 @@ public enum ErrorCode {
     VOUCHER_MIN_ORDER_NOT_MET(HttpStatus.BAD_REQUEST, "Đơn hàng có giá trị nhỏ hơn giá trị tối thiểu."),
 
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
+    UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để thực hiện hành động này."),
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống.");
 
     private final String message;

@@ -1,24 +1,13 @@
 package com.example.event.service.Impl;
 
 import com.example.event.config.VNPayConfig;
-import com.example.event.constant.ErrorCode;
-import com.example.event.constant.PaymentMethod;
-import com.example.event.constant.PaymentStatus;
-import com.example.event.constant.ReservationStatus;
+import com.example.event.constant.*;
 import com.example.event.dto.ReservationDTO;
-import com.example.event.entity.Payment;
-import com.example.event.entity.Reservation;
-import com.example.event.entity.User;
-import com.example.event.entity.Voucher;
+import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.repository.PaymentRepository;
-import com.example.event.repository.ReservationItemRepository;
 import com.example.event.repository.ReservationRepository;
-import com.example.event.repository.VoucherRepository;
-import com.example.event.service.PaymentService;
-import com.example.event.service.ReservationService;
-import com.example.event.service.TicketService;
-import com.example.event.service.VoucherService;
+import com.example.event.service.*;
 import com.example.event.util.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -44,8 +33,7 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final VNPayConfig vnPayConfig;
     private final ReservationService reservationService;
     private final ReservationRepository reservationRepository;
-    private final ReservationItemRepository reservationItemRepository;
-    private final VoucherRepository voucherRepository;
+    private final EventInteractionService eventInteractionService;
     private final VoucherService voucherService;
     private final PaymentRepository paymentRepository;
     private final TicketService ticketService;
@@ -250,6 +238,10 @@ public class VNPaymentServiceImpl implements PaymentService {
 
     private void handlePostPaymentBusiness(Payment payment, String responseCode) {
         Reservation reservation = payment.getReservation();
+        User user = reservation.getUser();
+        Show show = reservation.getShow();
+        Event event = show.getEvent();
+        if (user != null && event != null) eventInteractionService.addInteraction(event.getId(), user.getId(), InteractionType.REGISTER);
         String resId = reservation.getId();
         Map<String, String> socketData = new HashMap<>();
         socketData.put("reservationId", resId);
