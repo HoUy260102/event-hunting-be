@@ -141,6 +141,11 @@ public class ReservationServiceImpl implements ReservationService {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
 
+        if (event.getStatus() != EventStatus.PUBLISHED ||
+            event ) {
+
+        }
+
         //Check số lượng vé đã đặt
         Integer totalQuantity = req.getItems().stream()
                 .map(item -> item.getQuantity())
@@ -163,6 +168,7 @@ public class ReservationServiceImpl implements ReservationService {
                 .filter(item -> item.getSeatIds() == null || item.getSeatIds().isEmpty())
                 .sorted(Comparator.comparing(ReservationItemReq::getTicketTypeId))
                 .collect(Collectors.toList());
+
         // Danh sách các item cần seat
         List<ReservationItemReq> assignedItems = req.getItems().stream()
                 .filter(item -> item.getSeatIds() != null && !item.getSeatIds().isEmpty())

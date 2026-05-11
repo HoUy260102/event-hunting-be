@@ -28,5 +28,6 @@ public interface UserRepository extends JpaRepository<User, String>, JpaSpecific
     User findUserByIdForUpdate(@Param("id") String id);
     User findUserById(String id);
     boolean existsUserByEmail(String email);
+    boolean existsUserByEmailAndIdNot(String email, String id);
     boolean existsUserById(String id);
 }

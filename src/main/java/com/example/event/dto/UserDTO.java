@@ -1,5 +1,6 @@
 package com.example.event.dto;
 
+import com.example.event.constant.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -7,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Date;
+
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -20,6 +22,7 @@ public class UserDTO {
     private Date dob;
 
     private FileDTO avatar;
+    private UserStatus status;
 
     // Trạng thái khóa tài khoản
     private boolean isLocked;
@@ -30,8 +33,6 @@ public class UserDTO {
     // Xác minh tài khoản
     private boolean isVerified;
     private LocalDateTime verifiedAt;
-
-    // Sự kiện quan tâm
 
     // Vai trò
     private RoleDTO role;

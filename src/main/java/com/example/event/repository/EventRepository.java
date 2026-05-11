@@ -34,4 +34,5 @@ public interface EventRepository extends JpaRepository<Event, String>, JpaSpecif
     List<Event> searchFullTextBoolean(@Param("keyword") String keyword);
 
     List<Event> findEventsByUser_Id(String userId);
+    boolean existsByCategoryIdAndDeletedAtIsNull(String categoryId);
 }

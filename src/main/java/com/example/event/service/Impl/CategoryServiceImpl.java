@@ -11,6 +11,7 @@ import com.example.event.entity.Category;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.CategoryMapper;
 import com.example.event.repository.CategoryRepository;
+import com.example.event.repository.EventRepository;
 import com.example.event.service.CategoryService;
 import com.example.event.specification.CategorySpecifiation;
 import com.example.event.util.StringUtil;
@@ -33,6 +34,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
     private final SecurityUtils securityUtils;
+    private final EventRepository eventRepository;
 
     @Override
     public List<CategoryDTO> findAllCategories() {
@@ -108,6 +110,9 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
         if (category.getDeletedAt() != null) {
             throw new AppException(ErrorCode.CATEGORY_ALREADY_DELETED);
+        }
+        if (eventRepository.existsByCategoryIdAndDeletedAtIsNull(id)) {
+            throw new AppException(ErrorCode.CATEGORY_HAS_EVENTS);
         }
         category.setName(category.getName() + "-deleted-" + System.currentTimeMillis());
         category.setSlug(category.getSlug() + "-deleted-" + System.currentTimeMillis());

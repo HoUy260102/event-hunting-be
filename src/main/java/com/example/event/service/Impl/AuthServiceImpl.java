@@ -7,6 +7,7 @@ import com.example.event.constant.ErrorCode;
 import com.example.event.constant.FileFolder;
 import com.example.event.constant.FileStatus;
 import com.example.event.constant.FileType;
+import com.example.event.constant.UserStatus;
 import com.example.event.dto.AuthDTO;
 import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
@@ -95,9 +96,7 @@ public class AuthServiceImpl implements AuthService {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
                             req.getUsername(),
-                            req.getPassword()
-                    )
-            );
+                            req.getPassword()));
 
             String key = loginFailPrefix + req.getUsername() + ":" + deviceId + ":" + ipAddress;
             redisService.del(key);
@@ -105,12 +104,15 @@ public class AuthServiceImpl implements AuthService {
             CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
             User user = userDetails.getUser();
 
-            //Kiểm tra user đã xác thực chưa
+            // Kiểm tra user đã xác thực chưa
             if (!user.isVerified()) {
                 throw new AppException(ErrorCode.USER_NOT_VERIFIED);
             }
 
-            //Tạo auth response
+            // Kiểm tra trạng thái tài khoản
+            checkUserStatus(user);
+
+            // Tạo auth response
             AuthResponse authResponse = buildAuthResponse(user, deviceId);
             return authResponse;
         } catch (BadCredentialsException e) {
@@ -130,7 +132,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public String refreshToken(String refreshToken, String deviceId) {
         Session session = sessionRepository.findByRefreshTokenAndDeviceId(refreshToken, deviceId);
-        if (session == null) return "";
+        if (session == null)
+            return "";
         User user = session.getUser();
         return jwtUtils.generateToken(user.getEmail(), session.getId(), "access");
     }
@@ -167,6 +170,7 @@ public class AuthServiceImpl implements AuthService {
             throw new JwtAuthenticationException(ErrorCode.TOKEN_EXPIRED);
         }
 
+        user.setStatus(UserStatus.ACTIVE);
         user.setVerified(true);
         user.setVerifiedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
@@ -215,6 +219,7 @@ public class AuthServiceImpl implements AuthService {
         createUser.setAddress(req.getAddress());
         createUser.setDob(req.getDob());
         createUser.setRole(role);
+        createUser.setStatus(UserStatus.UNVERIFIED);
         createUser.setCreatedAt(LocalDateTime.now());
         createUser.setUpdatedAt(LocalDateTime.now());
         userRepository.save(createUser);
@@ -222,7 +227,7 @@ public class AuthServiceImpl implements AuthService {
         createUser.setUpdatedBy(createUser.getId());
         userRepository.save(createUser);
         String verifyToken = jwtUtils.generateToken(createUser.getEmail(), null, "verify");
-        //Lưu verify token vào redis
+        // Lưu verify token vào redis
         String verifyKey = tokenPrefix + createUser.getEmail() + ":verify-token";
         Long ttl = verifyExpiration / 1000 + 5;
         redisService.set(verifyKey, verifyToken, ttl);
@@ -234,8 +239,7 @@ public class AuthServiceImpl implements AuthService {
         return new GoogleAuthorizationCodeRequestUrl(
                 clientId,
                 redirectUri,
-                Arrays.asList("openid", "email", "profile")
-        ).setState(deviceId).build();
+                Arrays.asList("openid", "email", "profile")).setState(deviceId).build();
     }
 
     @Override
@@ -249,8 +253,7 @@ public class AuthServiceImpl implements AuthService {
                     clientId,
                     clientSecret,
                     code,
-                    redirectUri
-            ).execute();
+                    redirectUri).execute();
 
             // 2. Parse id_token lấy user info
             GoogleIdToken.Payload payload = tokenResponse.parseIdToken().getPayload();
@@ -265,36 +268,37 @@ public class AuthServiceImpl implements AuthService {
             // 3. Upsert user vào DB
             User user = Optional.ofNullable(userRepository.findUserByEmail(email))
                     .orElseGet(() -> {
-                                User newUser = new User();
-                                newUser.setEmail(email);
-                                newUser.setName(name);
-                                newUser.setProvider("GOOGLE");
-                                newUser.setCreatedAt(LocalDateTime.now());
-                                newUser.setUpdatedAt(LocalDateTime.now());
-                                newUser.setVerified(true);
-                                newUser.setVerifiedAt(LocalDateTime.now());
-                                userRepository.save(newUser);
-                                newUser.setCreatedBy(newUser.getId());
-                                newUser.setUpdatedBy(newUser.getId());
+                        User newUser = new User();
+                        newUser.setEmail(email);
+                        newUser.setName(name);
+                        newUser.setProvider("GOOGLE");
+                        newUser.setCreatedAt(LocalDateTime.now());
+                        newUser.setUpdatedAt(LocalDateTime.now());
+                        newUser.setVerified(true);
+                        newUser.setStatus(UserStatus.ACTIVE);
+                        newUser.setVerifiedAt(LocalDateTime.now());
+                        userRepository.save(newUser);
+                        newUser.setCreatedBy(newUser.getId());
+                        newUser.setUpdatedBy(newUser.getId());
 
-                                File avatar = new File();
-                                avatar.setUrl(picture);
-                                avatar.setStatus(FileStatus.ACTIVE);
-                                avatar.setType(FileType.IMAGE);
-                                avatar.setFolder(FileFolder.USER_AVATAR);
-                                avatar.setFormat("jpg");
-                                avatar.setCreatedAt(LocalDateTime.now());
-                                fileRepository.save(avatar);
+                        File avatar = new File();
+                        avatar.setUrl(picture);
+                        avatar.setStatus(FileStatus.ACTIVE);
+                        avatar.setType(FileType.IMAGE);
+                        avatar.setFolder(FileFolder.USER_AVATAR);
+                        avatar.setFormat("jpg");
+                        avatar.setCreatedAt(LocalDateTime.now());
+                        fileRepository.save(avatar);
 
-                                Role role = roleRepository.findByName("USER");
-                                newUser.setRole(role);
-                                newUser.setAvatar(avatar);
-                                return userRepository.save(newUser);
-                            }
-                    );
+                        Role role = roleRepository.findByName("USER");
+                        newUser.setRole(role);
+                        newUser.setAvatar(avatar);
+                        return userRepository.save(newUser);
+                    });
             // 4. Kiểm tra xem tài khoản có do google cấp không
             if (!"GOOGLE".equals(user.getProvider())) {
-                return buildPopupHtml(null, "LOGIN_FAILURE", "Tài khoản này trước đó đã đăng nhập bằng email và mật khẩu, hãy đăng nhập bằng cách thông thường.");
+                return buildPopupHtml(null, "LOGIN_FAILURE",
+                        "Tài khoản này trước đó đã đăng nhập bằng email và mật khẩu, hãy đăng nhập bằng cách thông thường.");
             }
             // 5. Tạo auth response
             AuthResponse authResponse = buildAuthResponse(user, deviceId);
@@ -382,5 +386,20 @@ public class AuthServiceImpl implements AuthService {
         String key = loginFailPrefix + username + ":" + deviceId + ":" + ipAddress;
         Long count = Optional.ofNullable(redisService.get(key, Long.class)).orElse(0L);
         return count < maxRetries;
+    }
+
+    private void checkUserStatus(User user) {
+        if (user.getDeletedAt() != null || user.getStatus() == UserStatus.DELETED) {
+            throw new AppException(ErrorCode.USER_ALREADY_DELETED);
+        }
+        if (user.getStatus() == UserStatus.BLOCKED) {
+            throw new AppException(ErrorCode.USER_BLOCKED);
+        }
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new AppException(ErrorCode.USER_INACTIVE);
+        }
+        if (user.getStatus() == UserStatus.UNVERIFIED) {
+            throw new AppException(ErrorCode.USER_NOT_VERIFIED);
+        }
     }
 }

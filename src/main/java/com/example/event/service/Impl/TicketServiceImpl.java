@@ -62,10 +62,11 @@ public class TicketServiceImpl implements TicketService {
                     return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
                 });
         User user = reservation.getUser();
-        String creatorId = user.getId();
         Show show = reservation.getShow();
         Voucher voucher = reservation.getVoucher();
         Event event = show.getEvent();
+        String creatorId = user.getId();
+
         if (voucher != null) voucherRepository.increaseUsedQuantity(voucher.getId());
         List<ReservationItem> reservationItems = reservation.getItems();
         List<ReservationItem> unassignedItems = reservationItems.stream()
