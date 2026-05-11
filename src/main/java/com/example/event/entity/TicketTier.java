@@ -24,6 +24,7 @@ public class TicketTier {
     private Integer limitQuantity;
     private LocalDateTime saleStartTime;
     private LocalDateTime saleEndTime;
+    @Column(columnDefinition = "TEXT")
     private String description;
     private Integer reservedQuantity = 0;
     private Integer soldQuantity = 0;

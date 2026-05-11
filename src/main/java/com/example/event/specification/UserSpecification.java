@@ -1,5 +1,6 @@
 package com.example.event.specification;
 
+import com.example.event.constant.UserStatus;
 import com.example.event.entity.User;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -32,5 +33,9 @@ public class UserSpecification {
 
     public static Specification<User> isNotDeleted() {
         return (root, query, cb) -> cb.isNull(root.get("deletedAt"));
+    }
+
+    public static Specification<User> hasStatus(UserStatus status) {
+        return (root, query, cb) -> status == null ? null : cb.equal(root.get("status"), status);
     }
 }

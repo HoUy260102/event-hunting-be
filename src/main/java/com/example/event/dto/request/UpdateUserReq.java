@@ -1,5 +1,6 @@
 package com.example.event.dto.request;
 
+import com.example.event.constant.UserStatus;
 import com.example.event.validation.Phone;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -19,4 +20,5 @@ public class UpdateUserReq {
     private String address;
     private Date dob;
     private String roleId;
+    private UserStatus status;
 }

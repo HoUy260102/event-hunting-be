@@ -1,6 +1,7 @@
 package com.example.event.config.security.jwt;
 
 import com.example.event.constant.ErrorCode;
+import com.example.event.entity.Role;
 import com.example.event.entity.User;
 import com.example.event.exception.JwtAuthenticationException;
 import com.example.event.repository.UserRepository;
@@ -15,8 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
-import java.util.Date;
-import java.util.Optional;
+import java.util.*;
 
 @Component
 @RequiredArgsConstructor
@@ -34,13 +34,16 @@ public class JwtUtils {
 
     public String generateToken(String email, String sid, String type) {
         Date now = new Date();
-        Date expirationDate = null;
+        Date expirationDate;
         User user = Optional.ofNullable(userRepository.findUserByEmail(email)).orElseThrow(
                 () -> new UsernameNotFoundException("Không tìm thấy user " + email)
         );
+        Role role = user.getRole();
+        String rv = role.getName() + ":" + role.getPermissionVersion();
         JwtBuilder builder = Jwts.builder()
                 .setSubject(email)
                 .claim("id", user.getId())
+                .claim("rv", rv)
                 .claim("type", type)
                 .setIssuedAt(now);
         switch (type.toLowerCase()) {

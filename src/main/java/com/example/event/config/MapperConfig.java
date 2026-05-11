@@ -1,6 +1,7 @@
 package com.example.event.config;
 
-
+import com.example.event.dto.ReservationDetailDTO;
+import com.example.event.entity.Reservation;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.convention.MatchingStrategies;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,10 @@ public class MapperConfig {
         ModelMapper modelMapper = new ModelMapper();
         modelMapper.getConfiguration()
                 .setMatchingStrategy(MatchingStrategies.STRICT);
+        modelMapper.typeMap(Reservation.class, ReservationDetailDTO.class)
+                .addMappings(m -> {
+                    m.skip(ReservationDetailDTO::setItems);
+                });
         return modelMapper;
     }
 }

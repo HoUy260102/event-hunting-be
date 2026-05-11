@@ -7,6 +7,7 @@ public enum EventStatus {
     //Trạng thái lưu trong db
     DRAFT("Nháp"),
     PENDING("Chờ duyệt"),
+    APPROVED("Đã duyệt"),
     PUBLISHED("Đã công khai"),
     CANCELLED("Đã hủy"),
     REJECTED("Bị từ chối"),

@@ -21,6 +21,11 @@ public class UpdateEventReq {
     @NotBlank(message = "Vui lòng nhập tên địa điểm")
     private String location;
 
+    private String address;
+
+    @NotBlank(message = "UserId không được trống")
+    private String userId;
+
     @NotBlank(message = "Vui lòng chọn Tỉnh/Thành")
     private String provinceId;
 

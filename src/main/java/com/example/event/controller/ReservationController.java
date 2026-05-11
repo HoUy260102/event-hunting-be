@@ -4,10 +4,12 @@ import com.example.event.dto.ReservationDTO;
 import com.example.event.dto.ReservationDetailDTO;
 import com.example.event.dto.ReservationSummaryDTO;
 import com.example.event.dto.request.ReservationReq;
+import com.example.event.dto.request.SearchReservationReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.service.ReservationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -59,6 +61,17 @@ public class ReservationController {
                 .message("Thành công.")
                 .build();
         return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchReservation(@Valid SearchReservationReq req) {
+        Page<ReservationDetailDTO> reservationDTOS = reservationService.getReservationsSearch(req);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(reservationDTOS)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
 
     @GetMapping("/{id}/summary")

@@ -27,13 +27,17 @@ public class Event {
     private String descriptionHtml;
     @Column(columnDefinition = "TEXT")
     private String descriptionText;
-
     private String location;
+    private String address;
     @Enumerated(EnumType.STRING)
     private EventStatus status;
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Long minPrice;
+    @Column(columnDefinition = "TEXT")
+    private String rejectionReason;
+    private LocalDateTime reviewedAt;
+    private String reviewedBy;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "province_id")

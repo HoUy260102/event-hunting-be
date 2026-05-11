@@ -1,6 +1,7 @@
 package com.example.event.dto;
 
 import com.example.event.constant.ReservationStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -32,4 +33,7 @@ public class ReservationDTO {
     private ReservationStatus status;
     private LocalDateTime expiresAt;
     private List<ReservationItemDTO> items = new ArrayList<>();
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+    private LocalDateTime createdAt;
 }

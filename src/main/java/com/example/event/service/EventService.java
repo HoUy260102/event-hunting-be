@@ -5,9 +5,13 @@ import com.example.event.dto.request.*;
 import com.example.event.dto.response.KeysetPageResponse;
 import org.springframework.data.domain.Page;
 
+import java.util.List;
+
 public interface EventService {
     void createEvent(CreateEventReq createEventReq);
     void updateEventStatus(String id, UpdateEventStatusReq req);
+    void approveEvent(String id);
+    void rejectEvent(String eventId, RejectEventReq request);
     Page<EventDTO> getEventSearchForAdmin(EventSearchReq req);
     KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req);
     EventDTO updateEvent(UpdateEventReq updateEventReq, String id);
@@ -15,4 +19,5 @@ public interface EventService {
     EventInfoDTO findEventInfoById(String id);
     EventSummaryDTO getEventSummaryById(String eventId);
     KeysetPageResponse<EventSearchPublicDTO, String> getMyFavoriteEvents(BaseKeysetReq req);
+    List<EventSelectionDTO> findEventSelectionByUser();
 }

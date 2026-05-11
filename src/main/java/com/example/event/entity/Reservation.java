@@ -49,10 +49,10 @@ public class Reservation {
 
     private LocalDateTime expiresAt;
 
-    @OneToOne(mappedBy = "reservation")
+    @OneToOne(mappedBy = "reservation", fetch = FetchType.LAZY)
     private Payment payment;
 
-    @OneToMany(mappedBy = "reservation")
+    @OneToMany(mappedBy = "reservation", fetch = FetchType.LAZY)
     private List<ReservationItem> items = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)

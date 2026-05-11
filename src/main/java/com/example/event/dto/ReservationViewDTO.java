@@ -8,14 +8,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ReservationDetailDTO {
+public class ReservationViewDTO {
     private String id;
 
     private String showId;
@@ -37,8 +35,6 @@ public class ReservationDetailDTO {
     private Long totalAmount;
     private Long discountAmount;
     private Long finalAmount;
-
-    private List<ReservationItemDTO> items = new ArrayList<>();
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime createdAt;

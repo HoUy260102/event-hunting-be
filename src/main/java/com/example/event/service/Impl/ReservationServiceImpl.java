@@ -5,6 +5,7 @@ import com.example.event.constant.*;
 import com.example.event.dto.*;
 import com.example.event.dto.request.ReservationItemReq;
 import com.example.event.dto.request.ReservationReq;
+import com.example.event.dto.request.SearchReservationReq;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.ReservationMapper;
@@ -13,8 +14,14 @@ import com.example.event.service.LockService;
 import com.example.event.service.ReservationService;
 import com.example.event.service.TicketQueueService;
 import com.example.event.service.VoucherService;
+import com.example.event.specification.ReservationSpecifiation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -55,11 +62,9 @@ public class ReservationServiceImpl implements ReservationService {
         if (reservation.getDeletedAt() != null) {
             throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
         }
-        if (!securityUtils.canAccessThisResource(user.getId())) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
+        securityUtils.canAccessThisResource(user.getId());
         if (reservation.getStatus() != ReservationStatus.PAID) {
-            switch (reservation.getStatus()){
+            switch (reservation.getStatus()) {
                 case ReservationStatus.EXPIRED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
                 case ReservationStatus.CANCELLED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
                 case ReservationStatus.PENDING -> throw new AppException(ErrorCode.RESERVATION_PENDING);
@@ -78,11 +83,9 @@ public class ReservationServiceImpl implements ReservationService {
         if (reservation.getDeletedAt() != null) {
             throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
         }
-        if (!securityUtils.canAccessThisResource(user.getId())) {
-            throw new AppException(ErrorCode.ACCESS_DENIED);
-        }
+        securityUtils.canAccessThisResource(user.getId());
         if (reservation.getStatus() != ReservationStatus.PAID) {
-            switch (reservation.getStatus()){
+            switch (reservation.getStatus()) {
                 case ReservationStatus.EXPIRED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
                 case ReservationStatus.CANCELLED -> throw new AppException(ErrorCode.RESERVATION_EXPIRED);
                 case ReservationStatus.PENDING -> throw new AppException(ErrorCode.RESERVATION_PENDING);
@@ -101,7 +104,6 @@ public class ReservationServiceImpl implements ReservationService {
                 creatorId, req.getShowId(), req.getItems().size());
         Map<String, TicketType> ticketTypeMap = new HashMap<>();
         Map<String, TicketTier> ticketTierMap = new HashMap<>();
-
         Show show = Optional.ofNullable(showRepository.findShowById(req.getShowId()))
                 .orElseThrow(() -> {
                     log.warn("[RESERVATION] Show không tồn tại: {}", req.getShowId());
@@ -124,7 +126,7 @@ public class ReservationServiceImpl implements ReservationService {
             switch (show.getStatus()) {
                 case ShowStatus.CANCELLED -> throw new AppException(ErrorCode.SHOW_CANCELLED);
                 case ShowStatus.POSTPONED -> throw new AppException(ErrorCode.SHOW_POSTPONED);
-                default        -> throw new AppException(ErrorCode.SHOW_NOT_AVAILABLE);
+                default -> throw new AppException(ErrorCode.SHOW_NOT_AVAILABLE);
             }
         } else {
             if (show.getEndTime().isBefore(now)) {
@@ -137,6 +139,11 @@ public class ReservationServiceImpl implements ReservationService {
         if (event.getDeletedAt() != null) {
             log.warn("[RESERVATION] Event {} không khả dụng.", event.getId());
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+        }
+
+        if (event.getStatus() != EventStatus.PUBLISHED ||
+            event ) {
+
         }
 
         //Check số lượng vé đã đặt
@@ -161,6 +168,7 @@ public class ReservationServiceImpl implements ReservationService {
                 .filter(item -> item.getSeatIds() == null || item.getSeatIds().isEmpty())
                 .sorted(Comparator.comparing(ReservationItemReq::getTicketTypeId))
                 .collect(Collectors.toList());
+
         // Danh sách các item cần seat
         List<ReservationItemReq> assignedItems = req.getItems().stream()
                 .filter(item -> item.getSeatIds() != null && !item.getSeatIds().isEmpty())
@@ -347,7 +355,7 @@ public class ReservationServiceImpl implements ReservationService {
             if (!itemsToSave.isEmpty()) {
                 reservationItemRepository.saveAll(itemsToSave);
                 log.info("[RESERVATION] User {} | Show {} - Thành công! Tổng cộng {} items đã được lưu cho Reservation {}",
-                       creatorId, show.getId(), itemsToSave.size(), reservation.getId());
+                        creatorId, show.getId(), itemsToSave.size(), reservation.getId());
             }
 
             // Bắn sự kiện websocket
@@ -363,8 +371,7 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setItems(itemsToSave);
             reservation.setUser(user);
             return reservationMapper.toDto(reservation);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.error("[RESERVATION] LỖI khi tạo đơn hàng. ShowId: {}, UserId: {}. Lý do: {}",
                     show.getId(), creatorId, e.getMessage());
             if (isUnassignedReserved) {
@@ -479,7 +486,7 @@ public class ReservationServiceImpl implements ReservationService {
                     log.warn("[RESERVATION] User {} | Reservation {} không tồn tại.", userId, id);
                     return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
                 });
-        if (reservation.getStatus() == ReservationStatus.PAID ) {
+        if (reservation.getStatus() == ReservationStatus.PAID) {
             log.warn("[RESERVATION] User {} | Reservation {} đã được thanh toán.", userId, id);
             throw new AppException(ErrorCode.RESERVATION_ALREADY_PAID);
         }
@@ -487,7 +494,7 @@ public class ReservationServiceImpl implements ReservationService {
             log.warn("[RESERVATION] User {} | Reservation {} đã bị hủy trước đó.", userId, id);
             throw new AppException(ErrorCode.RESERVATION_ALREADY_CANCELLED);
         }
-        if (reservation.getStatus() == ReservationStatus.EXPIRED ) {
+        if (reservation.getStatus() == ReservationStatus.EXPIRED) {
             log.warn("[RESERVATION] User {} | Reservation {} đã hết hạn.", userId, id);
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
         }
@@ -507,9 +514,9 @@ public class ReservationServiceImpl implements ReservationService {
             switch (type.getStatus()) {
                 case SUSPENDED -> throw new AppException(ErrorCode.TICKET_TYPE_SUSPENDED,
                         String.format("Loại vé %s hiện đang tạm ngưng bán.", type.getName()));
-                case INACTIVE  -> throw new AppException(ErrorCode.TICKET_TYPE_IN_ACTIVE,
+                case INACTIVE -> throw new AppException(ErrorCode.TICKET_TYPE_IN_ACTIVE,
                         String.format("Loại vé %s đã ngừng hoạt động.", type.getName()));
-                default        -> throw new AppException(ErrorCode.TICKET_TYPE_NOT_AVAILABLE,
+                default -> throw new AppException(ErrorCode.TICKET_TYPE_NOT_AVAILABLE,
                         String.format("Loại vé %s hiện không khả dụng.", type.getName()));
             }
         }
@@ -519,9 +526,9 @@ public class ReservationServiceImpl implements ReservationService {
             switch (tier.getStatus()) {
                 case SUSPENDED -> throw new AppException(ErrorCode.TICKET_TIER_SUSPENDED,
                         String.format("Hạng vé %s hiện đang tạm ngưng bán.", tier.getName()));
-                case INACTIVE  -> throw new AppException(ErrorCode.TICKET_TIER_IN_ACTIVE,
+                case INACTIVE -> throw new AppException(ErrorCode.TICKET_TIER_IN_ACTIVE,
                         String.format("Hạng vé %s đã ngừng hoạt động.", tier.getName()));
-                default        -> throw new AppException(ErrorCode.TICKET_TIER_NOT_AVAILABLE,
+                default -> throw new AppException(ErrorCode.TICKET_TIER_NOT_AVAILABLE,
                         String.format("Hạng vé %s hiện không khả dụng.", tier.getName()));
             }
         }
@@ -609,6 +616,66 @@ public class ReservationServiceImpl implements ReservationService {
         reservation.setFinalAmount(reservation.getTotalAmount());
         reservation.setUpdatedAt(LocalDateTime.now());
         reservationRepository.save(reservation);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReservationDetailDTO> getReservationsSearch(SearchReservationReq req) {
+        // 1. Lấy userId
+        String currentUserId = securityUtils.getCurrentUserId();
+
+        // 2. Thiết lập phân trang
+        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize(), Sort.by("createdAt").descending());
+
+        // 3. Khởi tạo Specification cơ bản
+        Specification<Reservation> spec = Specification
+                .where(ReservationSpecifiation.hasUserId(currentUserId))
+                .and(ReservationSpecifiation.fetchShowAndEvent());
+
+        // 4. Lọc theo Keyword (ID, ShowID hoặc EventID)
+        if (req.getKeyword() != null && !req.getKeyword().trim().isEmpty()) {
+            String keyword = req.getKeyword().trim();
+            spec = spec.and(ReservationSpecifiation.hasId(keyword));
+        }
+
+        // 5. Lọc theo EventId (Nếu có truyền và không phải "")
+        if (req.getEventId() != null && !req.getEventId().trim().isEmpty()) {
+            spec = spec.and(ReservationSpecifiation.hasEventId(req.getEventId()));
+        }
+
+        // 6. Lọc theo ShowId (Nếu có truyền và không phải "")
+        if (req.getShowId() != null && !req.getShowId().trim().isEmpty()) {
+            spec = spec.and(ReservationSpecifiation.hasShowId(req.getShowId()));
+        }
+
+        // 7. Xử lý Trạng thái (Status)
+        String status = req.getStatus() != null ? req.getStatus().toUpperCase() : "ALL";
+        switch (status) {
+            case "DELETED":
+                spec = spec.and(ReservationSpecifiation.isDeleted());
+                break;
+
+            case "ALL":
+                spec = spec.and(ReservationSpecifiation.isNotDeleted());
+                break;
+
+            default:
+                try {
+                    ReservationStatus statusEnum = ReservationStatus.valueOf(status);
+                    spec = spec.and(ReservationSpecifiation.hasStatus(statusEnum))
+                            .and(ReservationSpecifiation.isNotDeleted());
+                } catch (IllegalArgumentException e) {
+                    spec = spec.and(ReservationSpecifiation.isNotDeleted());
+                }
+                break;
+        }
+        // 8. Thực thi Query
+        log.info(">>> START getReservationsSearch");
+        Page<Reservation> reservations = reservationRepository.findAll(spec, pageable);
+        // 9. Map sang DTO
+        Page<ReservationDetailDTO> result = reservations.map(reservationMapper::toDetailDto);
+        log.info("<<< END getReservationsSearch");
+        return result;
     }
 
     private ReservationDTO getReservationAfterDiscount(Reservation reservation, Voucher voucher) {

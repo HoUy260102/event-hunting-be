@@ -1,6 +1,8 @@
 package com.example.event.entity;
 
 import com.example.event.config.jpa.UlidID;
+import com.example.event.constant.UserStatus;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -37,12 +39,13 @@ public class User {
     private LocalDateTime lockAt;
     private LocalDateTime lockUtil;
     private String lockMessage;
-//    private LockReason lockReason;
+
+    @Enumerated(EnumType.STRING)
+    private UserStatus status;
 
     // Xác minh tài khoản
     private boolean isVerified;
     private LocalDateTime verifiedAt;
-    // Sự kiện quan tâm
 
     // Vai trò
     @ManyToOne(fetch = FetchType.LAZY)

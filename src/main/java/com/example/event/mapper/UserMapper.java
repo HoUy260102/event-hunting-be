@@ -1,5 +1,6 @@
 package com.example.event.mapper;
 
+import com.example.event.constant.UserStatus;
 import com.example.event.dto.UserDTO;
 import com.example.event.entity.User;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ public class UserMapper {
     private final FileMapper fileMapper;
     public UserDTO toDTO(User user) {
         UserDTO userDTO = modelMapper.map(user, UserDTO.class);
+        userDTO.setStatus(user.getDeletedAt() != null ? UserStatus.DELETED : user.getStatus());
         userDTO.setRole(Optional.ofNullable(roleMapper.toDTO(user.getRole())).orElse(null));
         userDTO.setAvatar(Optional.ofNullable(fileMapper.toDTO(user.getAvatar())).orElse(null));
         return userDTO;

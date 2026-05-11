@@ -31,10 +31,12 @@ public class RoleServiceImpl implements RoleService {
     public void updatePermissions(String roleId, List<String> permissionIds) {
         String updatorId = securityUtils.getCurrentUserId();
         Role role = roleRepository.findRoleById(roleId);
+        Long currentPerVer = role.getPermissionVersion();
         // Lấy permission mới
         Set<Permission> newPermissions =
                 new HashSet<>(permissionRepository.findAllById(permissionIds));
         role.setPermissions(newPermissions);
+        role.setPermissionVersion(currentPerVer + 1);
         role.setUpdatedAt(LocalDateTime.now());
         role.setUpdatedBy(updatorId);
         roleRepository.save(role);

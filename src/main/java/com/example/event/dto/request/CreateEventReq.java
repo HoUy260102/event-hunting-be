@@ -23,11 +23,16 @@ public class CreateEventReq {
     @NotBlank(message = "Vui lòng nhập tên địa điểm")
     private String location;
 
+    private String address;
+
     @NotBlank(message = "Vui lòng chọn Tỉnh/Thành")
     private String provinceId;
 
     @NotBlank(message = "Vui lòng chọn thể loại")
     private String categoryId;
+
+    @NotBlank(message = "UserId không được trống")
+    private String userId;
 
     private String descriptionHtml;
     private String descriptionText;

@@ -46,15 +46,16 @@ public class EventServiceImpl implements EventService {
     private static final Map<EventStatus, List<EventStatus>> STATUS_TRANSITIONS = new HashMap<>();
 
     static {
-        STATUS_TRANSITIONS.put(EventStatus.DRAFT, Arrays.asList(EventStatus.PUBLISHED, EventStatus.REJECTED));
+        STATUS_TRANSITIONS.put(EventStatus.DRAFT, Arrays.asList(EventStatus.PENDING, EventStatus.CANCELLED));
+        STATUS_TRANSITIONS.put(EventStatus.PENDING, Arrays.asList(EventStatus.DRAFT, EventStatus.CANCELLED));
+        STATUS_TRANSITIONS.put(EventStatus.APPROVED, Arrays.asList(EventStatus.PUBLISHED, EventStatus.CANCELLED));
         STATUS_TRANSITIONS.put(EventStatus.PUBLISHED, Arrays.asList(EventStatus.CANCELLED));
         STATUS_TRANSITIONS.put(EventStatus.CANCELLED, Collections.emptyList());
-        STATUS_TRANSITIONS.put(EventStatus.REJECTED, Collections.emptyList());
+        STATUS_TRANSITIONS.put(EventStatus.REJECTED, Arrays.asList(EventStatus.PENDING, EventStatus.DRAFT));
     }
 
-    private final TicketTypeRepository ticketTypeRepository;
-    private final TicketTierRepository ticketTierRepository;
     private final TicketRepository ticketRepository;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -70,6 +71,11 @@ public class EventServiceImpl implements EventService {
         Category category = categoryRepository.findCategoryById(createEventReq.getCategoryId());
         if (category == null) {
             errorDetails.put("categoryId", "Không tìm thấy chủ đề.");
+        }
+        // Check usrId có hop lệ
+        User user = userRepository.findUserById(createEventReq.getUserId());
+        if (user == null) {
+            errorDetails.put("userId", "Không tìm thấy người sở hữu.");
         }
         File banner = fileRepository.findFileById(createEventReq.getBannerId());
         File poster = fileRepository.findFileById(createEventReq.getPosterId());
@@ -108,7 +114,9 @@ public class EventServiceImpl implements EventService {
         event.setDescriptionHtml(createEventReq.getDescriptionHtml());
         event.setDescriptionText(createEventReq.getDescriptionText());
         event.setLocation(createEventReq.getLocation());
+        event.setAddress(createEventReq.getAddress());
         event.setStatus(EventStatus.DRAFT);
+        event.setUser(user);
         //Tìm thời gian nhỏ nhất giữa các show
         LocalDateTime startTime = createEventReq.getShows().stream().map((show) -> show.getStartTime())
                 .min((t1, t2) -> t1.isBefore(t2) ? -1 : 1)
@@ -179,6 +187,40 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
+    public void approveEvent(String id) {
+        String updatorId = securityUtils.getCurrentUserId();
+        Event event = Optional.ofNullable(eventRepository.findEventById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
+
+        if (event.getStatus() != EventStatus.PENDING) {
+            throw new AppException(ErrorCode.EVENT_NOT_PENDING);
+        }
+
+        event.setStatus(EventStatus.APPROVED);
+        event.setRejectionReason(null);
+        event.setReviewedAt(LocalDateTime.now());
+        event.setReviewedBy(updatorId);
+        eventRepository.save(event);
+    }
+
+    @Override
+    public void rejectEvent(String eventId, RejectEventReq request) {
+        String updatorId = securityUtils.getCurrentUserId();
+        Event event = Optional.ofNullable(eventRepository.findEventById(eventId))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
+        if (event.getStatus() != EventStatus.PENDING) {
+            throw new AppException(ErrorCode.EVENT_NOT_PENDING);
+        }
+
+        event.setStatus(EventStatus.REJECTED);
+        event.setRejectionReason(request.getRejectionReason());
+        event.setReviewedAt(LocalDateTime.now());
+        event.setReviewedBy(updatorId);
+
+        eventRepository.save(event);
+    }
+
+    @Override
     @Transactional
     public EventDTO updateEvent(UpdateEventReq updateEventReq, String id) {
         Map<String, String> errorDetails = new HashMap<>();
@@ -198,6 +240,10 @@ public class EventServiceImpl implements EventService {
         Category category = categoryRepository.findCategoryById(updateEventReq.getCategoryId());
         if (category == null) {
             errorDetails.put("categoryId", "Không tìm thấy chủ đề.");
+        }
+        User user = userRepository.findUserById(updateEventReq.getUserId());
+        if (user == null) {
+            errorDetails.put("userId", "Không tìm thấy người sở hữu.");
         }
         File banner = fileRepository.findFileById(updateEventReq.getBannerId());
         File poster = fileRepository.findFileById(updateEventReq.getPosterId());
@@ -249,8 +295,10 @@ public class EventServiceImpl implements EventService {
         event.setDescriptionHtml(updateEventReq.getDescriptionHtml());
         event.setDescriptionText(updateEventReq.getDescriptionText());
         event.setLocation(updateEventReq.getLocation());
+        event.setAddress(updateEventReq.getAddress());
         event.setCategory(category);
         event.setProvince(province);
+        event.setUser(user);
         event.setOrganizerName(updateEventReq.getOrganizerName());
         event.setOrganizerInfo(updateEventReq.getOrganizerInfo());
         event.setUpdatedAt(LocalDateTime.now());
@@ -523,6 +571,7 @@ public class EventServiceImpl implements EventService {
                 .id(firstRow.getEventId())
                 .name(firstRow.getEventName())
                 .location(firstRow.getEventLocation())
+                .address(firstRow.getEventAddress())
                 .startTime(firstRow.getEventStartTime())
                 .endTime(firstRow.getEventEndTime())
                 .posterUrl(firstRow.getEventPosterUrl())
@@ -566,6 +615,23 @@ public class EventServiceImpl implements EventService {
                 : null;
 
         return new KeysetPageResponse<>(dtos, nextKeysetId, favoriteSlice.hasNext());
+    }
+
+    @Override
+    public List<EventSelectionDTO> findEventSelectionByUser() {
+        String userId = securityUtils.getCurrentUserId();
+        User user = Optional.ofNullable(userRepository.findUserById(userId))
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+        List<EventSelectionDTO> eventSelectionDTOS = eventRepository.findEventsByUser_Id(user.getId())
+                .stream()
+                .filter(event -> event.getDeletedAt() == null)
+                .map(event -> {
+                    EventSelectionDTO eventSelectionDTO = new EventSelectionDTO();
+                    eventSelectionDTO.setId(event.getId());
+                    eventSelectionDTO.setName(event.getName());
+                    return eventSelectionDTO;
+                }).collect(Collectors.toList());
+        return eventSelectionDTOS;
     }
 
     private List<String> extractIdsToDelete(List<String> oldIds, List<String> newIds) {

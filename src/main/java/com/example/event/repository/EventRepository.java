@@ -16,6 +16,7 @@ public interface EventRepository extends JpaRepository<Event, String>, JpaSpecif
             "LEFT JOIN FETCH e.organizerLogo " +
             "LEFT JOIN FETCH e.category " +
             "LEFT JOIN FETCH e.province " +
+            "LEFT JOIN FETCH e.user " +
             "WHERE e.id = :id")
     Event findEventByIdForDetails(@Param("id") String id);
 
@@ -31,4 +32,7 @@ public interface EventRepository extends JpaRepository<Event, String>, JpaSpecif
         ) DESC
         """, nativeQuery = true)
     List<Event> searchFullTextBoolean(@Param("keyword") String keyword);
+
+    List<Event> findEventsByUser_Id(String userId);
+    boolean existsByCategoryIdAndDeletedAtIsNull(String categoryId);
 }

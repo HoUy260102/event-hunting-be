@@ -17,6 +17,7 @@ public class EventInfoDTO {
     private String id;
     private String name;
     private String location;
+    private String address;
     private Long minPrice;
     private LocalDateTime startTime;
     private LocalDateTime endTime;

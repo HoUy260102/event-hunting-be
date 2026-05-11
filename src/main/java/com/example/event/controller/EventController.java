@@ -168,12 +168,43 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @GetMapping("/selection")
+    public ResponseEntity<?> findEventSelectionByUser() {
+        List<EventSelectionDTO> eventSelectionDTOS = eventService.findEventSelectionByUser();
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(eventSelectionDTOS)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateEvent(@RequestBody UpdateEventReq req, @PathVariable String id) {
         EventDTO eventDTO = eventService.updateEvent(req, id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(eventDTO)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PatchMapping("/{id}/approve")
+    public ResponseEntity<?> approveEvent(@PathVariable String id) {
+        eventService.approveEvent(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PatchMapping("/{id}/reject")
+    public ResponseEntity<?> rejectEvent(@PathVariable String id, @Valid @RequestBody RejectEventReq request) {
+        eventService.rejectEvent(id, request);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
                 .message("Thành công.")
                 .build();
         return ResponseEntity.status(HttpStatus.OK).body(response);

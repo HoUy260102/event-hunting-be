@@ -3,13 +3,14 @@ package com.example.event.repository;
 import com.example.event.constant.ReservationStatus;
 import com.example.event.entity.Reservation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface ReservationRepository extends JpaRepository<Reservation, String> {
+public interface ReservationRepository extends JpaRepository<Reservation, String>, JpaSpecificationExecutor<Reservation> {
     List<Reservation> findAllByStatusAndExpiresAtBefore(ReservationStatus status, LocalDateTime expiresAt);
     @Query("""
         select r from Reservation r
@@ -27,4 +28,5 @@ public interface ReservationRepository extends JpaRepository<Reservation, String
     """)
     Reservation findReservationSummaryById(@Param("reservationId") String reservationId);
     Reservation findReservationById(String id);
+    boolean existsByUserIdAndDeletedAtIsNull(String userId);
 }

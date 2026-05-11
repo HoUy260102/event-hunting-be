@@ -32,6 +32,7 @@ public class ReservationSummaryDTO {
 
     private ReservationStatus status;
     private Long totalAmount;
+    private Long discountAmount;
     private Long finalAmount;
 
     private PaymentMethod paymentMethod;

@@ -13,6 +13,7 @@ public interface TicketStatProjection {
     String getEventId();
     String getEventName();
     String getEventLocation();
+    String getEventAddress();
     LocalDateTime getEventStartTime();
     LocalDateTime getEventEndTime();
     EventStatus getEventStatus();

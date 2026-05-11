@@ -23,8 +23,14 @@ public enum ErrorCode {
 
     USER_NOT_FOUND(HttpStatus.BAD_REQUEST, "User này không tồn tại."),
     USER_EXISTS(HttpStatus.BAD_REQUEST, "User này đã tồn tại."),
+    ACCOUNT_REGISTERED_WITH_GOOGLE(HttpStatus.CONFLICT, "Tài khoản này đã đăng ký bằng Google. Vui lòng đăng nhập bằng Google."),
     USER_VERIFIED(HttpStatus.BAD_REQUEST, "User này đã xác thực."),
     USER_NOT_VERIFIED(HttpStatus.BAD_REQUEST, "User này chưa được xác thực."),
+    USER_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "User này đã nằm trong thùng rác."),
+    USER_NOT_IN_TRASH(HttpStatus.BAD_REQUEST, "User hiện không ở trạng thái chờ khôi phục."),
+    USER_BLOCKED(HttpStatus.FORBIDDEN, "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."),
+    USER_INACTIVE(HttpStatus.FORBIDDEN, "Tài khoản của bạn đang tạm ngưng hoạt động."),
+    USER_HAS_RESERVATIONS(HttpStatus.BAD_REQUEST, "Không thể xóa người dùng này vì đang có đơn đặt chỗ."),
 
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST,"Mật khẩu xác nhận không khớp."),
 
@@ -38,6 +44,7 @@ public enum ErrorCode {
     CATEGORY_EXISTS(HttpStatus.BAD_REQUEST, "Tên hoặc đường dẫn danh mục đã tồn tại."),
     CATEGORY_NOT_FOUND(HttpStatus.NOT_FOUND, "Danh mục không tồn tại trên hệ thống."),
     CATEGORY_ALREADY_DELETED(HttpStatus.BAD_REQUEST, "Danh mục này đã nằm trong thùng rác."),
+    CATEGORY_HAS_EVENTS(HttpStatus.BAD_REQUEST, "Không thể xóa danh mục này vì đang có sự kiện thuộc danh mục."),
     CATEGORY_NOT_IN_TRASH(HttpStatus.BAD_REQUEST, "Danh mục hiện không ở trạng thái chờ khôi phục."),
     CATEGORY_STATUS_INVALID(HttpStatus.BAD_REQUEST, "Trạng thái không hợp lệ."),
 
@@ -53,6 +60,7 @@ public enum ErrorCode {
 
     EVENT_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu sự kiện không hợp lệ."),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được event."),
+    EVENT_NOT_PENDING(HttpStatus.BAD_REQUEST, "Sự kiện không ở trạng thái chờ duyệt."),
 
     TICKET_TYPE_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được ticket type."),
     TICKET_TYPE_IN_ACTIVE(HttpStatus.BAD_REQUEST, "Loại vé này đã ngưng hoạt động."),
@@ -117,6 +125,7 @@ public enum ErrorCode {
     VOUCHER_MIN_ORDER_NOT_MET(HttpStatus.BAD_REQUEST, "Đơn hàng có giá trị nhỏ hơn giá trị tối thiểu."),
 
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
+    UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để thực hiện hành động này."),
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống.");
 
     private final String message;

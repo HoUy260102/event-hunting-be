@@ -63,7 +63,7 @@ public class EventInteractionServiceImpl implements EventInteractionService {
 
     @Override
     public List<EventTrendingProjection> getTopTrendingEvents() {
-        LocalDateTime since = LocalDateTime.now().minusDays(7);
+        LocalDateTime since = LocalDateTime.now().minusDays(30);
         return interactionRepository.findTrendingEvents(since, 10);
     }
 }
