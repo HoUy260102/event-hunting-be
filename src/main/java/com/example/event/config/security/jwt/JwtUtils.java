@@ -40,10 +40,12 @@ public class JwtUtils {
         );
         Role role = user.getRole();
         String rv = role.getName() + ":" + role.getPermissionVersion();
+        String tv = String.valueOf(user.getTokenVersion());
         JwtBuilder builder = Jwts.builder()
                 .setSubject(email)
                 .claim("id", user.getId())
                 .claim("rv", rv)
+                .claim("tv", tv)
                 .claim("type", type)
                 .setIssuedAt(now);
         switch (type.toLowerCase()) {

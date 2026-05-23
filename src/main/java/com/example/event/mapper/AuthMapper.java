@@ -14,25 +14,25 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class AuthMapper {
-    private final ModelMapper modelMapper;
+        private final ModelMapper modelMapper;
 
-    public AuthDTO toDTO(User user) {
-        AuthDTO authDTO = modelMapper.map(user, AuthDTO.class);
-        authDTO.setRole(Optional.ofNullable(user.getRole())
-                .map(role -> role.getName())
-                .orElse(null));
-        authDTO.setRoleId(Optional.ofNullable(user.getRole())
-                .map(role -> role.getId())
-                .orElse(null));
-        List<String> permissions = Optional.ofNullable(user.getRole())
-                .map(role -> role.getPermissions())
-                .orElse(Collections.emptySet())
-                .stream()
-                .map(per -> per.getCode())
-                .collect(Collectors.toList());
-        authDTO.setAvatarUrl(user.getAvatar().getUrl());
-        authDTO.setPassword("");
-        authDTO.setPermissions(permissions);
-        return authDTO;
-    }
+        public AuthDTO toDTO(User user) {
+                AuthDTO authDTO = modelMapper.map(user, AuthDTO.class);
+                authDTO.setRole(Optional.ofNullable(user.getRole())
+                                .map(role -> role.getName())
+                                .orElse(null));
+                authDTO.setRoleId(Optional.ofNullable(user.getRole())
+                                .map(role -> role.getId())
+                                .orElse(null));
+                List<String> permissions = Optional.ofNullable(user.getRole())
+                                .map(role -> role.getPermissions())
+                                .orElse(Collections.emptySet())
+                                .stream()
+                                .map(per -> per.getCode())
+                                .collect(Collectors.toList());
+                authDTO.setAvatarUrl(user.getAvatar() == null ? "" : user.getAvatar().getUrl());
+                authDTO.setPassword("");
+                authDTO.setPermissions(permissions);
+                return authDTO;
+        }
 }

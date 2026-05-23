@@ -16,3 +16,5 @@ public class EventSearchPublicReq {
     private String provinceId;
     private List<String> categoryIds;
 }
+
+

@@ -1,6 +1,7 @@
 package com.example.event.controller;
 
 import com.example.event.dto.UserDTO;
+import com.example.event.dto.request.ChangePasswordReq;
 import com.example.event.dto.request.CreateUserReq;
 import com.example.event.dto.request.UpdateUserReq;
 import com.example.event.dto.response.ApiResponse;
@@ -20,6 +21,7 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/search")
+    @PreAuthorize("hasAuthority('USER:VIEW')")
     public ResponseEntity<?> searchUser(@RequestParam String keyword, @RequestParam int page, @RequestParam int size, @RequestParam String roleId, @RequestParam String status) {
         Page<UserDTO> userDtos = userService.getUserSearch(keyword, roleId, status, page - 1, size);
         ApiResponse apiResponse = ApiResponse.builder()
@@ -65,7 +67,24 @@ public class UserController {
         return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
 
+    @PutMapping("/change-password")
+    public ResponseEntity<?> changePassword(
+            @Valid @RequestBody ChangePasswordReq req,
+            @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
+        if (deviceId == null || deviceId.isEmpty()) {
+            deviceId = "unknown-device";
+        }
+        var authResponse = userService.changePassword(req, deviceId);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Đổi mật khẩu thành công.")
+                .data(authResponse)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('USER:VIEW')")
     public ResponseEntity<?> findUserById(@PathVariable String id) {
         UserDTO userDTO = userService.findUserById(id);
         ApiResponse apiResponse = ApiResponse.builder()

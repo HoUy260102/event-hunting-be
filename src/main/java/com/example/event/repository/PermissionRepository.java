@@ -9,6 +9,7 @@ import java.util.List;
 public interface PermissionRepository extends JpaRepository<Permission, String>, JpaSpecificationExecutor<Permission> {
     List<Permission> getPermissionsByIdIn(List<String> ids);
     boolean existsByCode(String code);
+    Permission findByCode(String code);
     Permission findPermissionById(String perId);
     List<Permission> findAllByRoles_Id(String roleId);
 }

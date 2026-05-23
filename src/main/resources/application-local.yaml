@@ -1,21 +1,24 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/event_db
-    username: root
-    password: 123456
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
   jpa:
     show-sql: true
+
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: hodacuy260102@gmail.com
-    password: "igfb bmrw etmz edix"
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+
   security:
     oauth2:
       client:
@@ -27,23 +30,23 @@ spring:
             redirect-uri: http://localhost:8080/api/v1/auth/callback/google
 
 redis:
-  host: localhost
-  port: 6379
-  password: ""
+  host: ${REDIS_HOST}
+  port: ${REDIS_PORT}
+  password: ${REDIS_PASSWORD}
 
 jwt:
-  secret: "C1x!N4v$8rAqZ@7pQ2mE#9fLwT&dG5zH*VjR0kUoB^6cYtP3sW!bM1nZ"
-  access-expiration: 86400000
-  refresh-expiration: 864000000
-  verify-expiration: 300000
+  secret: ${JWT_SECRET}
+  access-expiration: ${JWT_ACCESS_EXPIRATION}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION}
+  verify-expiration: ${JWT_VERIFY_EXPIRATION}
 
 cloudinary:
-  cloud_name: dstmcgsoa
-  api_key: 683667898891913
-  api_secret: 64fij4Q8d3s8tQRPn9vVFH2XDSc
+  cloud_name: ${CLOUDINARY_CLOUD_NAME}
+  api_key: ${CLOUDINARY_API_KEY}
+  api_secret: ${CLOUDINARY_API_SECRET}
 
 vnpay:
-  tmn-code: "6EHYEZ3G"
-  hash-secret: "5V7EK444TVQJ4Q7Z0D967CQSKO8ZBZD9"
-  url: "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
-  return-url: "http://localhost:8080/api/v1/payments/vnpay-callback"
+  tmn-code: ${VNPAY_TMN_CODE}
+  hash-secret: ${VNPAY_HASH_SECRET}
+  url: ${VNPAY_URL}
+  return-url: ${VNPAY_RETURN_URL}

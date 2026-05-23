@@ -351,6 +351,24 @@ public class EventServiceImpl implements EventService {
     @Transactional(readOnly = true)
     public Page<EventDTO> getEventSearchForAdmin(EventSearchReq req) {
         Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize());
+        Specification<Event> spec = buildSearchSpecification(req).and(EventSpecification.fetchDetails());
+        Page<Event> events = eventRepository.findAll(spec, pageable);
+        return events.map(eventMapper::toDTO);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<EventDTO> getEventSearchForMe(EventSearchReq req) {
+        String userId = securityUtils.getCurrentUserId();
+        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize());
+        Specification<Event> spec = buildSearchSpecification(req)
+                .and(EventSpecification.hasUserId(userId))
+                .and(EventSpecification.fetchDetails());
+        Page<Event> events = eventRepository.findAll(spec, pageable);
+        return events.map(eventMapper::toDTO);
+    }
+
+    private Specification<Event> buildSearchSpecification(EventSearchReq req) {
         Specification<Event> spec = (root, query, cb) -> cb.conjunction();
         if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
             spec = spec.and(Specification.anyOf(EventSpecification.hasName(req.getKeyword()),
@@ -373,6 +391,8 @@ public class EventServiceImpl implements EventService {
                 spec = spec.and(EventSpecification.isNotDeleted());
                 break;
             case "DRAFT":
+            case "PENDING":
+            case "APPROVED":
             case "PUBLISHED":
             case "CANCELLED":
             case "REJECTED":
@@ -391,18 +411,16 @@ public class EventServiceImpl implements EventService {
                 spec = spec.and(EventSpecification.isNotDeleted());
                 break;
         }
-        Page<Event> events = eventRepository.findAll(spec, pageable);
-        return events.map(eventMapper::toDTO);
+        return spec;
     }
 
     @Override
     @Transactional(readOnly = true)
     public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req) {
         String userId = securityUtils.getCurrentUserId();
-
         LocalDateTime now = LocalDateTime.now();
-        Specification<Event> spec = Specification.where(EventSpecification.isNotDeleted());
-
+        Specification<Event> spec = Specification.where(EventSpecification.isNotDeleted())
+                .and(EventSpecification.hasStatusIn(Arrays.asList(EventStatus.APPROVED, EventStatus.PUBLISHED, EventStatus.CANCELLED)));
         // Search full text;
         List<String> fullTextSearchEventIds = Collections.emptyList();
         if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
@@ -431,7 +449,8 @@ public class EventServiceImpl implements EventService {
         if (req.getNextId() != null) {
             spec = spec.and(EventSpecification.hasNextId(req.getNextId()));
         }
-        spec = spec.and(EventSpecification.orderByStatusAndDate(now));
+        spec = spec.and(EventSpecification.orderByStatusAndDate(now))
+                .and(EventSpecification.fetchDetails());
         int pageSize = (req.getSize() != null) ? req.getSize() : 8;
         Pageable pageable = PageRequest.of(0, pageSize);
         Slice<Event> eventSlice = eventRepository.findAll(spec, pageable);
@@ -444,10 +463,8 @@ public class EventServiceImpl implements EventService {
             List<String> eventIds = dtos.stream()
                     .map(EventSearchPublicDTO::getId)
                     .collect(Collectors.toList());
-
             // Lấy danh sách ID các event đã được user này save
             Set<String> savedEventIds = favoriteRepository.findSavedEventIds(userId, eventIds);
-
             // Map ngược lại vào DTO
             dtos.forEach(dto -> {
                 if (savedEventIds.contains(dto.getId())) {
@@ -618,11 +635,24 @@ public class EventServiceImpl implements EventService {
     }
 
     @Override
-    public List<EventSelectionDTO> findEventSelectionByUser() {
+    public List<EventSelectionDTO> findEventSelectionForAdmin() {
+        return eventRepository.findAllByDeletedAtIsNull()
+                .stream()
+                .map(event -> {
+                    EventSelectionDTO eventSelectionDTO = new EventSelectionDTO();
+                    eventSelectionDTO.setId(event.getId());
+                    eventSelectionDTO.setName(event.getName());
+                    return eventSelectionDTO;
+                }).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<EventSelectionDTO> findEventSelectionForMe() {
         String userId = securityUtils.getCurrentUserId();
         User user = Optional.ofNullable(userRepository.findUserById(userId))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-        List<EventSelectionDTO> eventSelectionDTOS = eventRepository.findEventsByUser_Id(user.getId())
+
+        return eventRepository.findEventsByUser_Id(user.getId())
                 .stream()
                 .filter(event -> event.getDeletedAt() == null)
                 .map(event -> {
@@ -631,7 +661,6 @@ public class EventServiceImpl implements EventService {
                     eventSelectionDTO.setName(event.getName());
                     return eventSelectionDTO;
                 }).collect(Collectors.toList());
-        return eventSelectionDTOS;
     }
 
     private List<String> extractIdsToDelete(List<String> oldIds, List<String> newIds) {

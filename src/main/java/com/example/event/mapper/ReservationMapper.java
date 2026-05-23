@@ -115,8 +115,8 @@ public class ReservationMapper {
                 .values()
                 .stream()
                 .collect(Collectors.toList()));
-        reservationDTO.setPaymentMethod(reservation.getPayment().getMethod());
-        reservationDTO.setPaidAt(reservation.getPayment().getPaidAt());
+        reservationDTO.setPaymentMethod(reservation.getPayment() == null ? null : reservation.getPayment().getMethod());
+        reservationDTO.setPaidAt(reservation.getPayment() == null ? null : reservation.getPayment().getPaidAt());
         return reservationDTO;
     }
 }

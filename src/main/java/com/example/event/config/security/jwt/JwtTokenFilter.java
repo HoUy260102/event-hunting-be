@@ -50,6 +50,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 final String sid = (String) claims.get("sid");
                 final String type = claims.get("type", String.class);
                 final String rv = claims.get("rv", String.class);
+                final String tv = claims.get("tv", String.class);
                 if (!type.equalsIgnoreCase("access")) {
                     throw new AccessDeniedException(ErrorCode.TOKEN_TYPE_INVALID.getMessage());
                 }
@@ -61,6 +62,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     Long permissionVer = customUserDetails.getUser().getRole().getPermissionVersion();
                     Long jwtPermissionVer = Long.parseLong(rv.split(":")[1]);
                     if (!permissionVer.equals(jwtPermissionVer)) {
+                        throw new JwtAuthenticationException(ErrorCode.TOKEN_INVALID);
+                    }
+                    Integer userTokenVersion = customUserDetails.getUser().getTokenVersion();
+                    if (tv != null && !userTokenVersion.toString().equals(tv)) {
                         throw new JwtAuthenticationException(ErrorCode.TOKEN_INVALID);
                     }
                     if (jwtUtils.validateToken(token)) {

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
@@ -136,8 +137,21 @@ public class EventController {
     }
 
     @GetMapping("/search")
+    @PreAuthorize("hasAuthority('EVENT:VIEW')")
     public ResponseEntity<?> searchEventForAdmin(@Valid EventSearchReq req) {
         Page<EventDTO> events = eventService.getEventSearchForAdmin(req);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(events)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("hasAuthority('EVENT:VIEW')")
+    public ResponseEntity<?> searchEventForMe(@Valid EventSearchReq req) {
+        Page<EventDTO> events = eventService.getEventSearchForMe(req);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(events)
@@ -169,8 +183,21 @@ public class EventController {
     }
 
     @GetMapping("/selection")
-    public ResponseEntity<?> findEventSelectionByUser() {
-        List<EventSelectionDTO> eventSelectionDTOS = eventService.findEventSelectionByUser();
+    @PreAuthorize("hasAuthority('EVENT:VIEW')")
+    public ResponseEntity<?> findEventSelectionForAdmin() {
+        List<EventSelectionDTO> eventSelectionDTOS = eventService.findEventSelectionForAdmin();
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(eventSelectionDTOS)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/me/selection")
+    @PreAuthorize("hasAuthority('EVENT:VIEW')")
+    public ResponseEntity<?> findEventSelectionForMe() {
+        List<EventSelectionDTO> eventSelectionDTOS = eventService.findEventSelectionForMe();
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(eventSelectionDTOS)
@@ -191,6 +218,7 @@ public class EventController {
     }
 
     @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasAuthority('EVENT:APPROVE')")
     public ResponseEntity<?> approveEvent(@PathVariable String id) {
         eventService.approveEvent(id);
         ApiResponse response = ApiResponse.builder()
@@ -201,6 +229,7 @@ public class EventController {
     }
 
     @PatchMapping("/{id}/reject")
+    @PreAuthorize("hasAuthority('EVENT:REJECT')")
     public ResponseEntity<?> rejectEvent(@PathVariable String id, @Valid @RequestBody RejectEventReq request) {
         eventService.rejectEvent(id, request);
         ApiResponse response = ApiResponse.builder()

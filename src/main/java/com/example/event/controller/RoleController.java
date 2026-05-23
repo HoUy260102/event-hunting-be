@@ -9,6 +9,7 @@ import com.example.event.service.RoleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class RoleController {
     private final PermissionService permissionService;
 
     @GetMapping("/select")
+    @PreAuthorize("hasAuthority('ROLE:VIEW')")
     public ResponseEntity<?> getAllRoleForSelect() {
         List<Map<String, String>> roles = roleService.getAllRoleForSelect();
         ApiResponse response = ApiResponse.builder()
@@ -33,6 +35,7 @@ public class RoleController {
     }
 
     @PostMapping()
+    @PreAuthorize("hasAuthority('ROLE:CREATE')")
     public ResponseEntity<?> createRole(@RequestBody CreateRoleReq req) {
         RoleDTO roleDTO = roleService.createRole(req);
         ApiResponse response = ApiResponse.builder()
@@ -44,6 +47,7 @@ public class RoleController {
     }
 
     @PutMapping("/{id}/permissions")
+    @PreAuthorize("hasAuthority('ROLE:UPDATE')")
     public ResponseEntity<?> updatePermissions(@PathVariable("id") String id, @RequestBody List<String> permissionIds) {
         roleService.updatePermissions(id, permissionIds);
         ApiResponse response = ApiResponse.builder()
@@ -54,6 +58,7 @@ public class RoleController {
     }
 
     @GetMapping("/{id}/permissions")
+    @PreAuthorize("hasAuthority('ROLE:VIEW')")
     public ResponseEntity<?> getAllPermissionsByRoleId(@PathVariable("id") String id) {
         List<PermissionDTO> permissionDTOs = permissionService.getPermissionsByRoleId(id);
         ApiResponse response = ApiResponse.builder()

@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +21,7 @@ public class PermissionController {
     private final PermissionService permissionService;
 
     @GetMapping("/all")
+    @PreAuthorize("hasAuthority('PERMISSION:VIEW')")
     public ResponseEntity<?> getAllPermissions() {
         List<PermissionDTO> permissionDTOs = permissionService.getAllPermissions();
         ApiResponse response = ApiResponse.builder()
@@ -31,6 +33,7 @@ public class PermissionController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('PERMISSION:CREATE')")
     public ResponseEntity<?> createPermission(@Valid @RequestBody CreatePermissionReq req) {
         PermissionDTO permissionDTO = permissionService.createPermission(req);
         ApiResponse response = ApiResponse.builder()
@@ -42,6 +45,7 @@ public class PermissionController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('PERMISSION:VIEW')")
     public ResponseEntity<?> getPermissions(@RequestParam(required = false) String keyword, @RequestParam(required = false) String nextId, @RequestParam(required = false, defaultValue = "2") int size) {
         KeysetPageResponse<PermissionDTO, String> permissionDTOs = permissionService.getPermissions(keyword, nextId, size);
         ApiResponse response = ApiResponse.builder()

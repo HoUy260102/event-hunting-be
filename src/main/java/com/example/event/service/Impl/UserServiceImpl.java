@@ -1,21 +1,27 @@
 package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
+import com.example.event.config.security.jwt.JwtUtils;
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.FileStatus;
 import com.example.event.constant.FileType;
 import com.example.event.constant.UserStatus;
 import com.example.event.dto.UserDTO;
+import com.example.event.dto.request.ChangePasswordReq;
 import com.example.event.dto.request.CreateUserReq;
 import com.example.event.dto.request.UpdateUserReq;
+import com.example.event.dto.response.AuthResponse;
 import com.example.event.entity.File;
 import com.example.event.entity.Role;
+import com.example.event.entity.Session;
 import com.example.event.entity.User;
 import com.example.event.exception.AppException;
+import com.example.event.mapper.AuthMapper;
 import com.example.event.mapper.UserMapper;
 import com.example.event.repository.FileRepository;
 import com.example.event.repository.ReservationRepository;
 import com.example.event.repository.RoleRepository;
+import com.example.event.repository.SessionRepository;
 import com.example.event.repository.UserRepository;
 import com.example.event.service.UserService;
 import com.example.event.specification.UserSpecification;
@@ -31,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 @Service
@@ -43,6 +50,9 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final FileRepository fileRepository;
     private final ReservationRepository reservationRepository;
+    private final JwtUtils jwtUtils;
+    private final SessionRepository sessionRepository;
+    private final AuthMapper authMapper;
 
     private static final Map<UserStatus, List<UserStatus>> STATUS_TRANSITIONS = new HashMap<>();
 
@@ -273,5 +283,62 @@ public class UserServiceImpl implements UserService {
         user.setDeletedBy(deletorId);
         userRepository.save(user);
         return userMapper.toDTO(user);
+    }
+    
+    @Override
+    @Transactional
+    public AuthResponse changePassword(ChangePasswordReq req, String deviceId) {
+        String currentUserId = securityUtils.getCurrentUserId();
+        User user = Optional.ofNullable(userRepository.findUserByIdForUpdate(currentUserId)).orElseThrow(
+                () -> new AppException(ErrorCode.USER_NOT_FOUND)
+        );
+
+        Map<String, String> errors = new HashMap<>();
+
+        // 1. Verify current password
+        if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPassword())) {
+            errors.put("currentPassword", ErrorCode.CURRENT_PASSWORD_INCORRECT.getMessage());
+        }
+
+        // 2. Check if newPassword matches confirmPassword
+        if (!req.getNewPassword().equals(req.getConfirmPassword())) {
+            errors.put("confirmPassword", ErrorCode.PASSWORD_MISMATCH.getMessage());
+        }
+
+        // Throw all validation errors at once if any
+        if (!errors.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
+        }
+
+        // 3. Hash newPassword and save
+        user.setPassword(passwordEncoder.encode(req.getNewPassword()));
+
+        // 4. Increment tokenVersion to invalidate other sessions
+        user.setTokenVersion(user.getTokenVersion() + 1);
+
+        user.setUpdatedAt(LocalDateTime.now());
+        user.setUpdatedBy(currentUserId);
+        userRepository.save(user);
+
+        // 5. Generate new session for "silent refresh"
+        String refreshToken = jwtUtils.generateToken(user.getEmail(), null, "refresh");
+        Session session = new Session();
+        session.setUser(user);
+        session.setRevoked(false);
+        session.setRefreshToken(refreshToken);
+        session.setDeviceId(deviceId);
+        session.setCreatedAt(LocalDateTime.now());
+        session.setExpiryDate(jwtUtils.getExpiryDate(refreshToken).toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime());
+        sessionRepository.save(session);
+
+        String accessToken = jwtUtils.generateToken(user.getEmail(), session.getId(), "access");
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(authMapper.toDTO(user))
+                .build();
     }
 }

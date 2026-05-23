@@ -7,7 +7,9 @@ import com.example.event.dto.EventSearchPublicDTO;
 import com.example.event.dto.ShowInfoDTO;
 import com.example.event.entity.Event;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.Hibernate;
 import org.modelmapper.ModelMapper;
+
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -21,6 +23,8 @@ public class EventMapper {
     private final ProvinceMapper provinceMapper;
     private final CategoryMapper categoryMapper;
     private final ShowMapper showMapper;
+    private final UserMapper userMapper;
+
 
     public EventDTO toDTO(Event event) {
         EventDTO eventDTO = modelMapper.map(event, EventDTO.class);
@@ -32,6 +36,9 @@ public class EventMapper {
                 ? null
                 : categoryMapper.toDTO(event.getCategory()));
         eventDTO.setUserId(event.getUser() != null ? event.getUser().getId() : null);
+        if (event.getUser() != null && Hibernate.isInitialized(event.getUser())) {
+            eventDTO.setUser(userMapper.toDTO(event.getUser()));
+        }
         return eventDTO;
     }
 

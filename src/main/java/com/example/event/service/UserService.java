@@ -1,6 +1,8 @@
 package com.example.event.service;
 
 import com.example.event.dto.UserDTO;
+import com.example.event.dto.response.AuthResponse;
+import com.example.event.dto.request.ChangePasswordReq;
 import com.example.event.dto.request.CreateUserReq;
 import com.example.event.dto.request.UpdateUserReq;
 import org.springframework.data.domain.Page;
@@ -13,4 +15,5 @@ public interface UserService {
     UserDTO findUserById(String id);
     UserDTO softDeleteUser(String id);
     UserDTO restoreUser(String id);
+    AuthResponse changePassword(ChangePasswordReq req, String deviceId);
 }

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -31,6 +32,7 @@ public class VoucherController {
     }
 
     @GetMapping("/search")
+    @PreAuthorize("hasAuthority('VOUCHER:VIEW')")
     public ResponseEntity<?> searchCategory(@Valid SearchVoucherReq req) {
         Page<VoucherDTO> voucherDTOS = voucherService.getVouchersSearch(req);
         ApiResponse apiResponse = ApiResponse.builder()
@@ -41,7 +43,20 @@ public class VoucherController {
         return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
 
+    @GetMapping("/me")
+    @PreAuthorize("hasAuthority('VOUCHER:VIEW')")
+    public ResponseEntity<?> searchVoucherForMe(@Valid SearchVoucherReq req) {
+        Page<VoucherDTO> voucherDTOS = voucherService.getVouchersSearchForMe(req);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(voucherDTOS)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
     @PostMapping
+    @PreAuthorize("hasAuthority('VOUCHER:CREATE')")
     public ResponseEntity<?> createVoucher(@Valid @RequestBody CreateVoucherReq req) {
         VoucherDTO voucherDTO = voucherService.createVoucher(req);
         ApiResponse apiResponse = ApiResponse.builder()
@@ -53,6 +68,7 @@ public class VoucherController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('VOUCHER:UPDATE')")
     public ResponseEntity<?> updateVoucher(@Valid @RequestBody UpdateVoucherReq req, @PathVariable String id) {
         VoucherDTO voucherDTO = voucherService.updateVoucher(id, req);
         ApiResponse apiResponse = ApiResponse.builder()
@@ -64,6 +80,7 @@ public class VoucherController {
     }
 
     @PatchMapping("/{id}/soft-delete")
+    @PreAuthorize("hasAuthority('VOUCHER:DELETE')")
     public ResponseEntity<?> deleteVoucher(@PathVariable String id) {
         voucherService.deleteVoucher(id);
         ApiResponse response = ApiResponse.builder()
@@ -74,6 +91,7 @@ public class VoucherController {
     }
 
     @PatchMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('VOUCHER:RESTORE')")
     public ResponseEntity<?> restoreVoucher(@PathVariable String id) {
         voucherService.restoreVoucher(id);
         ApiResponse response = ApiResponse.builder()

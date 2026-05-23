@@ -19,7 +19,10 @@ public class Session {
     @UlidID
     private String id;
     private String deviceId;
+
+    @Column(columnDefinition = "TEXT")
     private String refreshToken;
+    
     private LocalDateTime createdAt;
     private LocalDateTime expiryDate;
     private boolean revoked = false;

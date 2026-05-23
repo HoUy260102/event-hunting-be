@@ -33,6 +33,7 @@ public enum ErrorCode {
     USER_HAS_RESERVATIONS(HttpStatus.BAD_REQUEST, "Không thể xóa người dùng này vì đang có đơn đặt chỗ."),
 
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST,"Mật khẩu xác nhận không khớp."),
+    CURRENT_PASSWORD_INCORRECT(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không chính xác."),
 
     INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "Đuôi file không được hỗ trợ."),
     INVALID_FILE_MIME_TYPE(HttpStatus.BAD_REQUEST, "Nội dung file không hợp lệ."),
@@ -61,6 +62,7 @@ public enum ErrorCode {
     EVENT_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu sự kiện không hợp lệ."),
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được event."),
     EVENT_NOT_PENDING(HttpStatus.BAD_REQUEST, "Sự kiện không ở trạng thái chờ duyệt."),
+    EVENT_NOT_PUBLISHED(HttpStatus.BAD_REQUEST, "Sự kiện không ở trạng thái công khai."),
 
     TICKET_TYPE_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được ticket type."),
     TICKET_TYPE_IN_ACTIVE(HttpStatus.BAD_REQUEST, "Loại vé này đã ngưng hoạt động."),
@@ -126,6 +128,7 @@ public enum ErrorCode {
 
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để thực hiện hành động này."),
+    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu không hợp lệ."),
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống.");
 
     private final String message;

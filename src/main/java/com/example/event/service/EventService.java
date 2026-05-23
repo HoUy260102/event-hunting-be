@@ -19,5 +19,7 @@ public interface EventService {
     EventInfoDTO findEventInfoById(String id);
     EventSummaryDTO getEventSummaryById(String eventId);
     KeysetPageResponse<EventSearchPublicDTO, String> getMyFavoriteEvents(BaseKeysetReq req);
-    List<EventSelectionDTO> findEventSelectionByUser();
+    List<EventSelectionDTO> findEventSelectionForAdmin();
+    List<EventSelectionDTO> findEventSelectionForMe();
+    Page<EventDTO> getEventSearchForMe(EventSearchReq req);
 }

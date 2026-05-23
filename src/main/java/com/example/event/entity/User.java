@@ -58,6 +58,9 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private Set<Favorite> favorites = new HashSet<>();
 
+    // Quản lý phiên đăng nhập
+    private Integer tokenVersion = 0;
+
     // Thông tin meta
     private LocalDateTime createdAt;
     private String createdBy;

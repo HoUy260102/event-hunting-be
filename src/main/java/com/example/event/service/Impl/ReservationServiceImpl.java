@@ -56,7 +56,7 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     @Transactional(readOnly = true)
     public ReservationDetailDTO findReservationSuccessById(String id) {
-        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationDetailById(id))
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationSummaryByIdForPaid(id))
                 .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
         User user = reservation.getUser();
         if (reservation.getDeletedAt() != null) {
@@ -76,8 +76,8 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReservationSummaryDTO findReservationSummaryById(String id) {
-        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationDetailById(id))
+    public ReservationSummaryDTO findReservationById(String id) {
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationSummaryByIdForPaid(id))
                 .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
         User user = reservation.getUser();
         if (reservation.getDeletedAt() != null) {
@@ -94,6 +94,15 @@ public class ReservationServiceImpl implements ReservationService {
         }
         return reservationMapper.toSummaryDto(reservation);
     }
+
+    @Transactional(readOnly = true)
+    public ReservationSummaryDTO findReservationSummaryById(String id) {
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationSummaryByIdForAll(id))
+                .orElseThrow(() -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        return reservationMapper.toSummaryDto(reservation);
+    }
+
 
     @Override
     @Transactional
@@ -141,9 +150,9 @@ public class ReservationServiceImpl implements ReservationService {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
 
-        if (event.getStatus() != EventStatus.PUBLISHED ||
-            event ) {
-
+        if (event.getStatus() != EventStatus.PUBLISHED) {
+            log.warn("[RESERVATION] Event {} chưa công khai.", event.getId());
+            throw new AppException(ErrorCode.EVENT_NOT_PUBLISHED);
         }
 
         //Check số lượng vé đã đặt
@@ -618,47 +627,34 @@ public class ReservationServiceImpl implements ReservationService {
         reservationRepository.save(reservation);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Page<ReservationDetailDTO> getReservationsSearch(SearchReservationReq req) {
-        // 1. Lấy userId
-        String currentUserId = securityUtils.getCurrentUserId();
+    private Specification<Reservation> buildSearchSpecification(SearchReservationReq req) {
+        Specification<Reservation> spec = Specification.where(ReservationSpecifiation.fetchShowAndEvent());
 
-        // 2. Thiết lập phân trang
-        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize(), Sort.by("createdAt").descending());
-
-        // 3. Khởi tạo Specification cơ bản
-        Specification<Reservation> spec = Specification
-                .where(ReservationSpecifiation.hasUserId(currentUserId))
-                .and(ReservationSpecifiation.fetchShowAndEvent());
-
-        // 4. Lọc theo Keyword (ID, ShowID hoặc EventID)
+        // Lọc theo Keyword (ID, ShowID hoặc EventID)
         if (req.getKeyword() != null && !req.getKeyword().trim().isEmpty()) {
             String keyword = req.getKeyword().trim();
             spec = spec.and(ReservationSpecifiation.hasId(keyword));
         }
 
-        // 5. Lọc theo EventId (Nếu có truyền và không phải "")
+        // Lọc theo EventId (Nếu có truyền và không phải "")
         if (req.getEventId() != null && !req.getEventId().trim().isEmpty()) {
             spec = spec.and(ReservationSpecifiation.hasEventId(req.getEventId()));
         }
 
-        // 6. Lọc theo ShowId (Nếu có truyền và không phải "")
+        // Lọc theo ShowId (Nếu có truyền và không phải "")
         if (req.getShowId() != null && !req.getShowId().trim().isEmpty()) {
             spec = spec.and(ReservationSpecifiation.hasShowId(req.getShowId()));
         }
 
-        // 7. Xử lý Trạng thái (Status)
+        // Xử lý Trạng thái (Status)
         String status = req.getStatus() != null ? req.getStatus().toUpperCase() : "ALL";
         switch (status) {
             case "DELETED":
                 spec = spec.and(ReservationSpecifiation.isDeleted());
                 break;
-
             case "ALL":
                 spec = spec.and(ReservationSpecifiation.isNotDeleted());
                 break;
-
             default:
                 try {
                     ReservationStatus statusEnum = ReservationStatus.valueOf(status);
@@ -669,13 +665,30 @@ public class ReservationServiceImpl implements ReservationService {
                 }
                 break;
         }
-        // 8. Thực thi Query
-        log.info(">>> START getReservationsSearch");
+        return spec;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReservationDetailDTO> getReservationsSearch(SearchReservationReq req) {
+        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize(), Sort.by("createdAt").descending());
+        Specification<Reservation> spec = buildSearchSpecification(req);
+
         Page<Reservation> reservations = reservationRepository.findAll(spec, pageable);
-        // 9. Map sang DTO
-        Page<ReservationDetailDTO> result = reservations.map(reservationMapper::toDetailDto);
-        log.info("<<< END getReservationsSearch");
-        return result;
+        return reservations.map(reservationMapper::toDetailDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReservationDetailDTO> getReservationsSearchForMe(SearchReservationReq req) {
+        String currentUserId = securityUtils.getCurrentUserId();
+        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize(), Sort.by("createdAt").descending());
+
+        Specification<Reservation> spec = buildSearchSpecification(req)
+                .and(ReservationSpecifiation.hasEventOwnerId(currentUserId));
+
+        Page<Reservation> reservations = reservationRepository.findAll(spec, pageable);
+        return reservations.map(reservationMapper::toDetailDto);
     }
 
     private ReservationDTO getReservationAfterDiscount(Reservation reservation, Voucher voucher) {

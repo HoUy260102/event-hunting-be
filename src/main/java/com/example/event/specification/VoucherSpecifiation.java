@@ -39,4 +39,30 @@ public class VoucherSpecifiation {
                 cb.isNotNull(root.get("deletedAt"));
     }
 
+    public static Specification<Voucher> hasEventOwnerOrCreator(String userId) {
+        return (root, query, cb) -> {
+            if (userId == null) return null;
+
+            // 1. Voucher được tạo bởi chính người này
+            var createdByPredicate = cb.equal(root.get("createdBy"), userId);
+
+            // 2. Voucher áp dụng cho Show thuộc Event của người này
+            // Path: Voucher -> show -> event -> user -> id
+            var eventOwnerPredicate = cb.equal(root.get("show").get("event").get("user").get("id"), userId);
+
+            return cb.or(createdByPredicate, eventOwnerPredicate);
+        };
+    }
+
+    public static Specification<Voucher> fetchDetails() {
+        return (root, query, cb) -> {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("show", jakarta.persistence.criteria.JoinType.LEFT);
+                root.fetch("ticketTypes", jakarta.persistence.criteria.JoinType.LEFT);
+                query.distinct(true);
+            }
+            return null;
+        };
+    }
+
 }

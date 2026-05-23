@@ -17,6 +17,8 @@ public interface ReservationService {
 
     ReservationSummaryDTO findReservationSummaryById(String id);
 
+    ReservationSummaryDTO findReservationById(String id);
+
     ReservationDTO createReservation(ReservationReq req);
 
     ReservationDTO findReservationAfterDiscount(String reservationId, String voucherId);
@@ -34,4 +36,6 @@ public interface ReservationService {
     void resetDiscount(Reservation reservation);
 
     Page<ReservationDetailDTO> getReservationsSearch(SearchReservationReq req);
+
+    Page<ReservationDetailDTO> getReservationsSearchForMe(SearchReservationReq req);
 }

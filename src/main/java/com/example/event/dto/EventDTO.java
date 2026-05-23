@@ -30,6 +30,8 @@ public class EventDTO {
     private String organizerName;
     private String organizerInfo;
     private String userId;
+    private UserDTO user;
+
     private String rejectionReason;
     private LocalDateTime reviewedAt;
     private String reviewedBy;

@@ -31,6 +31,5 @@ public class TicketSummaryDTO {
 
     private String eventName;
     private String eventLocation;
-
     private String reservationId;
 }

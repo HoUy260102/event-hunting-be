@@ -1,8 +1,11 @@
 package com.example.event.service.Impl;
 
+import com.example.event.component.TicketEmailProducer;
 import com.example.event.config.VNPayConfig;
 import com.example.event.constant.*;
 import com.example.event.dto.ReservationDTO;
+import com.example.event.dto.TicketEmailMessage;
+import com.example.event.dto.TicketSummaryDTO;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
 import com.example.event.repository.PaymentRepository;
@@ -38,6 +41,7 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final TicketService ticketService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final TicketEmailProducer ticketEmailProducer;
     private static final Map<String, String> VNPAY_MESSAGES;
 
     static {
@@ -52,59 +56,6 @@ public class VNPaymentServiceImpl implements PaymentService {
         tempMap.put("09", "Giao dịch hoàn trả bị từ chối");
         VNPAY_MESSAGES = Collections.unmodifiableMap(tempMap);
     }
-
-//    @Override
-//    @Transactional
-//    public String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest) {
-//        LocalDateTime now = LocalDateTime.now();
-//        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationDTO.getId()))
-//                .orElseThrow(() -> {
-//                    log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationDTO.getId());
-//                    return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
-//                });
-//        // valite dữ liệu reservation;
-//        reservationService.validateReservationForPayment(reservation);
-//
-//        validateReservation(reservation, reservationDTO);
-//        Voucher currentVoucher = reservation.getVoucher();
-//        String newVoucherId = reservationDTO.getVoucherId();
-//
-//        Voucher newVoucher = null;
-//        boolean isReservedIncreased = false;
-//
-//        try {
-//            if (newVoucherId != null) {
-//                newVoucher = Optional.ofNullable(voucherRepository.findVoucherById(newVoucherId))
-//                        .orElseThrow(() -> new AppException(ErrorCode.VOUCHER_NOT_FOUND));
-//                boolean isSameVoucher = currentVoucher != null
-//                        && currentVoucher.getId().equals(newVoucherId);
-//                if (!isSameVoucher) {
-//                    int updated = voucherRepository.increaseReservedQuantity(newVoucherId);
-//                    if (updated == 0) {
-//                        throw new AppException(ErrorCode.VOUCHER_EXHAUSTED);
-//                    }
-//                    isReservedIncreased = true;
-//                    applyReservationAfterDiscount(reservation, reservationDTO, newVoucher);
-//                    if (currentVoucher != null) {
-//                        voucherRepository.decreaseReservedQuantity(currentVoucher.getId());
-//                    }
-//                }
-//            } else {
-//                if (currentVoucher != null) {
-//                    voucherRepository.decreaseReservedQuantity(currentVoucher.getId());
-//                    resetReservation(reservation);
-//                }
-//            }
-//            Payment payment = Optional.ofNullable(findPaymentAndUpdate(reservation))
-//                    .orElseGet(() -> createNewPayment(reservation, now));
-//            return buildPaymentUrl(payment, httpRequest);
-//        } catch (Exception e) {
-//            if (newVoucher != null && isReservedIncreased) {
-//                voucherRepository.decreaseReservedQuantity(newVoucher.getId());
-//            }
-//            throw e;
-//        }
-//    }
 
     @Override
     @Transactional
@@ -250,7 +201,10 @@ public class VNPaymentServiceImpl implements PaymentService {
             reservation.setStatus(ReservationStatus.PAID);
             reservation.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
             reservationRepository.save(reservation);
-            ticketService.generateTickets(resId);
+
+            // Generate tickets then push them as a single batch to the email stream
+            List<TicketSummaryDTO> tickets = ticketService.generateTickets(resId);
+            ticketEmailProducer.sendReservationTickets(user, tickets);
 
             socketData.put("status", "SUCCESS");
             socketData.put("message", "Thanh toán thành công");

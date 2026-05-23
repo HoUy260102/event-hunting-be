@@ -217,6 +217,24 @@ public class VoucherServiceImpl implements VoucherService {
     @Transactional(readOnly = true)
     public Page<VoucherDTO> getVouchersSearch(SearchVoucherReq req) {
         Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize());
+        Specification<Voucher> spec = buildSearchSpecification(req).and(VoucherSpecifiation.fetchDetails());
+        Page<Voucher> vouchers = voucherRepository.findAll(spec, pageable);
+        return vouchers.map(voucherMapper::toDTO);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<VoucherDTO> getVouchersSearchForMe(SearchVoucherReq req) {
+        String userId = securityUtils.getCurrentUserId();
+        Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize());
+        Specification<Voucher> spec = buildSearchSpecification(req)
+                .and(VoucherSpecifiation.hasEventOwnerOrCreator(userId))
+                .and(VoucherSpecifiation.fetchDetails());
+        Page<Voucher> vouchers = voucherRepository.findAll(spec, pageable);
+        return vouchers.map(voucherMapper::toDTO);
+    }
+
+    private Specification<Voucher> buildSearchSpecification(SearchVoucherReq req) {
         Specification<Voucher> spec = (root, query, cb) -> cb.conjunction();
         if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
             spec = spec.and(Specification.anyOf(VoucherSpecifiation.hasName(req.getKeyword()),
@@ -240,8 +258,7 @@ public class VoucherServiceImpl implements VoucherService {
                         .and(VoucherSpecifiation.isNotDeleted());
                 break;
         }
-        Page<Voucher> vouchers = voucherRepository.findAll(spec, pageable);
-        return vouchers.map(voucherMapper::toDTO);
+        return spec;
     }
 
     @Override

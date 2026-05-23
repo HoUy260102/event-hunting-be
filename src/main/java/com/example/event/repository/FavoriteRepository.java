@@ -19,8 +19,13 @@ public interface FavoriteRepository extends JpaRepository<Favorite, String> {
     Set<String> findSavedEventIds(String userId, List<String> eventIds);
 
     @Query("SELECT f FROM Favorite f " +
-            "JOIN FETCH f.event " +
-            "WHERE f.user.id = :userId AND f.event.deletedAt IS NULL " +
+            "JOIN FETCH f.event e " +
+            "LEFT JOIN FETCH e.banner " +
+            "LEFT JOIN FETCH e.province " +
+            "LEFT JOIN FETCH e.category " +
+            "WHERE f.user.id = :userId " +
+            "AND e.deletedAt IS NULL " +
+            "AND e.status IN (com.example.event.constant.EventStatus.APPROVED, com.example.event.constant.EventStatus.PUBLISHED, com.example.event.constant.EventStatus.CANCELLED) " +
             "AND (:nextId IS NULL OR " +
             "    (f.createdAt < (SELECT f2.createdAt FROM Favorite f2 WHERE f2.id = :nextId) " +
             "    OR (f.createdAt = (SELECT f2.createdAt FROM Favorite f2 WHERE f2.id = :nextId) AND f.id < :nextId))) " +

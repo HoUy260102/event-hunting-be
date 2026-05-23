@@ -22,6 +22,8 @@ public interface VoucherService {
     List<VoucherDTO> findVoucherByShowIdOrVoucherSystem(String showId);
 
     Page<VoucherDTO> getVouchersSearch(SearchVoucherReq req);
+    
+    Page<VoucherDTO> getVouchersSearchForMe(SearchVoucherReq req);
 
     void deleteVoucher(String id);
 

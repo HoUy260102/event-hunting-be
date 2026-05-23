@@ -9,10 +9,11 @@ public class ReservationSpecifiation {
 
     public static Specification<Reservation> fetchShowAndEvent() {
         return (root, query, cb) -> {
-            if (query.getResultType() != Long.class) {
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("show", JoinType.LEFT)
                         .fetch("event", JoinType.LEFT);
                 root.fetch("user", JoinType.LEFT);
+                root.fetch("payment", JoinType.LEFT);
                 query.distinct(true);
             }
             return null;
@@ -36,10 +37,17 @@ public class ReservationSpecifiation {
         };
     }
 
-    public static Specification<Reservation> hasUserId(String id) {
+    public static Specification<Reservation> hasEventOwnerId(String id) {
         return (root, query, cb) -> {
             if (id == null) return null;
             return cb.equal(root.get("show").get("event").get("user").get("id"), id);
+        };
+    }
+
+    public static Specification<Reservation> hasCustomerId(String id) {
+        return (root, query, cb) -> {
+            if (id == null) return null;
+            return cb.equal(root.get("user").get("id"), id);
         };
     }
 

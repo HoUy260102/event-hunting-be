@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,6 +45,7 @@ public class CategoryController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('CATEGORY:CREATE')")
     public ResponseEntity<?> createCategory(@Valid @RequestBody CreateCategoryReq req) {
         CategoryDTO categoryDTO = categoryService.createCategory(req);
         ApiResponse response = ApiResponse.builder()
@@ -55,6 +57,7 @@ public class CategoryController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('CATEGORY:UPDATE')")
     public ResponseEntity<?> updateCategory(@Valid @RequestBody UpdateCategoryReq req, @PathVariable String id) {
         CategoryDTO categoryDTO = categoryService.updateCategory(id, req);
         ApiResponse response = ApiResponse.builder()
@@ -66,6 +69,7 @@ public class CategoryController {
     }
 
     @PatchMapping("/{id}/soft-delete")
+    @PreAuthorize("hasAuthority('CATEGORY:DELETE')")
     public ResponseEntity<?> deleteCategory(@PathVariable String id) {
         categoryService.deleteCategory(id);
         ApiResponse response = ApiResponse.builder()
@@ -76,6 +80,7 @@ public class CategoryController {
     }
 
     @PatchMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('CATEGORY:RESTORE')")
     public ResponseEntity<?> restoreCategory(@PathVariable String id) {
         categoryService.restoreCategory(id);
         ApiResponse response = ApiResponse.builder()
@@ -86,6 +91,7 @@ public class CategoryController {
     }
 
     @GetMapping("/search")
+    @PreAuthorize("hasAuthority('CATEGORY:VIEW')")
     public ResponseEntity<?> searchCategory(@Valid CategorySearchReq req) {
         Page<CategoryDTO> categoryDTOS = categoryService.getCategorySearch(req);
         ApiResponse apiResponse = ApiResponse.builder()

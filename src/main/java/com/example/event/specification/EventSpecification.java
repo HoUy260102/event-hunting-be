@@ -29,6 +29,11 @@ public class EventSpecification {
                 id == null ? null : cb.equal(root.get("id"), id);
     }
 
+    public static Specification<Event> hasUserId(String userId) {
+        return (root, query, cb) ->
+                userId == null ? null : cb.equal(root.get("user").get("id"), userId);
+    }
+
     public static Specification<Event> hasIdIn(List<String> ids) {
         return (root, query, cb) -> {
             if (ids == null) {
@@ -115,6 +120,16 @@ public class EventSpecification {
                 status == null ? null : cb.equal(root.get("status"), status);
     }
 
+    public static Specification<Event> hasStatusIn(List<EventStatus> statuses) {
+        return (root, query, cb) -> {
+            if (statuses == null || statuses.isEmpty()) {
+                return null;
+            }
+            return root.get("status").in(statuses);
+        };
+    }
+
+
     public static Specification<Event> isNotDeleted() {
         return (root, query, cb) -> cb.isNull(root.get("deletedAt"));
     }
@@ -126,19 +141,19 @@ public class EventSpecification {
 
     private static Specification<Event> isPublicVisible() {
         return (root, query, cb) -> cb.and(
-                cb.equal(root.get("status"), EventStatus.PUBLISHED),
-                cb.equal(root.get("isDeleted"), false)
+                root.get("status").in(EventStatus.APPROVED, EventStatus.PUBLISHED, EventStatus.CANCELLED),
+                cb.isNull(root.get("deletedAt"))
         );
     }
 
     public static Specification<Event> isUpcoming() {
-        return isPublicVisible().and((root, query, cb) ->
+        return isNotDeleted().and((root, query, cb) ->
                 cb.greaterThan(root.get("startTime"), LocalDateTime.now())
         );
     }
 
     public static Specification<Event> isHappening() {
-        return isPublicVisible().and((root, query, cb) -> {
+        return isNotDeleted().and((root, query, cb) -> {
             LocalDateTime now = LocalDateTime.now();
             return cb.and(
                     cb.lessThanOrEqualTo(root.get("startTime"), now),
@@ -148,8 +163,22 @@ public class EventSpecification {
     }
 
     public static Specification<Event> isFinished() {
-        return isPublicVisible().and((root, query, cb) ->
+        return isNotDeleted().and((root, query, cb) ->
                 cb.lessThan(root.get("endTime"), LocalDateTime.now())
         );
     }
+
+    public static Specification<Event> fetchDetails() {
+        return (root, query, cb) -> {
+            // Chỉ fetch khi không phải query count (phục vụ pagination)
+            if (query.getResultType() != Long.class && query.getResultType() != long.class) {
+                root.fetch("poster", jakarta.persistence.criteria.JoinType.LEFT);
+                root.fetch("province", jakarta.persistence.criteria.JoinType.LEFT);
+                root.fetch("category", jakarta.persistence.criteria.JoinType.LEFT);
+            }
+            return null;
+        };
+    }
 }
+
+
