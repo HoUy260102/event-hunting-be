@@ -31,6 +31,9 @@ public enum ErrorCode {
     USER_BLOCKED(HttpStatus.FORBIDDEN, "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."),
     USER_INACTIVE(HttpStatus.FORBIDDEN, "Tài khoản của bạn đang tạm ngưng hoạt động."),
     USER_HAS_RESERVATIONS(HttpStatus.BAD_REQUEST, "Không thể xóa người dùng này vì đang có đơn đặt chỗ."),
+    EVENT_HAS_RESERVATIONS(HttpStatus.BAD_REQUEST, "Không thể xóa sự kiện này vì đang có đơn đặt chỗ."),
+    EVENT_HAS_RESERVATIONS_CANNOT_CHANGE_TO_DRAFT(HttpStatus.BAD_REQUEST, "Không thể chuyển sự kiện về bản nháp vì đã phát sinh giao dịch đặt chỗ."),
+    VOUCHER_HAS_RESERVATIONS(HttpStatus.BAD_REQUEST, "Không thể xóa khuyến mãi này vì đã được áp dụng trong đơn đặt chỗ."),
 
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST,"Mật khẩu xác nhận không khớp."),
     CURRENT_PASSWORD_INCORRECT(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không chính xác."),

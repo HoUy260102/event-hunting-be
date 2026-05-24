@@ -35,4 +35,6 @@ public class EventDTO {
     private String rejectionReason;
     private LocalDateTime reviewedAt;
     private String reviewedBy;
+    private LocalDateTime deletedAt;
+    private String deletedBy;
 }

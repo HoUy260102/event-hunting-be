@@ -7,8 +7,8 @@ import lombok.Data;
 public class SearchVoucherReq {
     private String keyword = "";
     @Pattern(
-            regexp = "^(ALL|ACTIVE|INACTIVE|DRAFT)$",
-            message = "Trạng thái phải là một trong các giá trị: ALL, ACTIVE, INACTIVE, DELETED"
+            regexp = "^(ALL|ACTIVE|INACTIVE|DRAFT|DELETED)$",
+            message = "Trạng thái phải là một trong các giá trị: ALL, ACTIVE, INACTIVE, DRAFT, DELETED"
     )
     private String status = "ALL";
     private Integer page = 1;

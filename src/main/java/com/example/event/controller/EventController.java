@@ -3,8 +3,8 @@ package com.example.event.controller;
 import com.example.event.dto.*;
 import com.example.event.dto.request.*;
 import com.example.event.dto.response.ApiResponse;
+import com.example.event.dto.response.EventTrendingResponse;
 import com.example.event.dto.response.KeysetPageResponse;
-import com.example.event.projection.EventTrendingProjection;
 import com.example.event.service.EventInteractionService;
 import com.example.event.service.EventService;
 import com.example.event.service.ShowService;
@@ -94,7 +94,7 @@ public class EventController {
 
     @GetMapping("/trending")
     public ResponseEntity<?> getTrending() {
-        List<EventTrendingProjection> trendingEvents = eventInteractionService.getTopTrendingEvents();
+        List<EventTrendingResponse> trendingEvents = eventInteractionService.getTopTrendingEvents();
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")
@@ -171,6 +171,7 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+
     @GetMapping("/{id}/shows/selection")
     public ResponseEntity<?> findShowSelectionById(@PathVariable String id) {
         List<ShowSelectionDTO> showSelectionDTO = showService.findShowSelectionByEventId(id);
@@ -232,6 +233,28 @@ public class EventController {
     @PreAuthorize("hasAuthority('EVENT:REJECT')")
     public ResponseEntity<?> rejectEvent(@PathVariable String id, @Valid @RequestBody RejectEventReq request) {
         eventService.rejectEvent(id, request);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PatchMapping("/{id}/soft-delete")
+    @PreAuthorize("hasAuthority('EVENT:DELETE')")
+    public ResponseEntity<?> softDeleteEvent(@PathVariable String id) {
+        eventService.softDeleteEvent(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PatchMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('EVENT:RESTORE')")
+    public ResponseEntity<?> restoreEvent(@PathVariable String id) {
+        eventService.restoreEvent(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")

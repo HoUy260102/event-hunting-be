@@ -27,6 +27,22 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, String> 
     @Modifying(clearAutomatically = true)
     @Query("""
                 UPDATE TicketType tt
+                SET tt.deletedAt = null,
+                    tt.deletedBy = null,
+                    tt.updatedAt = :now,
+                    tt.updatedBy = :restorerId
+                WHERE tt.show.id IN :showIds
+                  AND tt.deletedAt IS NOT NULL
+            """)
+    void restoreTypesByShowIds(
+            @Param("showIds") List<String> showIds,
+            @Param("now") LocalDateTime now,
+            @Param("restorerId") String restorerId
+    );
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+                UPDATE TicketType tt
                 SET tt.deletedAt = :now,
                     tt.deletedBy = :deletorId
                 WHERE tt.id IN :typeIds

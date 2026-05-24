@@ -162,6 +162,14 @@ public class ShowServiceImpl implements ShowService {
             throw new AppException(ErrorCode.INVALID_EVENT_SHOW_RELATION);
         }
 
+        if (show.getStatus() == ShowStatus.CANCELLED) {
+            throw new AppException(ErrorCode.SHOW_ALREADY_CANCELLED);
+        }
+
+        if (show.getEndTime().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.SHOW_ENDED);
+        }
+
         if (show.getStatus() != ShowStatus.DRAFT &&
                 !Objects.equals(show.getSeatMapSvg(), showReq.getSeatMapSvg())) {
             throw new AppException(ErrorCode.SEATMAP_UPDATE_FORBIDDEN);
@@ -179,7 +187,9 @@ public class ShowServiceImpl implements ShowService {
         show.setEndTime(showReq.getEndTime());
         show.setSeatMapType(showReq.getSeatMapType());
         show.setSeatMapSvg(showReq.getSeatMapSvg());
-        show.setStatus(showReq.getStatus());
+        if (showReq.getStatus() != null) {
+            show.setStatus(showReq.getStatus());
+        }
         show.setUpdatedAt(LocalDateTime.now());
         show.setUpdatedBy(updatorId);
 
@@ -231,6 +241,9 @@ public class ShowServiceImpl implements ShowService {
         ticketTierRepository.saveAll(tiersToSave);
         savedShow.setTicketTypes(updatedTypes);
         updateEventTime(event);
+        if (savedShow.getStatus() == ShowStatus.ACTIVE) {
+            syncShowStockToRedis(savedShow);
+        }
         return showMapper.toDTO(savedShow);
     }
 
@@ -447,17 +460,30 @@ public class ShowServiceImpl implements ShowService {
         return showSelectionDTOS;
     }
 
+    @Override
     @Transactional
     public void softDeleteShows(List<String> ids, String deletorId) {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-
         LocalDateTime now = LocalDateTime.now();
-
+        seatRepository.softDeleteSeatsByShowIds(ids, now, deletorId);
         ticketTierRepository.softDeleteTiersByShowIds(ids, now, deletorId);
         ticketTypeRepository.softDeleteTypesByShowIds(ids, now, deletorId);
         showRepository.softDeleteShows(ids, now, deletorId);
+    }
+
+    @Override
+    @Transactional
+    public void restoreShows(List<String> ids, String restorerId) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        seatRepository.restoreSeatsByShowIds(ids, now, restorerId);
+        ticketTierRepository.restoreTiersByShowIds(ids, now, restorerId);
+        ticketTypeRepository.restoreTypesByShowIds(ids, now, restorerId);
+        showRepository.restoreShows(ids, now, restorerId);
     }
 
     private void updateEventTime(Event event) {

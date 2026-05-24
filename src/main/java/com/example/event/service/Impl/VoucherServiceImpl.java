@@ -16,6 +16,7 @@ import com.example.event.entity.Voucher;
 import com.example.event.exception.AppException;
 import com.example.event.mapper.VoucherMapper;
 import com.example.event.repository.ShowRepository;
+import com.example.event.repository.ReservationRepository;
 import com.example.event.repository.TicketTypeRepository;
 import com.example.event.repository.VoucherRepository;
 import com.example.event.service.VoucherService;
@@ -41,6 +42,7 @@ public class VoucherServiceImpl implements VoucherService {
     private final ShowRepository showRepository;
     private final VoucherMapper voucherMapper;
     private final TicketTypeRepository ticketTypeRepository;
+    private final ReservationRepository reservationRepository;
     private final SecurityUtils securityUtils;
 
     @Override
@@ -268,6 +270,9 @@ public class VoucherServiceImpl implements VoucherService {
                 .orElseThrow(() -> new AppException(ErrorCode.VOUCHER_NOT_FOUND));
         if (voucher.getDeletedAt() != null) {
             throw new AppException(ErrorCode.VOUCHER_ALREADY_DELETED);
+        }
+        if (voucher.getUsedQuantity() > 0 || voucher.getReservedQuantity() > 0 || reservationRepository.existsByVoucherIdAndDeletedAtIsNull(id)) {
+            throw new AppException(ErrorCode.VOUCHER_HAS_RESERVATIONS);
         }
         voucher.setName(voucher.getName() + "-deleted-" + System.currentTimeMillis());
         voucher.setCode(voucher.getCode() + "-deleted-" + System.currentTimeMillis());

@@ -14,6 +14,7 @@ public interface EventService {
     void rejectEvent(String eventId, RejectEventReq request);
     Page<EventDTO> getEventSearchForAdmin(EventSearchReq req);
     KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req);
+
     EventDTO updateEvent(UpdateEventReq updateEventReq, String id);
     EventDTO findEventById(String id);
     EventInfoDTO findEventInfoById(String id);
@@ -22,4 +23,6 @@ public interface EventService {
     List<EventSelectionDTO> findEventSelectionForAdmin();
     List<EventSelectionDTO> findEventSelectionForMe();
     Page<EventDTO> getEventSearchForMe(EventSearchReq req);
+    void softDeleteEvent(String id);
+    void restoreEvent(String id);
 }

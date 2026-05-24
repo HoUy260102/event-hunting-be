@@ -48,6 +48,22 @@ public interface ShowRepository extends JpaRepository<Show, String> {
             @Param("deletorId") String deletorId
     );
 
+    @Modifying(clearAutomatically = true)
+    @Query("""
+                UPDATE Show s
+                SET s.deletedAt = null,
+                    s.deletedBy = null,
+                    s.updatedAt = :now,
+                    s.updatedBy = :restorerId
+                WHERE s.id IN :ids
+                  AND s.deletedAt IS NOT NULL
+            """)
+    void restoreShows(
+            @Param("ids") List<String> ids,
+            @Param("now") LocalDateTime now,
+            @Param("restorerId") String restorerId
+    );
+
     @Query("""
                 SELECT COUNT(s) > 0
                 FROM Show s

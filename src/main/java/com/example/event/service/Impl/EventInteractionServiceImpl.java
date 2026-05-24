@@ -2,6 +2,7 @@ package com.example.event.service.Impl;
 
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.InteractionType;
+import com.example.event.dto.response.EventTrendingResponse;
 import com.example.event.entity.Event;
 import com.example.event.entity.EventInteraction;
 import com.example.event.entity.User;
@@ -11,6 +12,9 @@ import com.example.event.repository.EventInteractionRepository;
 import com.example.event.repository.EventRepository;
 import com.example.event.repository.UserRepository;
 import com.example.event.service.EventInteractionService;
+import com.example.event.service.RedisService;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +32,11 @@ public class EventInteractionServiceImpl implements EventInteractionService {
     private final EventInteractionRepository interactionRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final RedisService redisService;
+    private final ObjectMapper objectMapper;
+
+    private static final String TRENDING_EVENTS_KEY = "events:trending";
+    private static final long TRENDING_EVENTS_TTL = 86400L; 
 
     @Override
     @Transactional
@@ -62,8 +72,33 @@ public class EventInteractionServiceImpl implements EventInteractionService {
     }
 
     @Override
-    public List<EventTrendingProjection> getTopTrendingEvents() {
+    public List<EventTrendingResponse> getTopTrendingEvents() {
+        try {
+            String cachedJson = redisService.get(TRENDING_EVENTS_KEY, String.class);
+            if (cachedJson != null) {
+                log.info("Fetching trending events from Redis cache.");
+                return objectMapper.readValue(cachedJson, new TypeReference<List<EventTrendingResponse>>() {});
+            }
+        } catch (Exception e) {
+            log.error("Failed to read trending events from Redis cache: {}", e.getMessage());
+        }
+
+        log.info("Trending events cache miss. Fetching from database.");
         LocalDateTime since = LocalDateTime.now().minusDays(30);
-        return interactionRepository.findTrendingEvents(since, 10);
+        List<EventTrendingProjection> projections = interactionRepository.findTrendingEvents(since, 10);
+
+        List<EventTrendingResponse> responses = projections.stream()
+                .map(EventTrendingResponse::fromProjection)
+                .collect(Collectors.toList());
+
+        try {
+            String jsonToCache = objectMapper.writeValueAsString(responses);
+            redisService.set(TRENDING_EVENTS_KEY, jsonToCache, TRENDING_EVENTS_TTL);
+            log.info("Successfully cached trending events in Redis with 1 day TTL.");
+        } catch (Exception e) {
+            log.error("Failed to cache trending events in Redis: {}", e.getMessage());
+        }
+
+        return responses;
     }
 }

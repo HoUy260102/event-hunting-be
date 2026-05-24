@@ -16,6 +16,9 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
   data:
     web:
       page-serialization-mode: via-dto

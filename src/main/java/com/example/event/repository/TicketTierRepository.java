@@ -24,6 +24,22 @@ public interface TicketTierRepository extends JpaRepository<TicketTier, String> 
             @Param("deletorId") String deletorId
     );
 
+    @Modifying(clearAutomatically = true)
+    @Query("""
+                UPDATE TicketTier tr
+                SET tr.deletedAt = null,
+                    tr.deletedBy = null,
+                    tr.updatedAt = :now,
+                    tr.updatedBy = :restorerId
+                WHERE tr.ticketType.show.id IN :showIds
+                  AND tr.deletedAt IS NOT NULL
+            """)
+    void restoreTiersByShowIds(
+            @Param("showIds") List<String> showIds,
+            @Param("now") LocalDateTime now,
+            @Param("restorerId") String restorerId
+    );
+
     @Modifying
     @Query("""
                 UPDATE TicketTier tr 

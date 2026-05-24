@@ -21,4 +21,6 @@ public interface ShowService {
     void updateShowStatus(String showId, ShowStatus status);
     List<ShowDTO> findShowsByEventId(String eventId);
     List<ShowSelectionDTO> findShowSelectionByEventId(String eventId);
+    void softDeleteShows(List<String> ids, String deletorId);
+    void restoreShows(List<String> ids, String restorerId);
 }

@@ -73,6 +73,14 @@ public class JwtUtils {
 
     private Key getKey() {
         byte[] keyBytes = jwtSecretKey.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length < 32) {
+            try {
+                java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+                keyBytes = digest.digest(keyBytes);
+            } catch (java.security.NoSuchAlgorithmException e) {
+                throw new RuntimeException("Failed to hash JWT secret key using SHA-256", e);
+            }
+        }
         return Keys.hmacShaKeyFor(keyBytes);
     }
 

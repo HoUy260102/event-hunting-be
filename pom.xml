@@ -47,6 +47,7 @@
 			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
+
 		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
@@ -162,6 +163,12 @@
 			<groupId>com.google.zxing</groupId>
 			<artifactId>javase</artifactId>
 			<version>3.5.3</version>
+		</dependency>
+		<!-- Dotenv Java: Load environment variables from .env file -->
+		<dependency>
+			<groupId>io.github.cdimascio</groupId>
+			<artifactId>dotenv-java</artifactId>
+			<version>3.2.0</version>
 		</dependency>
 	</dependencies>
 

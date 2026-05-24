@@ -17,6 +17,7 @@ import com.example.event.specification.EventSpecification;
 import com.example.event.util.DateUtil;
 import com.example.event.validation.ShowValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EventServiceImpl implements EventService {
     private final EventMapper eventMapper;
     private final FileRepository fileRepository;
@@ -40,6 +42,7 @@ public class EventServiceImpl implements EventService {
     private final SecurityUtils securityUtils;
     private final EventRepository eventRepository;
     private final ShowService showService;
+    private final ShowRepository showRepository;
     private final FavoriteRepository favoriteRepository;
     private final EventInteractionService eventInteractionService;
 
@@ -56,6 +59,7 @@ public class EventServiceImpl implements EventService {
 
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final ReservationRepository reservationRepository;
 
     @Override
     @Transactional
@@ -180,6 +184,14 @@ public class EventServiceImpl implements EventService {
         if (validNextStatuses == null || !validNextStatuses.contains(newStatus)) {
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
+
+        if (newStatus == EventStatus.DRAFT) {
+            boolean hasReservations = reservationRepository.existsByEventIdAndDeletedAtIsNull(id);
+            if (hasReservations) {
+                throw new AppException(ErrorCode.EVENT_HAS_RESERVATIONS_CANNOT_CHANGE_TO_DRAFT);
+            }
+        }
+
         event.setStatus(newStatus);
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(updatorId);
@@ -216,7 +228,6 @@ public class EventServiceImpl implements EventService {
         event.setRejectionReason(request.getRejectionReason());
         event.setReviewedAt(LocalDateTime.now());
         event.setReviewedBy(updatorId);
-
         eventRepository.save(event);
     }
 
@@ -482,6 +493,8 @@ public class EventServiceImpl implements EventService {
                 eventSlice.hasNext());
     }
 
+
+
     @Override
     public EventSummaryDTO getEventSummaryById(String eventId) {
         List<TicketStatProjection> rows = ticketRepository.getStatByEvent(eventId);
@@ -672,5 +685,70 @@ public class EventServiceImpl implements EventService {
             }
         }
         return idsForDelete;
+    }
+
+    @Override
+    @Transactional
+    public void softDeleteEvent(String id) {
+        Event event = eventRepository.findEventById(id);
+        if (event == null) {
+            throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+        }
+        if (event.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        // Kiểm tra xem event đã có giao dịch reservation nào chưa
+        boolean hasReservations = reservationRepository.existsByEventIdAndDeletedAtIsNull(id);
+        if (hasReservations) {
+            throw new AppException(ErrorCode.EVENT_HAS_RESERVATIONS);
+        }
+
+        String userId = securityUtils.getCurrentUserId();
+        log.info("Soft deleting event {} (Name: {}) by user {}", id, event.getName(), userId);
+        
+        event.setDeletedAt(LocalDateTime.now());
+        event.setDeletedBy(userId);
+        eventRepository.save(event);
+
+        // Fetch and soft-delete associated shows (and their ticket types & tiers)
+        List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
+                .map(Show::getId)
+                .collect(Collectors.toList());
+                
+        if (!showIds.isEmpty()) {
+            log.info("Cascading soft-delete to {} shows under event {}", showIds.size(), id);
+            showService.softDeleteShows(showIds, userId);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void restoreEvent(String id) {
+        Event event = eventRepository.findEventById(id);
+        if (event == null) {
+            throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+        }
+        if (event.getDeletedAt() == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        String userId = securityUtils.getCurrentUserId();
+        log.info("Restoring event {} (Name: {}) by user {}", id, event.getName(), userId);
+
+        event.setDeletedAt(null);
+        event.setDeletedBy(null);
+        event.setUpdatedAt(LocalDateTime.now());
+        event.setUpdatedBy(userId);
+        eventRepository.save(event);
+
+        // Fetch and restore associated shows (and their ticket types & tiers)
+        List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
+                .map(Show::getId)
+                .collect(Collectors.toList());
+        if (!showIds.isEmpty()) {
+            log.info("Cascading restore to {} shows under event {}", showIds.size(), id);
+            showService.restoreShows(showIds, userId);
+        }
     }
 }

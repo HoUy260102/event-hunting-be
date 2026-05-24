@@ -14,7 +14,7 @@ import com.example.event.service.LockService;
 import com.example.event.service.ReservationService;
 import com.example.event.service.TicketQueueService;
 import com.example.event.service.VoucherService;
-import com.example.event.specification.ReservationSpecifiation;
+import com.example.event.specification.ReservationSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -628,40 +628,40 @@ public class ReservationServiceImpl implements ReservationService {
     }
 
     private Specification<Reservation> buildSearchSpecification(SearchReservationReq req) {
-        Specification<Reservation> spec = Specification.where(ReservationSpecifiation.fetchShowAndEvent());
+        Specification<Reservation> spec = Specification.where(ReservationSpecification.fetchShowAndEvent());
 
         // Lọc theo Keyword (ID, ShowID hoặc EventID)
         if (req.getKeyword() != null && !req.getKeyword().trim().isEmpty()) {
             String keyword = req.getKeyword().trim();
-            spec = spec.and(ReservationSpecifiation.hasId(keyword));
+            spec = spec.and(ReservationSpecification.hasId(keyword));
         }
 
         // Lọc theo EventId (Nếu có truyền và không phải "")
         if (req.getEventId() != null && !req.getEventId().trim().isEmpty()) {
-            spec = spec.and(ReservationSpecifiation.hasEventId(req.getEventId()));
+            spec = spec.and(ReservationSpecification.hasEventId(req.getEventId()));
         }
 
         // Lọc theo ShowId (Nếu có truyền và không phải "")
         if (req.getShowId() != null && !req.getShowId().trim().isEmpty()) {
-            spec = spec.and(ReservationSpecifiation.hasShowId(req.getShowId()));
+            spec = spec.and(ReservationSpecification.hasShowId(req.getShowId()));
         }
 
         // Xử lý Trạng thái (Status)
         String status = req.getStatus() != null ? req.getStatus().toUpperCase() : "ALL";
         switch (status) {
             case "DELETED":
-                spec = spec.and(ReservationSpecifiation.isDeleted());
+                spec = spec.and(ReservationSpecification.isDeleted());
                 break;
             case "ALL":
-                spec = spec.and(ReservationSpecifiation.isNotDeleted());
+                spec = spec.and(ReservationSpecification.isNotDeleted());
                 break;
             default:
                 try {
                     ReservationStatus statusEnum = ReservationStatus.valueOf(status);
-                    spec = spec.and(ReservationSpecifiation.hasStatus(statusEnum))
-                            .and(ReservationSpecifiation.isNotDeleted());
+                    spec = spec.and(ReservationSpecification.hasStatus(statusEnum))
+                            .and(ReservationSpecification.isNotDeleted());
                 } catch (IllegalArgumentException e) {
-                    spec = spec.and(ReservationSpecifiation.isNotDeleted());
+                    spec = spec.and(ReservationSpecification.isNotDeleted());
                 }
                 break;
         }
@@ -685,7 +685,7 @@ public class ReservationServiceImpl implements ReservationService {
         Pageable pageable = PageRequest.of(req.getPage() - 1, req.getSize(), Sort.by("createdAt").descending());
 
         Specification<Reservation> spec = buildSearchSpecification(req)
-                .and(ReservationSpecifiation.hasEventOwnerId(currentUserId));
+                .and(ReservationSpecification.hasEventOwnerId(currentUserId));
 
         Page<Reservation> reservations = reservationRepository.findAll(spec, pageable);
         return reservations.map(reservationMapper::toDetailDto);
