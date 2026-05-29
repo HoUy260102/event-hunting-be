@@ -54,15 +54,16 @@ public class VoucherServiceImpl implements VoucherService {
 
         // validate business
         Map<String, String> errors = validateCreate(req);
+
+        // check duplicate code
+        if (req.getCode() != null && voucherRepository.existsVoucherByCode(req.getCode().trim().toUpperCase())) {
+            log.warn("[CREATE VOUCHER] Trùng code: {}", req.getCode());
+            errors.put("code", "Mã voucher đã tồn tại trên hệ thống, vui lòng dùng mã khác");
+        }
+
         if (!errors.isEmpty()) {
             log.warn("[CREATE VOUCHER] Validation failed: {}", errors);
             throw new AppException(ErrorCode.VOUCHER_VALIDATION_ERROR, errors);
-        }
-
-        // check duplicate code
-        if (voucherRepository.existsVoucherByCode(req.getCode())) {
-            log.warn("[CREATE VOUCHER] Trùng code: {}", req.getCode());
-            throw new AppException(ErrorCode.VOUCHER_CODE_EXISTS);
         }
 
         // mapping entity
@@ -130,10 +131,10 @@ public class VoucherServiceImpl implements VoucherService {
         Map<String, String> errors = validateUpdate(req, voucher);
 
         // Kiểm tra code có tồn tại không
-        if (voucherRepository.existsByCodeAndIdNot(req.getCode().trim().toUpperCase(), id)) {
+        if (req.getCode() != null && voucherRepository.existsByCodeAndIdNot(req.getCode().trim().toUpperCase(), id)) {
             log.warn("[UPDATE VOUCHER] Duplicate code detected: code={}, id={}",
                     req.getCode(), id);
-            throw new AppException(ErrorCode.VOUCHER_CODE_EXISTS, errors);
+            errors.put("code", "Mã voucher đã tồn tại trên hệ thống, vui lòng dùng mã khác");
         }
 
         if (!errors.isEmpty()) {
@@ -344,7 +345,7 @@ public class VoucherServiceImpl implements VoucherService {
             throw new AppException(ErrorCode.VOUCHER_EXPIRED);
 
         // 3. Kiểm tra số lượng
-        if (voucher.getReservedQuantity() >= voucher.getQuantity()) {
+        if ((voucher.getIsUnlimited() == null || !voucher.getIsUnlimited()) && voucher.getReservedQuantity() >= voucher.getQuantity()) {
             throw new AppException(ErrorCode.VOUCHER_EXHAUSTED);
         }
     }
@@ -365,13 +366,50 @@ public class VoucherServiceImpl implements VoucherService {
 
         Map<String, String> errors = new HashMap<>();
 
-        if (!req.getEndTime().isAfter(req.getStartTime())) {
-            errors.put("endTime", "Ngày kết thúc phải sau ngày bắt đầu");
+        if (req.getName() == null || req.getName().trim().isEmpty()) {
+            errors.put("name", "Tên voucher không được để trống");
+        }
+        if (req.getCode() == null || req.getCode().trim().isEmpty()) {
+            errors.put("code", "Mã voucher không được để trống");
+        } else if (req.getCode().trim().length() < 3) {
+            errors.put("code", "Mã voucher phải ít nhất 3 ký tự");
+        }
+        if (req.getIsUnlimited() == null || !req.getIsUnlimited()) {
+            if (req.getQuantity() == null) {
+                errors.put("quantity", "Số lượng không được để trống");
+            } else if (req.getQuantity() <= 0) {
+                errors.put("quantity", "Số lượng phải lớn hơn 0");
+            }
+        }
+        if (req.getDiscountValue() == null) {
+            errors.put("discountValue", "Giá trị giảm không được để trống");
+        } else if (req.getDiscountValue() <= 0) {
+            errors.put("discountValue", "Giá trị giảm phải lớn hơn 0");
+        }
+        if (req.getMinOrderValue() == null) {
+            errors.put("minOrderValue", "Giá trị tối thiểu không được để trống");
+        } else if (req.getMinOrderValue() < 0) {
+            errors.put("minOrderValue", "Giá trị tối thiểu không được âm");
+        }
+
+        if (req.getStartTime() == null) {
+            errors.put("startTime", "Vui lòng chọn ngày bắt đầu");
+        }
+        if (req.getEndTime() == null) {
+            errors.put("endTime", "Vui lòng chọn ngày kết thúc");
+        }
+        if (req.getStartTime() != null && req.getEndTime() != null) {
+            if (!req.getEndTime().isAfter(req.getStartTime())) {
+                errors.put("endTime", "Ngày kết thúc phải sau ngày bắt đầu");
+            }
+            if (req.getStartTime().isBefore(LocalDateTime.now().minusMinutes(10))) {
+                errors.put("startTime", "Ngày bắt đầu không được ở trong quá khứ");
+            }
         }
 
         // discount
         if (req.getDiscountType() == DiscountType.PERCENT) {
-            if (req.getDiscountValue() > 100) {
+            if (req.getDiscountValue() != null && req.getDiscountValue() > 100) {
                 errors.put("discountValue", "Phần trăm giảm không được > 100%");
             }
 
@@ -414,8 +452,42 @@ public class VoucherServiceImpl implements VoucherService {
 
         Map<String, String> errors = new HashMap<>();
 
-        if (!req.getEndTime().isAfter(req.getStartTime())) {
-            errors.put("endTime", "Ngày kết thúc phải sau ngày bắt đầu");
+        if (req.getName() == null || req.getName().trim().isEmpty()) {
+            errors.put("name", "Tên voucher không được để trống");
+        }
+        if (req.getCode() == null || req.getCode().trim().isEmpty()) {
+            errors.put("code", "Mã voucher không được để trống");
+        } else if (req.getCode().trim().length() < 3) {
+            errors.put("code", "Mã voucher phải ít nhất 3 ký tự");
+        }
+        if (req.getIsUnlimited() == null || !req.getIsUnlimited()) {
+            if (req.getQuantity() == null) {
+                errors.put("quantity", "Số lượng không được để trống");
+            } else if (req.getQuantity() <= 0) {
+                errors.put("quantity", "Số lượng phải lớn hơn 0");
+            }
+        }
+        if (req.getDiscountValue() == null) {
+            errors.put("discountValue", "Giá trị giảm không được để trống");
+        } else if (req.getDiscountValue() <= 0) {
+            errors.put("discountValue", "Giá trị giảm phải lớn hơn 0");
+        }
+        if (req.getMinOrderValue() == null) {
+            errors.put("minOrderValue", "Giá trị tối thiểu không được để trống");
+        } else if (req.getMinOrderValue() < 0) {
+            errors.put("minOrderValue", "Giá trị tối thiểu không được âm");
+        }
+
+        if (req.getStartTime() == null) {
+            errors.put("startTime", "Vui lòng chọn ngày bắt đầu");
+        }
+        if (req.getEndTime() == null) {
+            errors.put("endTime", "Vui lòng chọn ngày kết thúc");
+        }
+        if (req.getStartTime() != null && req.getEndTime() != null) {
+            if (!req.getEndTime().isAfter(req.getStartTime())) {
+                errors.put("endTime", "Ngày kết thúc phải sau ngày bắt đầu");
+            }
         }
 
         boolean isStarted = voucher.getStartTime().isBefore(LocalDateTime.now());
@@ -426,7 +498,7 @@ public class VoucherServiceImpl implements VoucherService {
 
         if (type == DiscountType.PERCENT) {
 
-            if (req.getDiscountValue() > 100) {
+            if (req.getDiscountValue() != null && req.getDiscountValue() > 100) {
                 errors.put("discountValue", "Phần trăm giảm không được > 100%");
             }
 
@@ -466,7 +538,7 @@ public class VoucherServiceImpl implements VoucherService {
         }
 
         // Kiểm tra việc update số lượng
-        if (req.getQuantity() < voucher.getReservedQuantity()) {
+        if (req.getQuantity() != null && req.getQuantity() < voucher.getReservedQuantity()) {
             errors.put("quantity", "Số lượng phải lớn hơn " + voucher.getReservedQuantity());
         }
 
@@ -479,12 +551,12 @@ public class VoucherServiceImpl implements VoucherService {
             }
 
             // không cho đổi giá trị giảm
-            if (!Objects.equals(req.getDiscountValue(), voucher.getDiscountValue())) {
+            if (req.getDiscountValue() != null && !Objects.equals(req.getDiscountValue(), voucher.getDiscountValue())) {
                 errors.put("discountValue", "Voucher đã bắt đầu, không được đổi giá trị giảm");
             }
 
             // không cho đổi min order
-            if (!Objects.equals(req.getMinOrderValue(), voucher.getMinOrderValue())) {
+            if (req.getMinOrderValue() != null && !Objects.equals(req.getMinOrderValue(), voucher.getMinOrderValue())) {
                 errors.put("minOrderValue", "Voucher đã bắt đầu, không được đổi giá trị tối thiểu");
             }
 
@@ -495,19 +567,10 @@ public class VoucherServiceImpl implements VoucherService {
 
             // không cho đổi ticket
             if (voucher.getScope() == VoucherScope.ORGANIZER &&
+                    req.getTicketTypeIds() != null &&
                     !Objects.equals(req.getTicketTypeIds(),
                             voucher.getTicketTypes().stream().map(TicketType::getId).collect(Collectors.toList()))) {
                 errors.put("ticketTypeIds", "Voucher đã bắt đầu, không được đổi loại vé");
-            }
-
-            // ⚠quantity: chỉ cho tăng
-            if (req.getQuantity() < voucher.getQuantity()) {
-                errors.put("quantity", "Không được giảm số lượng khi voucher đã bắt đầu");
-            }
-
-            // không cho sửa startDate
-            if (!req.getStartTime().equals(voucher.getStartTime())) {
-                errors.put("startTime", "Voucher đã bắt đầu, không được đổi ngày bắt đầu");
             }
         }
 

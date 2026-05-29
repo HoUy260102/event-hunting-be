@@ -1,5 +1,6 @@
 package com.example.event.config;
 
+import com.example.event.component.AuthVerifyEmailConsumer;
 import com.example.event.component.TicketEmailConsumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,10 @@ public class RedisStreamConfig {
     public static final String STREAM_KEY  = "stream:ticket-email";
     public static final String GROUP_NAME  = "ticket-email-group";
     public static final String CONSUMER_NAME = "consumer-1";
+
+    public static final String AUTH_STREAM_KEY  = "stream:auth-verify-email";
+    public static final String AUTH_GROUP_NAME  = "auth-verify-email-group";
+    public static final String AUTH_CONSUMER_NAME = "auth-verify-consumer-1";
 
     // ---------------------------------------------------------------
     // Container bean — poll every 1 s, decode both key & hash fields
@@ -83,6 +88,56 @@ public class RedisStreamConfig {
             // 4. Start the polling loop
             ticketStreamContainer.start();
             log.info("[TICKET-STREAM] StreamMessageListenerContainer started");
+        };
+    }
+
+    @Bean(destroyMethod = "stop")
+    public StreamMessageListenerContainer<String, MapRecord<String, String, String>>
+    authStreamContainer(RedisConnectionFactory factory) {
+
+        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts =
+                StreamMessageListenerContainerOptions
+                        .<String, MapRecord<String, String, String>>builder()
+                        .pollTimeout(Duration.ofSeconds(1))
+                        .serializer(new StringRedisSerializer())
+                        .build();
+
+        return StreamMessageListenerContainer.create(factory, opts);
+    }
+
+    @Bean
+    public ApplicationRunner authStreamInit(
+            StringRedisTemplate stringRedisTemplate,
+            StreamMessageListenerContainer<String, MapRecord<String, String, String>> authStreamContainer,
+            AuthVerifyEmailConsumer authVerifyEmailConsumer) {
+
+        return args -> {
+            // 1. Ensure the stream key exists
+            if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(AUTH_STREAM_KEY))) {
+                stringRedisTemplate.opsForStream()
+                        .add(AUTH_STREAM_KEY, Map.of("_init", "1"));
+                log.info("[AUTH-STREAM] Created stream '{}'", AUTH_STREAM_KEY);
+            }
+
+            // 2. Create consumer group
+            try {
+                stringRedisTemplate.opsForStream()
+                        .createGroup(AUTH_STREAM_KEY, ReadOffset.from("0-0"), AUTH_GROUP_NAME);
+                log.info("[AUTH-STREAM] Created consumer group '{}'", AUTH_GROUP_NAME);
+            } catch (Exception e) {
+                log.info("[AUTH-STREAM] Consumer group '{}' already exists — OK", AUTH_GROUP_NAME);
+            }
+
+            // 3. Register consumer
+            authStreamContainer.receive(
+                    Consumer.from(AUTH_GROUP_NAME, AUTH_CONSUMER_NAME),
+                    StreamOffset.create(AUTH_STREAM_KEY, ReadOffset.lastConsumed()),
+                    authVerifyEmailConsumer
+            );
+
+            // 4. Start
+            authStreamContainer.start();
+            log.info("[AUTH-STREAM] StreamMessageListenerContainer started");
         };
     }
 }

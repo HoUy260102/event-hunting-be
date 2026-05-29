@@ -49,9 +49,15 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryDTO createCategory(CreateCategoryReq req) {
         String creatorId = securityUtils.getCurrentUserId();
         String slug = StringUtil.makeSlug(req.getName());
+        
+        java.util.Map<String, String> errors = new java.util.HashMap<>();
         if (categoryRepository.existsCategoryByName(req.getName()) || categoryRepository.existsCategoryBySlug(slug)) {
-            throw new AppException(ErrorCode.CATEGORY_EXISTS);
+            errors.put("name", "Tên chủ đề này đã tồn tại trên hệ thống!");
         }
+        if (!errors.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
+        }
+
         Category category = new Category();
         category.setName(req.getName());
         category.setSlug(slug);
@@ -79,9 +85,13 @@ public class CategoryServiceImpl implements CategoryService {
         }
         if (req.getName() != null && !req.getName().equals("") && !category.getName().equals(req.getName())) {
             String newSlug = StringUtil.makeSlug(req.getName());
+            java.util.Map<String, String> errors = new java.util.HashMap<>();
             if (categoryRepository.existsCategoryByNameAndIdNot(req.getName(), id) ||
                     categoryRepository.existsCategoryBySlugAndIdNot(newSlug, id)) {
-                throw new AppException(ErrorCode.CATEGORY_EXISTS);
+                errors.put("name", "Tên chủ đề này đã tồn tại trên hệ thống!");
+            }
+            if (!errors.isEmpty()) {
+                throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
             }
             category.setName(req.getName());
             category.setSlug(newSlug);

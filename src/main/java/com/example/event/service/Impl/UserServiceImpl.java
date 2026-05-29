@@ -116,15 +116,29 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public UserDTO createUser(CreateUserReq req) {
         String creatorId = securityUtils.getCurrentUserId();
+        
+        Map<String, String> errors = new HashMap<>();
+        
         if (userRepository.existsUserByEmail(req.getEmail())) {
-            throw new AppException(ErrorCode.USER_EXISTS);
+            errors.put("email", "Email này đã tồn tại trên hệ thống.");
         }
         if (!req.getPassword().equals(req.getConfirmPassword())) {
-            throw new AppException(ErrorCode.PASSWORD_MISMATCH);
+            errors.put("confirmPassword", "Mật khẩu xác nhận không khớp.");
         }
-        Role role = Optional.ofNullable(roleRepository.findRoleById(req.getRoleId())).orElseThrow(
-                () -> new AppException(ErrorCode.ROLE_NOT_FOUND)
-        );
+        Role role = null;
+        if (req.getRoleId() == null || req.getRoleId().trim().isEmpty()) {
+            errors.put("roleId", "Vui lòng chọn vai trò.");
+        } else {
+            role = roleRepository.findRoleById(req.getRoleId());
+            if (role == null) {
+                errors.put("roleId", "Vai trò này không tồn tại.");
+            }
+        }
+        
+        if (!errors.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
+        }
+        
         User createUser = new User();
         createUser.setEmail(req.getEmail());
         createUser.setName(req.getName());

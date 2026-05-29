@@ -21,9 +21,9 @@ public class UpdateVoucherReq {
     @Size(min = 3, message = "Mã voucher phải ít nhất 3 ký tự")
     private String code;
 
-    @NotNull(message = "Số lượng không được null")
-    @Min(value = 1, message = "Số lượng phải > 0")
     private Integer quantity;
+
+    private Boolean isUnlimited = false;
 
     @NotNull(message = "Ngày bắt đầu không được null")
     private LocalDateTime startTime;

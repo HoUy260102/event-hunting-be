@@ -23,6 +23,7 @@ public class VoucherDTO {
     private String code;
 
     private Integer quantity;
+    private Boolean isUnlimited;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime startTime;

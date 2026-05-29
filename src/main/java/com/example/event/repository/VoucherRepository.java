@@ -31,7 +31,7 @@ public interface VoucherRepository extends JpaRepository<Voucher, String>, JpaSp
                 UPDATE Voucher v
                 SET v.usedQuantity = v.usedQuantity + 1
                 WHERE v.id = :voucherId
-                AND v.usedQuantity < v.quantity 
+                AND (v.isUnlimited = true OR v.usedQuantity < v.quantity) 
                 AND v.deletedAt is null 
                 AND v.status = 'ACTIVE'
             """)
@@ -42,7 +42,7 @@ public interface VoucherRepository extends JpaRepository<Voucher, String>, JpaSp
                 UPDATE Voucher v
                 SET v.reservedQuantity = v.reservedQuantity + 1
                 WHERE v.id = :voucherId
-                AND v.reservedQuantity < v.quantity 
+                AND (v.isUnlimited = true OR v.reservedQuantity < v.quantity) 
                 AND v.deletedAt is null 
                 AND v.status = 'ACTIVE'
             """)

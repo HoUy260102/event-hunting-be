@@ -30,8 +30,10 @@ public class Voucher {
     @Column(nullable = false, unique = true)
     private String code;
 
+    private Integer quantity = 0;
+
     @Column(nullable = false)
-    private Integer quantity;
+    private Boolean isUnlimited = false;
 
     @Column(nullable = false)
     private LocalDateTime startTime;

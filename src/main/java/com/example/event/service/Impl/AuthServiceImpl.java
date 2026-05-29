@@ -1,5 +1,6 @@
 package com.example.event.service.Impl;
 
+import com.example.event.component.AuthVerifyEmailProducer;
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.config.security.jwt.JwtUtils;
 import com.example.event.config.security.user.CustomUserDetails;
@@ -71,6 +72,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final MailService mailService;
     private final FileRepository fileRepository;
+    private final AuthVerifyEmailProducer authVerifyEmailProducer;
     @Value("${jwt.verify-expiration}")
     private Long verifyExpiration;
 
@@ -191,7 +193,7 @@ public class AuthServiceImpl implements AuthService {
         String verifyKey = tokenPrefix + existedUser.getEmail() + ":verify-token";
         Long ttl = verifyExpiration / 1000 + 5;
         redisService.set(verifyKey, verifyToken, ttl);
-        mailService.registerUser(verifyToken, existedUser.getEmail());
+        authVerifyEmailProducer.sendVerifyEmail(existedUser.getEmail(), verifyToken);
     }
 
     @Transactional
@@ -231,7 +233,7 @@ public class AuthServiceImpl implements AuthService {
         String verifyKey = tokenPrefix + createUser.getEmail() + ":verify-token";
         Long ttl = verifyExpiration / 1000 + 5;
         redisService.set(verifyKey, verifyToken, ttl);
-        mailService.registerUser(verifyToken, createUser.getEmail());
+        authVerifyEmailProducer.sendVerifyEmail(createUser.getEmail(), verifyToken);
     }
 
     @Override
