@@ -240,6 +240,16 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @PatchMapping("/{id}/submit")
+    public ResponseEntity<?> submitEvent(@PathVariable String id) {
+        eventService.submitEvent(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @PatchMapping("/{id}/soft-delete")
     @PreAuthorize("hasAuthority('EVENT:DELETE')")
     public ResponseEntity<?> softDeleteEvent(@PathVariable String id) {

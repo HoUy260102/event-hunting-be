@@ -122,11 +122,15 @@ public class EventServiceImpl implements EventService {
         event.setStatus(EventStatus.DRAFT);
         event.setUser(user);
         //Tìm thời gian nhỏ nhất giữa các show
-        LocalDateTime startTime = createEventReq.getShows().stream().map((show) -> show.getStartTime())
+        LocalDateTime startTime = createEventReq.getShows()
+                .stream()
+                .map((show) -> show.getStartTime())
                 .min((t1, t2) -> t1.isBefore(t2) ? -1 : 1)
                 .orElse(null);
         //Tìm thời gian kết thúc giữa các show
-        LocalDateTime endTime = createEventReq.getShows().stream().map((show) -> show.getEndTime())
+        LocalDateTime endTime = createEventReq.getShows()
+                .stream()
+                .map((show) -> show.getEndTime())
                 .max((t1, t2) -> t1.isBefore(t2) ? -1 : 1)
                 .orElse(null);
         //Tìm min price
@@ -158,9 +162,11 @@ public class EventServiceImpl implements EventService {
         fileIdsForUpdate.add(banner.getId());
         fileIdsForUpdate.add(poster.getId());
         fileIdsForUpdate.add(organizerLogo.getId());
-        createEventReq.getMediaIds().forEach((mediaId) -> {
-            fileIdsForUpdate.add(mediaId);
-        });
+        if (createEventReq.getMediaIds() != null && createEventReq.getMediaIds().size() > 0) {
+            createEventReq.getMediaIds().forEach((mediaId) -> {
+                fileIdsForUpdate.add(mediaId);
+            });
+        }
         // Lưu file chuyển từ pending sang active
         if (fileIdsForUpdate.size() > 0) fileRepository.activateFiles(fileIdsForUpdate, event.getId());
         //Logic lưu shows
@@ -228,6 +234,22 @@ public class EventServiceImpl implements EventService {
         event.setRejectionReason(request.getRejectionReason());
         event.setReviewedAt(LocalDateTime.now());
         event.setReviewedBy(updatorId);
+        eventRepository.save(event);
+    }
+
+    @Override
+    @Transactional
+    public void submitEvent(String id) {
+        String updatorId = securityUtils.getCurrentUserId();
+        Event event = Optional.ofNullable(eventRepository.findEventById(id))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
+        if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.REJECTED) {
+            throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        event.setStatus(EventStatus.PENDING);
+        event.setUpdatedAt(LocalDateTime.now());
+        event.setUpdatedBy(updatorId);
         eventRepository.save(event);
     }
 
@@ -430,8 +452,12 @@ public class EventServiceImpl implements EventService {
     public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req) {
         String userId = securityUtils.getCurrentUserId();
         LocalDateTime now = LocalDateTime.now();
+        List<EventStatus> targetStatuses = req.getStatuses();
+        if (targetStatuses == null || targetStatuses.isEmpty()) {
+            targetStatuses = Arrays.asList(EventStatus.APPROVED, EventStatus.PUBLISHED, EventStatus.CANCELLED);
+        }
         Specification<Event> spec = Specification.where(EventSpecification.isNotDeleted())
-                .and(EventSpecification.hasStatusIn(Arrays.asList(EventStatus.APPROVED, EventStatus.PUBLISHED, EventStatus.CANCELLED)));
+                .and(EventSpecification.hasStatusIn(targetStatuses));
         // Search full text;
         List<String> fullTextSearchEventIds = Collections.emptyList();
         if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
@@ -623,10 +649,16 @@ public class EventServiceImpl implements EventService {
         int pageSize = (req.getSize() != null) ? req.getSize() : 8;
         Pageable pageable = PageRequest.of(0, pageSize);
 
+        List<EventStatus> targetStatuses = req.getStatuses();
+        if (targetStatuses == null || targetStatuses.isEmpty()) {
+            targetStatuses = Arrays.asList(EventStatus.APPROVED, EventStatus.PUBLISHED, EventStatus.CANCELLED);
+        }
+
         // Lấy dữ liệu
         Slice<Favorite> favoriteSlice = favoriteRepository.findMyFavoritesKeyset(
                 userId,
                 req.getNextId(),
+                targetStatuses,
                 pageable
         );
 

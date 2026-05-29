@@ -23,6 +23,9 @@ public class Reservation {
     @UlidID
     private String id;
 
+    @Column(name = "code", unique = true, nullable = true, length = 20)
+    private String code;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;

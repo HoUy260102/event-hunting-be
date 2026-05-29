@@ -89,12 +89,7 @@ public class TicketTypeMapper {
             ticketTypeBookingDTO.setTierDescription(activeTier.getDescription());
         }
 
-        if (!ticketType.getSeats().isEmpty()) {
-            ticketTypeBookingDTO.setSeats(ticketType.getSeats()
-                    .stream()
-                    .map(seatMapper::toDTO)
-                    .collect(Collectors.toList()));
-        }
+        ticketTypeBookingDTO.setSeats(new java.util.ArrayList<>());
         //Tính Status dựa trên chính thông tin Tier đã chọn và danh sách validTiers
         ticketTypeBookingDTO.setStatus(calculateStatus(ticketType, activeTier, validTiers, now));
         return ticketTypeBookingDTO;

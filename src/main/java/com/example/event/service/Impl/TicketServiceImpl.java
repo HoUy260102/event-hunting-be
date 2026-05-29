@@ -182,22 +182,35 @@ public class TicketServiceImpl implements TicketService {
     @Transactional(readOnly = true)
     public Page<TicketSummaryDTO> getAllMyTickets(SearchTicketPublicReq req) {
         String userId = securityUtils.getCurrentUserId();
-        Sort sort = req.getIsFinished()
-                ? Sort.by("show.startTime").descending()
-                : Sort.by("show.startTime").ascending();
+        Sort sort;
+        if (req.getStartTime() != null || req.getEndTime() != null) {
+            sort = Sort.by("show.startTime").ascending();
+        } else {
+            sort = req.getIsFinished()
+                    ? Sort.by("show.startTime").descending()
+                    : Sort.by("show.startTime").ascending();
+        }
+        
         Specification<Ticket> spec = Specification
                 .where(TicketSpecification.fetchAll())
                 .and(TicketSpecification.isNotDeleted());
-        if (req.getIsFinished() == false) {
-            spec = spec.and(TicketSpecification.hasUpcoming());
+                
+        if (req.getStartTime() != null || req.getEndTime() != null) {
+            spec = spec.and(TicketSpecification.hasOverlap(req.getStartTime(), req.getEndTime()));
         } else {
-            spec = spec.and(TicketSpecification.hasFinished());
+            if (req.getIsFinished() == false) {
+                spec = spec.and(TicketSpecification.hasUpcoming());
+            } else {
+                spec = spec.and(TicketSpecification.hasFinished());
+            }
         }
+        
         spec = spec.and(TicketSpecification.hasUserId(userId));
         Pageable pageable = PageRequest.of(req.getPageNumber() - 1, req.getSize(), sort);
         Page<Ticket> tickets = ticketRepository.findAll(spec, pageable);
         return tickets.map(ticketMapper::toSummaryDTO);
     }
+
 
     @Override
     public Page<TicketDTO> getSearchTickets(TicketSearchReq req) {
@@ -206,7 +219,11 @@ public class TicketServiceImpl implements TicketService {
                 .and(TicketSpecification.isNotDeleted());
         spec = spec.and(TicketSpecification.hasShowId(req.getShowId()));
         if (req.getKeyword() != null && !req.getKeyword().isEmpty()) {
-            spec = spec.and(Specification.anyOf(TicketSpecification.hasReservationId(req.getKeyword()), TicketSpecification.hasId(req.getKeyword())));
+            spec = spec.and(Specification.anyOf(
+                    TicketSpecification.hasReservationId(req.getKeyword()),
+                    TicketSpecification.hasReservationCode(req.getKeyword()),
+                    TicketSpecification.hasId(req.getKeyword())
+            ));
         }
         if (req.getStatus() != null) {
             switch (req.getStatus()) {

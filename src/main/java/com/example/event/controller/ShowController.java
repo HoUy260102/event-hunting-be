@@ -56,6 +56,17 @@ public class ShowController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @GetMapping("/{id}/ticket-types/{ticketTypeId}/seats")
+    public ResponseEntity<?> findSeatsByTicketTypeId(@PathVariable String id, @PathVariable String ticketTypeId) {
+        List<SeatDTO> seatDTOS = ticketTypeService.findSeatsByTicketTypeId(ticketTypeId);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(seatDTOS)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @GetMapping("/{id}/detail")
     public ResponseEntity<?> findShowDetailById(@PathVariable String id) {
         ShowDetailDTO showDetailDTO = showService.findShowDetailById(id);

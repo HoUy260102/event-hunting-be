@@ -1,8 +1,10 @@
 package com.example.event.service.Impl;
 
 import com.example.event.constant.AssignmentType;
+import com.example.event.constant.ErrorCode;
 import com.example.event.constant.SeatStatus;
 import com.example.event.constant.SeatingType;
+import com.example.event.exception.AppException;
 import com.example.event.dto.request.CreateSeatReq;
 import com.example.event.dto.request.UpdateSeatReq;
 import com.example.event.entity.Seat;
@@ -87,6 +89,9 @@ public class SeatServiceImpl implements SeatService {
                 resultSeats.add(seat);
                 requestMap.remove(seat.getSeatCode());
             } else {
+                if (seat.getStatus() != SeatStatus.AVAILABLE) {
+                    throw new AppException(ErrorCode.SEAT_ALREADY_RESERVED);
+                }
                 idsToDelete.add(seat.getId());
             }
         }

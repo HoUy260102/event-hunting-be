@@ -41,6 +41,7 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
                 WHERE i.created_at >= :since
                     AND e.end_time >= NOW() 
                     AND e.deleted_at IS NULL
+                    AND e.status = 'PUBLISHED'
                 GROUP BY 
                     e.id, 
                     e.name, 

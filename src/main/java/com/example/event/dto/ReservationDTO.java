@@ -17,6 +17,7 @@ import java.util.List;
 @Builder
 public class ReservationDTO {
     private String id;
+    private String code;
     private String showId;
     private String eventId;
     private String voucherId;

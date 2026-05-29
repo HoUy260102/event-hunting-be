@@ -7,8 +7,8 @@ import lombok.Data;
 public class EventSearchReq {
     private String keyword = "";
     @Pattern(
-            regexp = "^(ALL|DRAFT|PUBLISHED|CANCELLED|REJECTED|UPCOMING|ON_SALE|SOLD_OUT|EXPIRED|HAPPENING|FINISHED|DELETED)$",
-            message = "Trạng thái phải là một trong các giá trị: ALL|DRAFT|PUBLISHED|CANCELLED|REJECTED|UPCOMING|ON_SALE|SOLD_OUT|EXPIRED|HAPPENING|FINISHED|DELETED"
+            regexp = "^(ALL|DRAFT|PENDING|APPROVED|PUBLISHED|CANCELLED|REJECTED|UPCOMING|ON_SALE|SOLD_OUT|EXPIRED|HAPPENING|FINISHED|DELETED)$",
+            message = "Trạng thái phải là một trong các giá trị: ALL|DRAFT|PENDING|APPROVED|PUBLISHED|CANCELLED|REJECTED|UPCOMING|ON_SALE|SOLD_OUT|EXPIRED|HAPPENING|FINISHED|DELETED"
     )
     private String status = "ALL";
     private String provinceId = "";

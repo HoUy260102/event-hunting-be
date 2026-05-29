@@ -23,11 +23,13 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
+import org.springframework.util.AntPathMatcher;
 
 @Component
 @RequiredArgsConstructor
 public class RateLimit extends OncePerRequestFilter {
     private final RedisTemplate<String, Object> redisTemplate;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     private static final String LUA_SCRIPT =
             "local key = KEYS[1] " +
@@ -54,13 +56,31 @@ public class RateLimit extends OncePerRequestFilter {
         {
             put("/auth/login", new RateLimitConfig(3L, 10L));
             put("/auth/resend-verify", new RateLimitConfig(1L, 60L));
+            put("/auth/signup", new RateLimitConfig(3L, 60L));
+            put("/auth/verify", new RateLimitConfig(5L, 60L));
+            put("/auth/refresh-token", new RateLimitConfig(5L, 10L));
+            put("/auth/google/url", new RateLimitConfig(5L, 10L));
+            put("/auth/callback/google", new RateLimitConfig(5L, 10L));
+            put("/events/public/search", new RateLimitConfig(10L, 10L));
+            put("/events/trending", new RateLimitConfig(10L, 10L));
+            put("/events/*/info", new RateLimitConfig(20L, 10L));
         }
     };
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String path = request.getServletPath();
-        RateLimitConfig limit = limits.get(path);
+        
+        RateLimitConfig limit = null;
+        String matchedPattern = null;
+        for (Map.Entry<String, RateLimitConfig> entry : limits.entrySet()) {
+            if (pathMatcher.match(entry.getKey(), path)) {
+                limit = entry.getValue();
+                matchedPattern = entry.getKey();
+                break;
+            }
+        }
+
         if (limit == null) {
             filterChain.doFilter(request, response);
             return;
@@ -72,13 +92,28 @@ public class RateLimit extends OncePerRequestFilter {
         long now = System.currentTimeMillis();
         long windowStart = now - (windowSec * 1000);
         String member = now + ":" + System.nanoTime();
+        
         String ip = Optional.ofNullable(request.getHeader("X-Forwarded-For"))
                 .map(h -> h.split(",")[0].trim())
                 .orElse(request.getRemoteAddr());
 
-        String key = "rate:path:" + path  + ":" + ip;
+        // Smart device identification to support NAT/cafe environments
+        String deviceId = request.getHeader("X-Device-Id");
+        String clientIdentifier;
+        if (deviceId != null && !deviceId.trim().isEmpty() && !"unknownDevice".equalsIgnoreCase(deviceId)) {
+            clientIdentifier = ip + ":" + deviceId.trim();
+        } else {
+            String userAgent = request.getHeader("User-Agent");
+            if (userAgent != null) {
+                clientIdentifier = ip + ":" + Math.abs(userAgent.hashCode());
+            } else {
+                clientIdentifier = ip;
+            }
+        }
 
-        if ("/auth/resend-verify".equals(path)) {
+        String key = "rate:device:" + matchedPattern  + ":" + clientIdentifier;
+
+        if ("/auth/resend-verify".equals(matchedPattern)) {
             String email = request.getParameter("email");
             if (email != null && !email.trim().equals("")) {
                 key += ":" + email;

@@ -33,9 +33,11 @@ public class TicketDetailDTO {
 
     private String eventName;
     private String eventLocation;
+    private String eventAddress;
     private FileDTO eventPoster;
 
     private String reservationId;
+    private String reservationCode;
     private String customerName;
     private String customerEmail;
     private String customerPhone;

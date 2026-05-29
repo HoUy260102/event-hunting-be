@@ -113,6 +113,13 @@ public class TicketTierServiceImpl implements TicketTierService {
 
         LocalDateTime now = LocalDateTime.now();
 
+        List<TicketTier> tiers = ticketTierRepository.findAllById(tierIds);
+        for (TicketTier tier : tiers) {
+            if (tier.getSoldQuantity() > 0) {
+                throw new AppException(ErrorCode.LIMIT_QUANTITY_LESS_THAN_SOLD);
+            }
+        }
+
         ticketTierRepository.softDeleteTiersByIds(tierIds, now, deletorId);
     }
 }

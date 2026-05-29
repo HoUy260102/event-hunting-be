@@ -70,7 +70,7 @@ public class TicketMailService {
         String eventName = nvl(f.getEventName(), "sự kiện");
         String location  = nvl(f.getEventLocation(), "—");
         String showTime  = parseDt(f.getShowStartTime());
-        String ref       = shortRef(f.getReservationId());
+        String ref       = nvl(f.getReservationCode(), "—");
         String veWord    = totalTickets > 1 ? totalTickets + " vé" : "01 vé";
 
         return """
@@ -136,10 +136,7 @@ public class TicketMailService {
         catch (Exception e) { return raw; }
     }
 
-    private String shortRef(String id) {
-        if (id == null || id.length() < 8) return nvl(id, "—");
-        return "TBX-" + id.substring(id.length() - 8).toUpperCase();
-    }
+
 
     private String nvl(String s, String fb) { return (s == null || s.isBlank()) ? fb : s; }
 }

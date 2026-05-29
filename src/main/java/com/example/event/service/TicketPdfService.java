@@ -6,8 +6,18 @@ import com.google.zxing.EncodeHintType;
 import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import com.lowagie.text.*;
-import com.lowagie.text.pdf.*;
+import com.lowagie.text.Document;
+import com.lowagie.text.Element;
+import com.lowagie.text.Font;
+import com.lowagie.text.Image;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.Phrase;
+import com.lowagie.text.Paragraph;
+import com.lowagie.text.pdf.BaseFont;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -24,22 +34,24 @@ import java.util.Map;
 @Service
 public class TicketPdfService {
 
-    private static final Color BG_SURFACE   = new Color(0xF9, 0xFA, 0xFB);
+    private static final Color BG_SURFACE   = new Color(0x0E, 0x0E, 0x0E); // Dark page BG
     private static final Color BG_WHITE     = Color.WHITE;
-    private static final Color HEADER_DARK  = new Color(0x19, 0x1A, 0x1A);
-    private static final Color TEXT_MAIN    = new Color(0x19, 0x1A, 0x1A);
-    private static final Color TEXT_SUB     = new Color(0x47, 0x48, 0x48);
-    private static final Color COLOR_BORDER = new Color(0xC7, 0xC6, 0xC6);
-    private static final Color BADGE_BG     = new Color(0xE8, 0xF0, 0xFE);
-    private static final Color BADGE_FG     = new Color(0x19, 0x67, 0xD2);
-    private static final Color COLOR_BLACK  = Color.BLACK;
+    private static final Color BG_HEADER    = new Color(0xF1, 0xF5, 0xF9); // Soft slate header BG
+    private static final Color BG_CREAM     = new Color(0xFC, 0xF9, 0xF8); // Warm soft cream BG for stub
+    private static final Color TEXT_MAIN    = new Color(0x0F, 0x17, 0x2A); // Slate-900 for event title
+    private static final Color TEXT_SLATE   = new Color(0x1E, 0x29, 0x3B); // Slate-800 for value texts
+    private static final Color TEXT_SUB     = new Color(0x64, 0x74, 0x8B); // Slate-500 for label texts
+    private static final Color COLOR_BORDER = new Color(0xE2, 0xE8, 0xF0); // Light border #E2E8F0
+    private static final Color BADGE_BG     = new Color(0xDC, 0xFC, 0xE7); // Light green bg
+    private static final Color BADGE_FG     = new Color(0x15, 0x80, 0x3D); // Dark green fg
+    private static final Color BADGE_BORDER = new Color(0xA7, 0xF3, 0xD0); // Light green border
 
-    private static final float PAGE_W  = 420f;
-    private static final float PAGE_H  = 630f;
+    private static final float PAGE_W  = 370f; // Slender, premium smartphone pass width
+    private static final float PAGE_H  = 480f; // Tighter, extremely elegant page height
     private static final float MARGIN  = 20f;
     private static final float INNER_W = PAGE_W - MARGIN * 2;
     private static final float PAD     = 16f;
-    private static final float HEADER_H = 84f;
+    private static final float HEADER_H = 75f;
 
     private static final DateTimeFormatter DT_FMT =
             DateTimeFormatter.ofPattern("HH:mm  dd/MM/yyyy");
@@ -69,62 +81,79 @@ public class TicketPdfService {
             doc.open();
             PdfContentByte cb = writer.getDirectContent();
 
-            // ── Nền trang (màu surface) ───────────────────────────────────
+            // ── 1. Nền trang tối (BG_SURFACE) ───────────────────────────────
             fillRect(cb, 0, 0, PAGE_W, PAGE_H, BG_SURFACE);
 
-            // ── Card tổng: vẽ viền bo tròn trắng ───────────────────────────────
+            // ── 2. Vẽ nền Card chính (BG_WHITE) ───────────────────────────────
             float cardR = 20f;
             roundedRect(cb, MARGIN, MARGIN, INNER_W, PAGE_H - MARGIN * 2, cardR, BG_WHITE, COLOR_BORDER);
 
-            // ── Header: Bo góc trên, phẳng ở dưới ───────────────────────────
+            // ── 3. Vẽ nền Stub cuống vé (BG_CREAM) ─────────────────────────────
+            float tearY = 185f; // Điểm nét đứt phân chia vé cực kỳ cân đối
+            roundedRect(cb, MARGIN, MARGIN, INNER_W, tearY - MARGIN, cardR, BG_CREAM, null);
+            fillRect(cb, MARGIN, tearY - 20f, INNER_W, 20f, BG_CREAM); // làm phẳng cạnh tiếp giáp nét đứt
+
+            // ── 4. Vẽ nền Header (BG_HEADER) ──────────────────────────────────
             float headerY = PAGE_H - MARGIN - HEADER_H;
-            // Vẽ phần bo góc (toàn bộ header area)
-            roundedRect(cb, MARGIN, headerY, INNER_W, HEADER_H, cardR, HEADER_DARK, null);
-            // Vẽ đè một hình chữ nhật phẳng ở đáy header để làm phẳng cạnh dưới (nối vào body)
-            fillRect(cb, MARGIN, headerY, INNER_W, 20f, HEADER_DARK);
+            roundedRect(cb, MARGIN, headerY, INNER_W, HEADER_H, cardR, BG_HEADER, null);
+            fillRect(cb, MARGIN, headerY, INNER_W, 20f, BG_HEADER); // làm phẳng cạnh dưới header
+            
+            // Vẽ lại viền toàn bộ card đè lên để đảm bảo nét vẽ viền sắc nét
+            roundedRect(cb, MARGIN, MARGIN, INNER_W, PAGE_H - MARGIN * 2, cardR, null, COLOR_BORDER);
+            
+            // Đường phân cách mỏng dưới header
+            hLine(cb, MARGIN, headerY, INNER_W, COLOR_BORDER);
 
-            float y = PAGE_H - MARGIN; // con trỏ từ trên xuống
+            float y = PAGE_H - MARGIN; // Con trỏ tọa độ dọc (bắt đầu từ đỉnh 460)
 
-            // ── 1. Tên sự kiện trong header ───────────────────────────────
-            Font evtHdr = new Font(vnFont, 12f, Font.BOLD, Color.WHITE);
-            // set bg = null so it doesn't cover rounded corners
-            PdfPTable hdrTbl = oneCellTable(nvl(msg.getEventName(), "Sự kiện"), evtHdr,
-                    null, INNER_W, PAD, PAD, 8f, 8f);
-            hdrTbl.getDefaultCell().setMinimumHeight(HEADER_H);
-            hdrTbl.getDefaultCell().setVerticalAlignment(Element.ALIGN_MIDDLE);
+            // ── 5. Tiêu đề Sự kiện & Nhãn ĐÃ XÁC NHẬN trong Header ──────────────
+            y -= 18f; // Khoảng cách đệm phía trên
+            PdfPTable hdrTbl = new PdfPTable(new float[]{2.5f, 1f});
+            hdrTbl.setTotalWidth(INNER_W - PAD * 2);
+            
+            // Cột trái: Tên sự kiện
+            PdfPCell nameCell = new PdfPCell();
+            nameCell.setBorder(Rectangle.NO_BORDER);
+            nameCell.setPadding(0);
+            Paragraph nameP = new Paragraph(nvl(msg.getEventName(), "Sự kiện"), new Font(vnFont, 13f, Font.BOLD, TEXT_MAIN));
+            nameP.setLeading(15f);
+            nameCell.addElement(nameP);
+            hdrTbl.addCell(nameCell);
+            
+            // Cột phải: Chỉ làm cột đệm để căn lề
+            PdfPCell badgeCell = new PdfPCell();
+            badgeCell.setBorder(Rectangle.NO_BORDER);
+            badgeCell.setPadding(0);
+            hdrTbl.addCell(badgeCell);
+            
             hdrTbl.calculateHeights(false);
-            hdrTbl.writeSelectedRows(0, -1, MARGIN, y, cb);
-            y -= HEADER_H;
+            hdrTbl.writeSelectedRows(0, -1, MARGIN + PAD, y, cb);
 
-            // ── 2. Badge "ĐÃ XÁC NHẬN" ───────────────────────────────────
-            y -= 12f;
-            float badgeW = 90f, badgeH = 18f;
-            float badgeX = (PAGE_W - badgeW) / 2f;
-            roundedRect(cb, badgeX, y - badgeH, badgeW, badgeH, 10f, BADGE_BG, null);
+            // Vẽ Huy hiệu ĐÃ XÁC NHẬN bo tròn góc cực kỳ sắc nét
+            float badgeW = 75f, badgeH = 16f;
+            float badgeX = MARGIN + INNER_W - PAD - badgeW;
+            float badgeY = y - 22f; // Căn giữa dọc ngang hàng với tiêu đề
+            
+            roundedRect(cb, badgeX, badgeY, badgeW, badgeH, 8f, BADGE_BG, BADGE_BORDER);
+            
+            PdfPTable badgeSub = oneCellTable("ĐÃ XÁC NHẬN", new Font(vnFont, 7f, Font.BOLD, BADGE_FG), null, badgeW, 3f, 0f, 3f, 0f);
+            badgeSub.getRow(0).getCells()[0].setHorizontalAlignment(Element.ALIGN_CENTER);
+            badgeSub.calculateHeights(false);
+            badgeSub.writeSelectedRows(0, -1, badgeX, badgeY + badgeH, cb);
+            
+            // Con trỏ di chuyển xuống dưới header
+            y = headerY - 8f;
 
-            Font bFont = new Font(vnFont, 7.5f, Font.BOLD, BADGE_FG);
-            PdfPTable bTbl = oneCellTable("ĐÃ XÁC NHẬN", bFont, null,
-                    badgeW, 4.5f, 0f, 0f, 0f);
-            // Center the text inside the cell
-            bTbl.getRow(0).getCells()[0].setHorizontalAlignment(Element.ALIGN_CENTER);
-            bTbl.calculateHeights(false);
-            bTbl.writeSelectedRows(0, -1, badgeX, y, cb);
-            y -= badgeH + 10f;
-
-            // ── 3. Đường kẻ ngang ─────────────────────────────────────────
-            hLine(cb, MARGIN + PAD, y, INNER_W - PAD * 2, COLOR_BORDER);
-            y -= 14f;
-
-            // ── 4. Lưới thông tin (2 cột) ─────────────────────────────────
-            Font lFont = new Font(vnFont, 7f,  Font.BOLD, TEXT_SUB);
-            Font vFont = new Font(vnFont, 9.5f, Font.BOLD, TEXT_MAIN);
+            // ── 6. Lưới Thông tin Vé (Tối ưu hóa khoảng cách cực kỳ gọn gàng) ───
+            Font lFont = new Font(vnFont, 7f, Font.BOLD, TEXT_SUB);
+            Font vFont = new Font(vnFont, 9.5f,  Font.BOLD, TEXT_SLATE);
 
             PdfPTable info = new PdfPTable(2);
             info.setTotalWidth(INNER_W - PAD * 2);
             info.setWidths(new float[]{1f, 1f});
 
             info.addCell(infoCell("KHÁCH HÀNG",       nvl(msg.getUserFullName(), "—"), lFont, vFont));
-            info.addCell(infoCell("MÃ ĐƠN HÀNG",      nvl(msg.getReservationId(), "—"), lFont, vFont));
+            info.addCell(infoCell("MÃ ĐƠN HÀNG",      nvl(msg.getReservationCode(), "—"), lFont, vFont));
             info.addCell(infoCell("THỜI GIAN",         parseDt(msg.getShowStartTime()), lFont, vFont));
             info.addCell(infoCell("VỊ TRÍ / KHU VỰC", seatStr(msg), lFont, vFont));
 
@@ -138,12 +167,11 @@ public class TicketPdfService {
 
             info.calculateHeights(false);
             info.writeSelectedRows(0, -1, MARGIN + PAD, y, cb);
-            y -= info.getTotalHeight() + 14f;
 
-            // ── 5. Đường cắt (dashed) với hình tròn 2 bên ────────────────
-            float tearY = y + 4f;
+            // ── 7. Đường răng cưa nét đứt & 2 góc cắt khuyết (Notches) ──────────
             circle(cb, MARGIN,          tearY, 10f, BG_SURFACE);
             circle(cb, MARGIN + INNER_W, tearY, 10f, BG_SURFACE);
+            
             cb.saveState();
             cb.setLineDash(6f, 4f, 0f);
             cb.setColorStroke(COLOR_BORDER);
@@ -152,33 +180,29 @@ public class TicketPdfService {
             cb.lineTo(MARGIN + INNER_W - 10f, tearY);
             cb.stroke();
             cb.restoreState();
-            y = tearY - 16f;
 
-            // ── 6. QR code ────────────────────────────────────────────────
+            // ── 8. Hộp chứa QR Code màu trắng ở phần cuống vé ───────────────────
             byte[] qrBytes = genQr(nvl(msg.getQrCode(), msg.getTicketId()), 200);
             Image qrImg    = Image.getInstance(qrBytes);
-            float qrSz = 120f, pad = 10f;
+            
+            float qrSz = 90f, pad = 8f;
             float boxW = qrSz + pad * 2, boxH = qrSz + pad * 2;
             float boxX = (PAGE_W - boxW) / 2f;
-            float boxY = y - boxH;
+            float boxY = 52f; // Căn giữa dọc cực đẹp trong phần cuống vé 165f
 
-            roundedRect(cb, boxX, boxY, boxW, boxH, 12f, COLOR_BLACK, null);
+            roundedRect(cb, boxX, boxY, boxW, boxH, 10f, Color.WHITE, COLOR_BORDER);
             qrImg.scaleAbsolute(qrSz, qrSz);
             qrImg.setAbsolutePosition(boxX + pad, boxY + pad);
-            // cb.addImage thay vì doc.add() để tránh conflict với direct content
             cb.addImage(qrImg);
-            y = boxY - 12f;
 
-            // ── 7. Nhãn dưới QR ──────────────────────────────────────────
-            Font scanB = new Font(vnFont, 8f,  Font.BOLD,   TEXT_SUB);
-            Font scanS = new Font(vnFont, 7f,  Font.NORMAL, new Color(0x77, 0x77, 0x78));
-
+            // ── 9. Chữ hướng dẫn dưới QR Code ──────────────────────────────────
+            Font scanB = new Font(vnFont, 7.5f, Font.BOLD, TEXT_SUB);
             PdfPTable scanTbl = new PdfPTable(1);
             scanTbl.setTotalWidth(INNER_W - PAD * 2);
-            scanTbl.addCell(centreCell("QUÉT VÉ KHI VÀO CỬA", scanB));
-            scanTbl.addCell(centreCell("Vui lòng xuất trình vé này tại quầy check-in.", scanS));
+            scanTbl.addCell(centreCell("QUÉT MÃ TẠI CỬA VÀO", scanB));
+            
             scanTbl.calculateHeights(false);
-            scanTbl.writeSelectedRows(0, -1, MARGIN + PAD, y, cb);
+            scanTbl.writeSelectedRows(0, -1, MARGIN + PAD, boxY - 12f, cb);
 
             doc.close();
             return baos.toByteArray();
@@ -207,14 +231,14 @@ public class TicketPdfService {
         PdfPTable inner = new PdfPTable(1);
         inner.setWidthPercentage(100);
         PdfPCell lb = new PdfPCell(new Phrase(label, lFont));
-        lb.setBorder(Rectangle.NO_BORDER); lb.setPaddingBottom(2f);
+        lb.setBorder(Rectangle.NO_BORDER); lb.setPaddingBottom(1.5f);
         inner.addCell(lb);
         PdfPCell vl = new PdfPCell(new Phrase(value, vFont));
         vl.setBorder(Rectangle.NO_BORDER);
         inner.addCell(vl);
         PdfPCell wrapper = new PdfPCell(inner);
         wrapper.setBorder(Rectangle.NO_BORDER);
-        wrapper.setPadding(6f);
+        wrapper.setPadding(4f); // Tighter padding to eliminate blank spaces
         return wrapper;
     }
 
@@ -294,11 +318,6 @@ public class TicketPdfService {
     private String fmtPrice(String raw) {
         try { return VND.format(Long.parseLong(raw)) + " VND"; }
         catch (Exception e) { return nvl(raw, "—"); }
-    }
-
-    private String shortRef(String id) {
-        if (id == null || id.length() < 8) return nvl(id, "—");
-        return "TBX-" + id.substring(id.length() - 8).toUpperCase();
     }
 
     private String nvl(String s, String fb) { return (s == null || s.isBlank()) ? fb : s; }

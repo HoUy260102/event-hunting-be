@@ -4,6 +4,7 @@ import com.example.event.config.security.jwt.JwtAccessDeniedHandler;
 import com.example.event.config.security.jwt.JwtAuthEntryPoint;
 import com.example.event.config.security.jwt.JwtTokenFilter;
 import com.example.event.config.security.user.CustomUserDetailsService;
+import com.example.event.filter.UserRateLimit;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +36,7 @@ public class SecurityConfig {
     private final JwtAuthEntryPoint jwtAuthEntryPoint;
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final JwtTokenFilter jwtTokenFilter;
+    private final UserRateLimit userRateLimit;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -88,6 +90,7 @@ public class SecurityConfig {
                 });
         http.authenticationProvider(daoAuthenticationProvider());
         http.addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class);
+        http.addFilterAfter(userRateLimit, JwtTokenFilter.class);
         return http.build();
     }
 

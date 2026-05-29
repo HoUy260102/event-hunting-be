@@ -18,6 +18,7 @@ import java.util.List;
 @Builder
 public class ReservationSummaryDTO {
     private String id;
+    private String code;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")
     private LocalDateTime showStartTime;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")

@@ -26,6 +26,7 @@ public class TicketDTO {
     private LocalDateTime checkInAt;
 
     private String reservationId;
+    private String reservationCode;
     private String customerName;
     private String customerEmail;
     private String customerPhone;

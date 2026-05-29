@@ -32,6 +32,7 @@ public class TicketEmailProducer {
                     TicketEmailMessage.builder()
                             .ticketId(t.getId())
                             .reservationId(t.getReservationId())
+                            .reservationCode(t.getReservationCode())
                             .unitPrice(t.getUnitPrice() != null ? t.getUnitPrice().toString() : "0")
                             .section(t.getSection())
                             .seatLabel(t.getSeatLabel())
@@ -48,8 +49,9 @@ public class TicketEmailProducer {
             ).collect(Collectors.toList());
 
             String reservationId = tickets.get(0).getReservationId();
+            String reservationCode = tickets.get(0).getReservationCode();
             Map<String, String> fields = TicketEmailMessage.toBatchMap(
-                    reservationId, user.getEmail(), user.getName(), msgs);
+                    reservationId, reservationCode, user.getEmail(), user.getName(), msgs);
 
             RecordId id = stringRedisTemplate.opsForStream()
                     .add(RedisStreamConfig.STREAM_KEY, fields);

@@ -15,6 +15,7 @@ import com.example.event.service.ReservationService;
 import com.example.event.service.TicketQueueService;
 import com.example.event.service.VoucherService;
 import com.example.event.specification.ReservationSpecification;
+import com.example.event.util.ReservationCodeGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -49,6 +50,7 @@ public class ReservationServiceImpl implements ReservationService {
     private final TicketQueueService ticketQueueService;
     private final VoucherRepository voucherRepository;
     private final VoucherService voucherService;
+    private final ReservationCodeGenerator reservationCodeGenerator;
 
     private static final long RESERVATION_TTL_SECONDS = 300L;
     private static final int EXTRA_PERIOD_SECONDS = 30;
@@ -256,6 +258,11 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setCreatedAt(now);
             reservation.setUpdatedBy(creatorId);
             reservation.setUpdatedAt(now);
+            
+            // Sinh mã đơn hàng duy nhất thông qua Redis Sequence + Hashids
+            String orderCode = reservationCodeGenerator.generateCode();
+            reservation.setCode(orderCode);
+            
             reservationRepository.saveAndFlush(reservation);
             log.info("[RESERVATION]User {} | Show {} - Đã lưu Reservation. ID: {}", creatorId, show.getId(), reservation.getId());
 

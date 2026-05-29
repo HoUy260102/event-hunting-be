@@ -89,6 +89,16 @@ public class TicketSpecification {
         };
     }
 
+    public static Specification<Ticket> hasReservationCode(String code) {
+        return (root, query, cb) -> {
+            if (code == null || code.isEmpty()) {
+                return null;
+            }
+            Join<Ticket, Reservation> reservationJoin = root.join("reservation", JoinType.INNER);
+            return cb.equal(reservationJoin.get("code"), code);
+        };
+    }
+
     public static Specification<Ticket> hasShowId(String id) {
         return (root, query, cb) -> {
             if (id == null || id.isEmpty()) {
@@ -111,6 +121,24 @@ public class TicketSpecification {
     public static Specification<Ticket> hasFinished() {
         return (root, query, cb) -> {
             return cb.lessThanOrEqualTo(root.get("show").get("endTime"), LocalDateTime.now());
+        };
+    }
+
+    public static Specification<Ticket> hasOverlap(LocalDateTime startTime, LocalDateTime endTime) {
+        return (root, query, cb) -> {
+            if (startTime == null && endTime == null) {
+                return null;
+            }
+            if (endTime == null) {
+                return cb.greaterThanOrEqualTo(root.get("show").get("endTime"), startTime);
+            }
+            if (startTime == null) {
+                return cb.lessThanOrEqualTo(root.get("show").get("startTime"), endTime);
+            }
+            return cb.and(
+                    cb.lessThanOrEqualTo(root.get("show").get("startTime"), endTime),
+                    cb.greaterThanOrEqualTo(root.get("show").get("endTime"), startTime)
+            );
         };
     }
 }

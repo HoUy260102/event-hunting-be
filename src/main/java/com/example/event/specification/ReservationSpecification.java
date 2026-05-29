@@ -21,8 +21,19 @@ public class ReservationSpecification {
     }
 
     public static Specification<Reservation> hasId(String id) {
+        return (root, query, cb) -> {
+            if (id == null || id.trim().isEmpty()) return null;
+            String cleanId = id.trim();
+            return cb.or(
+                cb.equal(root.get("id"), cleanId),
+                cb.equal(cb.upper(root.get("code")), cleanId.toUpperCase())
+            );
+        };
+    }
+
+    public static Specification<Reservation> hasCode(String code) {
         return (root, query, cb) ->
-                id == null ? null : cb.equal(root.get("id"), id);
+                code == null ? null : cb.equal(cb.upper(root.get("code")), code.trim().toUpperCase());
     }
 
     public static Specification<Reservation> hasShowId(String id) {

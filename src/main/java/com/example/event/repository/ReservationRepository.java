@@ -34,6 +34,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, String
     """)
     Reservation findReservationSummaryByIdForAll(@Param("reservationId") String reservationId);
     Reservation findReservationById(String id);
+    java.util.Optional<Reservation> findByCode(String code);
+    boolean existsByCode(String code);
+    java.util.List<Reservation> findByCodeIsNull();
     boolean existsByUserIdAndDeletedAtIsNull(String userId);
     boolean existsByEventIdAndDeletedAtIsNull(String eventId);
     boolean existsByVoucherIdAndDeletedAtIsNull(String voucherId);

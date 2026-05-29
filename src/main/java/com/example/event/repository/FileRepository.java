@@ -25,4 +25,13 @@ public interface FileRepository extends JpaRepository<File, String> {
     @Query("UPDATE File f SET f.status = 'DELETED', f.deletedAt = :deletedAt, f.referenceId = null " +
             "WHERE f.id IN :fileIds AND f.status = 'ACTIVE'")
     int deleteFile(List<String> fileIds, LocalDateTime deletedAt);
+
+    @Query("SELECT f FROM File f WHERE " +
+            "(f.status = 'PENDING' AND f.createdAt < :pendingThreshold) OR " +
+            "(f.status = 'DELETED' AND f.deletedAt < :deletedThreshold)")
+    org.springframework.data.domain.Slice<File> findExpiredFiles(
+            java.time.LocalDateTime pendingThreshold,
+            java.time.LocalDateTime deletedThreshold,
+            org.springframework.data.domain.Pageable pageable
+    );
 }

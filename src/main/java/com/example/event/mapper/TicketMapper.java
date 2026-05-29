@@ -23,12 +23,14 @@ public class TicketMapper {
         Event event = ticket.getEvent();
         Reservation reservation = ticket.getReservation();
         ticketDTO.setEventLocation(event.getLocation());
+        ticketDTO.setEventAddress(event.getAddress());
         ticketDTO.setEventName(event.getName());
 
         ticketDTO.setShowStartTime(show.getStartTime());
         ticketDTO.setShowEndTime(show.getEndTime());
 
         ticketDTO.setReservationId(reservation.getId());
+        ticketDTO.setReservationCode(reservation.getCode());
         return ticketDTO;
     }
 
@@ -38,6 +40,7 @@ public class TicketMapper {
         Event event = ticket.getEvent();
         Reservation reservation = ticket.getReservation();
         ticketDTO.setEventLocation(event.getLocation());
+        ticketDTO.setEventAddress(event.getAddress());
         ticketDTO.setEventName(event.getName());
         ticketDTO.setEventPoster(fileMapper.toDTO(event.getPoster()));
 
@@ -45,6 +48,7 @@ public class TicketMapper {
         ticketDTO.setShowEndTime(show.getEndTime());
 
         ticketDTO.setReservationId(reservation.getId());
+        ticketDTO.setReservationCode(reservation.getCode());
         ticketDTO.setCustomerName(reservation.getCustomerName());
         ticketDTO.setCustomerEmail(reservation.getCustomerEmail());
         ticketDTO.setCustomerPhone(reservation.getCustomerPhone());
@@ -57,6 +61,7 @@ public class TicketMapper {
         Reservation reservation = ticket.getReservation();
 
         ticketDTO.setReservationId(reservation.getId());
+        ticketDTO.setReservationCode(reservation.getCode());
         ticketDTO.setCustomerName(reservation.getCustomerName());
         ticketDTO.setCustomerEmail(reservation.getCustomerEmail());
         ticketDTO.setCustomerPhone(reservation.getCustomerPhone());

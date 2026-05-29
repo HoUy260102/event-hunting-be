@@ -3,12 +3,15 @@ package com.example.event.service.Impl;
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.ShowStatus;
 import com.example.event.constant.TicketTypeStatus;
+import com.example.event.dto.SeatDTO;
 import com.example.event.dto.TicketTypeSelectionDTO;
 import com.example.event.dto.request.CreateTicketTypeReq;
 import com.example.event.dto.request.UpdateTicketTypeReq;
 import com.example.event.entity.Show;
 import com.example.event.entity.TicketType;
 import com.example.event.exception.AppException;
+import com.example.event.mapper.SeatMapper;
+import com.example.event.repository.SeatRepository;
 import com.example.event.repository.ShowRepository;
 import com.example.event.repository.TicketTierRepository;
 import com.example.event.repository.TicketTypeRepository;
@@ -30,6 +33,8 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketTierRepository ticketTierRepository;
     private final ShowRepository showRepository;
+    private final SeatRepository seatRepository;
+    private final SeatMapper seatMapper;
 
     @Override
     public List<TicketType> createTicketTypes(List<CreateTicketTypeReq> ticketTypesReq,
@@ -142,7 +147,23 @@ public class TicketTypeServiceImpl implements TicketTypeService {
 
         LocalDateTime now = LocalDateTime.now();
 
+        List<TicketType> types = ticketTypeRepository.findAllById(typeIds);
+        for (TicketType type : types) {
+            if (type.getReservedQuantity() > 0) {
+                throw new AppException(ErrorCode.TOTAL_QUANTITY_LESS_THAN_SOLD);
+            }
+        }
+
         ticketTierRepository.softDeleteTiersByTypeIds(typeIds, now, deletorId);
         ticketTypeRepository.softDeleteTypesByIds(typeIds, now, deletorId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SeatDTO> findSeatsByTicketTypeId(String ticketTypeId) {
+        return seatRepository.findSeatsByTicketType_IdAndDeletedAtIsNull(ticketTypeId)
+                .stream()
+                .map(seatMapper::toDTO)
+                .collect(Collectors.toList());
     }
 }

@@ -1,5 +1,6 @@
 package com.example.event.dto.request;
 
+import com.example.event.constant.EventStatus;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -15,6 +16,7 @@ public class EventSearchPublicReq {
     private LocalDateTime endTime;
     private String provinceId;
     private List<String> categoryIds;
+    private List<EventStatus> statuses;
 }
 
 

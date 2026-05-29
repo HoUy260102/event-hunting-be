@@ -1,5 +1,6 @@
 package com.example.event.service;
 
+import com.example.event.dto.SeatDTO;
 import com.example.event.dto.TicketTypeSelectionDTO;
 import com.example.event.dto.request.CreateTicketTypeReq;
 import com.example.event.dto.request.UpdateTicketTypeReq;
@@ -16,5 +17,5 @@ public interface TicketTypeService {
                                        Show show,
                                        String updatorId);
     List<TicketTypeSelectionDTO> findTicketTypeSelectionByShowId(String showId);
-
+    List<SeatDTO> findSeatsByTicketTypeId(String ticketTypeId);
 }

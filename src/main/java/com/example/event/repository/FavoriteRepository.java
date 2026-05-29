@@ -25,12 +25,13 @@ public interface FavoriteRepository extends JpaRepository<Favorite, String> {
             "LEFT JOIN FETCH e.category " +
             "WHERE f.user.id = :userId " +
             "AND e.deletedAt IS NULL " +
-            "AND e.status IN (com.example.event.constant.EventStatus.APPROVED, com.example.event.constant.EventStatus.PUBLISHED, com.example.event.constant.EventStatus.CANCELLED) " +
+            "AND e.status IN :statuses " +
             "AND (:nextId IS NULL OR " +
             "    (f.createdAt < (SELECT f2.createdAt FROM Favorite f2 WHERE f2.id = :nextId) " +
             "    OR (f.createdAt = (SELECT f2.createdAt FROM Favorite f2 WHERE f2.id = :nextId) AND f.id < :nextId))) " +
             "ORDER BY f.createdAt DESC, f.id DESC")
     Slice<Favorite> findMyFavoritesKeyset(@Param("userId") String userId,
                                           @Param("nextId") String nextId,
+                                          @Param("statuses") List<com.example.event.constant.EventStatus> statuses,
                                           Pageable pageable);
 }

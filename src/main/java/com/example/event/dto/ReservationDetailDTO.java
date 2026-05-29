@@ -17,6 +17,7 @@ import java.util.List;
 @Builder
 public class ReservationDetailDTO {
     private String id;
+    private String code;
 
     private String showId;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm")

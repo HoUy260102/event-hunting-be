@@ -22,6 +22,7 @@ public class TicketEmailMessage {
 
     private String ticketId;
     private String reservationId;
+    private String reservationCode;
     private String unitPrice;
     private String section;
     private String seatLabel;
@@ -38,11 +39,13 @@ public class TicketEmailMessage {
     // ── Batch: 1 stream entry = 1 reservation (N tickets) ─────────────────
 
     public static Map<String, String> toBatchMap(String reservationId,
-                                                  String userEmail,
-                                                  String userFullName,
-                                                  List<TicketEmailMessage> tickets) {
+                                                 String reservationCode,
+                                                 String userEmail,
+                                                 String userFullName,
+                                                 List<TicketEmailMessage> tickets) {
         Map<String, String> m = new HashMap<>();
         m.put("reservationId",  nvl(reservationId));
+        m.put("reservationCode",nvl(reservationCode));
         m.put("userEmail",      nvl(userEmail));
         m.put("userFullName",   nvl(userFullName));
         m.put("ticketCount",    String.valueOf(tickets.size()));
@@ -70,13 +73,14 @@ public class TicketEmailMessage {
     }
 
     public static List<TicketEmailMessage> fromBatchMap(Map<String, String> m) {
-        String reservationId  = m.get("reservationId");
-        String userEmail      = m.get("userEmail");
-        String userFullName   = m.get("userFullName");
-        String eventName      = m.get("eventName");
-        String eventLocation  = m.get("eventLocation");
-        String showStartTime  = m.get("showStartTime");
-        String showEndTime    = m.get("showEndTime");
+        String reservationId   = m.get("reservationId");
+        String reservationCode = m.get("reservationCode");
+        String userEmail       = m.get("userEmail");
+        String userFullName    = m.get("userFullName");
+        String eventName       = m.get("eventName");
+        String eventLocation   = m.get("eventLocation");
+        String showStartTime   = m.get("showStartTime");
+        String showEndTime     = m.get("showEndTime");
 
         int count = 0;
         try { count = Integer.parseInt(m.getOrDefault("ticketCount", "0")); }
@@ -88,6 +92,7 @@ public class TicketEmailMessage {
             list.add(TicketEmailMessage.builder()
                     .ticketId(m.get(p + "id"))
                     .reservationId(reservationId)
+                    .reservationCode(reservationCode)
                     .unitPrice(m.get(p + "unitPrice"))
                     .section(m.get(p + "section"))
                     .seatLabel(m.get(p + "seatLabel"))

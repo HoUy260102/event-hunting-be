@@ -12,6 +12,7 @@ public interface EventService {
     void updateEventStatus(String id, UpdateEventStatusReq req);
     void approveEvent(String id);
     void rejectEvent(String eventId, RejectEventReq request);
+    void submitEvent(String id);
     Page<EventDTO> getEventSearchForAdmin(EventSearchReq req);
     KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req);
 
