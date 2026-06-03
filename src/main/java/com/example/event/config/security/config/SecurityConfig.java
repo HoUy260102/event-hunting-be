@@ -73,8 +73,10 @@ public class SecurityConfig {
                             .requestMatchers(
                                     "/payments/vnpay-callback",
                                     "/categories",
+                                    "/provinces",
                                     "/events/public/search",
                                     "/events/trending",
+                                    "/events/recommendations",
                                     "/events/*/info",
                                     "/auth/login",
                                     "/auth/refresh-token",

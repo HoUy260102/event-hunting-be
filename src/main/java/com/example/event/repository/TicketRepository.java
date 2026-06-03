@@ -93,6 +93,10 @@ public interface TicketRepository extends JpaRepository<Ticket, String>, JpaSpec
             LEFT JOIN ReservationItem ri ON ri.ticketTier.id = ti.id AND ri.reservation.status = 'PAID'            
             
             WHERE e.id = :eventId
+              AND e.deletedAt IS NULL
+              AND s.deletedAt IS NULL
+              AND tt.deletedAt IS NULL
+              AND ti.deletedAt IS NULL
             GROUP BY e.id, e.name, e.location, e.startTime, e.endTime, e.status, f.url,
                         s.id, s.startTime, s.endTime, s.status,
                         tt.id, tt.name, tt.totalQuantity, tt.soldQuantity, tt.reservedQuantity, tt.status,

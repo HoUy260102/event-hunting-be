@@ -129,6 +129,7 @@ public class UserRateLimit extends OncePerRequestFilter {
             ErrorResponse err = ErrorResponse.builder()
                     .status(HttpStatus.TOO_MANY_REQUESTS.value())
                     .message("Tài khoản của bạn đang gửi quá nhiều yêu cầu, vui lòng thử lại sau!")
+                    .path(request.getRequestURI())
                     .timestamp(LocalDateTime.now())
                     .build();
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

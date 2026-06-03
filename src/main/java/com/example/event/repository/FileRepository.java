@@ -13,14 +13,19 @@ import java.util.List;
 public interface FileRepository extends JpaRepository<File, String> {
     File findFileById(String id);
     List<File> findFilesByStatusAndReferenceId(FileStatus status, String id);
+    @Query("SELECT f FROM File f WHERE f.status = :status AND f.referenceId IN :referenceIds")
+    List<File> findFilesByStatusAndReferenceIds(
+        @org.springframework.data.repository.query.Param("status") FileStatus status, 
+        @org.springframework.data.repository.query.Param("referenceIds") List<String> referenceIds
+    );
     int countFileByIdIn(List<String> ids);
-    @Modifying(clearAutomatically = true)
+    @Modifying
     @Transactional
     @Query("UPDATE File f SET f.status = 'ACTIVE', f.referenceId = :referenceId " +
             "WHERE f.id IN :fileIds AND f.status = 'PENDING'")
     int activateFiles(List<String> fileIds, String referenceId);
 
-    @Modifying(clearAutomatically = true)
+    @Modifying
     @Transactional
     @Query("UPDATE File f SET f.status = 'DELETED', f.deletedAt = :deletedAt, f.referenceId = null " +
             "WHERE f.id IN :fileIds AND f.status = 'ACTIVE'")

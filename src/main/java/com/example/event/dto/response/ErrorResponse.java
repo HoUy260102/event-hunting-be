@@ -15,5 +15,6 @@ public class ErrorResponse<T>{
     private T message;      // Thông báo ngắn gọn dành cho người dùng hoặc dev
     private Map<String, String> details;
     private int status;          // Mã HTTP status (ví dụ: 401)
+    private String path;
     private LocalDateTime timestamp;
 }

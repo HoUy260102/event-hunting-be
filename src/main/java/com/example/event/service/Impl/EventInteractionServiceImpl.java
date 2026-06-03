@@ -47,10 +47,11 @@ public class EventInteractionServiceImpl implements EventInteractionService {
         User user = Optional.ofNullable(userRepository.findUserById(userId))
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // VIEW — chỉ lưu 1 lần duy nhất
+        // VIEW — giới hạn lưu tối đa 1 lượt xem mỗi 24 giờ cho cùng 1 người dùng/sự kiện
         if (type == InteractionType.VIEW) {
+            LocalDateTime limitTime = LocalDateTime.now().minusDays(1);
             boolean alreadyViewed = interactionRepository
-                    .existsByEvent_IdAndUser_IdAndType(eventId, userId, type);
+                    .existsByEvent_IdAndUser_IdAndTypeAndCreatedAtAfter(eventId, userId, type, limitTime);
             if (alreadyViewed) return;
         }
 

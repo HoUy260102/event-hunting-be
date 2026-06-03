@@ -10,6 +10,7 @@ import com.example.event.service.VoucherService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -148,6 +149,28 @@ public class ShowController {
             @PathVariable String showId,
             @RequestParam String token) {
         ticketQueueService.validateQueueToken(showId, token);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PatchMapping("/{id}/soft-delete")
+    @PreAuthorize("hasAuthority('EVENT:DELETE')")
+    public ResponseEntity<?> softDeleteShow(@PathVariable String id) {
+        showService.softDeleteShow(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PatchMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('EVENT:RESTORE')")
+    public ResponseEntity<?> restoreShow(@PathVariable String id) {
+        showService.restoreShow(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")

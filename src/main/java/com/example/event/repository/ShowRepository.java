@@ -16,6 +16,7 @@ import java.util.List;
 public interface ShowRepository extends JpaRepository<Show, String> {
     List<Show> findShowsByEvent_Id(String id);
     List<Show> findByEvent_IdAndDeletedAtIsNull(String eventId);
+    List<Show> findByEvent_IdAndDeletedAtIsNotNull(String eventId);
     Show findShowById(String id);
     @Query("""
                 SELECT s FROM Show s 
@@ -102,7 +103,7 @@ public interface ShowRepository extends JpaRepository<Show, String> {
             "FROM Show es " +
             "JOIN es.event e " +
             "LEFT JOIN Ticket t ON t.show = es " +
-            "WHERE es.id = :showId AND es.deletedAt IS NULL " +
+            "WHERE es.id = :showId AND es.deletedAt IS NULL AND e.deletedAt IS NULL " +
             "GROUP BY es.id, e.name, e.location, es.startTime, es.endTime, es.status")
     ShowRegistryDTO findShowRegistryById(@Param("showId") String showId);
 }

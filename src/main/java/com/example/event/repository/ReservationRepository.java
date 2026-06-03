@@ -5,6 +5,7 @@ import com.example.event.entity.Reservation;
 import com.example.event.dto.response.AnalyticsOverviewProjection;
 import com.example.event.dto.response.TicketTierDistributionProjection;
 import com.example.event.dto.response.TopShowProjection;
+import com.example.event.dto.response.TopCustomerProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -37,8 +38,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, String
     java.util.Optional<Reservation> findByCode(String code);
     boolean existsByCode(String code);
     java.util.List<Reservation> findByCodeIsNull();
+    java.util.List<Reservation> findByStatusAndDeletedAtIsNull(ReservationStatus status);
     boolean existsByUserIdAndDeletedAtIsNull(String userId);
     boolean existsByEventIdAndDeletedAtIsNull(String eventId);
+    boolean existsByShowIdAndDeletedAtIsNull(String showId);
     boolean existsByVoucherIdAndDeletedAtIsNull(String voucherId);
 
     @Query("SELECT COALESCE(SUM(r.finalAmount), 0) FROM Reservation r WHERE r.status = 'PAID' AND r.event.user.id = :userId AND r.createdAt BETWEEN :start AND :end")
@@ -106,6 +109,44 @@ public interface ReservationRepository extends JpaRepository<Reservation, String
     List<TicketTierDistributionProjection> getTicketTierDistributionByUserId(
         @Param("userId") String userId, 
         @Param("start") LocalDateTime start, 
+        @Param("end") LocalDateTime end
+    );
+
+    @Query("""
+        SELECT 
+            r.user.id AS userId,
+            r.user.name AS name,
+            r.user.email AS email,
+            r.user.avatar.url AS avatarUrl,
+            COUNT(DISTINCT r.id) AS totalBookings,
+            SUM(r.finalAmount) AS totalSpent,
+            SUM(ri.quantity) AS totalTickets
+        FROM ReservationItem ri
+        JOIN ri.reservation r
+        WHERE r.status = 'PAID' 
+          AND r.event.user.id = :userId 
+          AND r.createdAt BETWEEN :start AND :end
+        GROUP BY r.user.id, r.user.name, r.user.email, r.user.avatar.url
+        ORDER BY totalSpent DESC, totalTickets DESC
+    """)
+    List<TopCustomerProjection> findTopCustomersByOrganizerIdAndDateRange(
+        @Param("userId") String userId,
+        @Param("start") LocalDateTime start,
+        @Param("end") LocalDateTime end,
+        org.springframework.data.domain.Pageable pageable
+    );
+
+    @Query("""
+        SELECT COUNT(r.id)
+        FROM Reservation r
+        WHERE r.status = 'PAID' 
+          AND r.event.user.id = :userId 
+          AND r.createdAt BETWEEN :start AND :end
+        GROUP BY r.user.id
+    """)
+    List<Long> getOrderCountsPerUser(
+        @Param("userId") String userId,
+        @Param("start") LocalDateTime start,
         @Param("end") LocalDateTime end
     );
 }

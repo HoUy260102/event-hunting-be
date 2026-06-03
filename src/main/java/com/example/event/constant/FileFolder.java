@@ -5,5 +5,6 @@ public enum FileFolder {
     EVENT_BANNER,
     EVENT_POSTER,
     EVENT_DESCRIPTION,
-    ORGANIZER_LOGO
+    ORGANIZER_LOGO,
+    COMMENT_IMAGE
 }

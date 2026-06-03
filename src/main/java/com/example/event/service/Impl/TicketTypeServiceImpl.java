@@ -155,6 +155,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         }
 
         ticketTierRepository.softDeleteTiersByTypeIds(typeIds, now, deletorId);
+        seatRepository.softDeleteSeatsByTicketTypeIds(typeIds, now, deletorId);
         ticketTypeRepository.softDeleteTypesByIds(typeIds, now, deletorId);
     }
 

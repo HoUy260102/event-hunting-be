@@ -23,14 +23,17 @@ public class JwtAuthEntryPoint implements AuthenticationEntryPoint {
                          AuthenticationException authException) throws IOException, ServletException {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         int status = 401;
+        String code = "UNAUTHENTICATED";
         if (authException instanceof JwtAuthenticationException) {
             JwtAuthenticationException jwtAuthExcep = (JwtAuthenticationException) authException;
             status = jwtAuthExcep.getErrorCode().getHttpStatus().value();
+            code = jwtAuthExcep.getErrorCode().name();
         }
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         final Map<String, Object> body = new HashMap<>();
         body.put("status", status);
         body.put("message", authException.getMessage());
+        body.put("code", code);
         final ObjectMapper mapper = new ObjectMapper();
         mapper.writeValue(response.getOutputStream(), body);
     }

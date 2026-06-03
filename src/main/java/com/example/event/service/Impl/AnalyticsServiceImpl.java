@@ -10,6 +10,9 @@ import com.example.event.dto.response.TopShowResponse;
 import com.example.event.dto.response.TopShowProjection;
 import com.example.event.dto.response.TicketTierDistributionResponse;
 import com.example.event.dto.response.TicketTierDistributionProjection;
+import com.example.event.dto.response.TopCustomerResponse;
+import com.example.event.dto.response.TopCustomerProjection;
+import com.example.event.dto.response.CustomerAnalyticsResponse;
 import org.springframework.data.domain.PageRequest;
 import java.util.stream.Collectors;
 import com.example.event.entity.Reservation;
@@ -214,5 +217,46 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
 
         return chartPoints;
+    }
+
+    @Override
+    public CustomerAnalyticsResponse getCustomerAnalytics(LocalDate start, LocalDate end, Integer limit) {
+        if (start == null) start = LocalDate.now().minusDays(30);
+        if (end == null) end = LocalDate.now();
+        if (limit == null || limit <= 0) limit = 10;
+
+        String userId = securityUtils.getCurrentUserId();
+        LocalDateTime startDateTime = start.atStartOfDay();
+        LocalDateTime endDateTime = end.atTime(LocalTime.MAX);
+
+        // 1. Get Top Customers list
+        List<TopCustomerProjection> projections = reservationRepository.findTopCustomersByOrganizerIdAndDateRange(
+                userId, startDateTime, endDateTime, PageRequest.of(0, limit)
+        );
+
+        List<TopCustomerResponse> topCustomers = projections.stream().map(p -> TopCustomerResponse.builder()
+                .userId(p.getUserId())
+                .name(p.getName())
+                .email(p.getEmail())
+                .avatarUrl(p.getAvatarUrl())
+                .totalBookings(p.getTotalBookings() != null ? p.getTotalBookings() : 0L)
+                .totalSpent(p.getTotalSpent() != null ? p.getTotalSpent() : 0L)
+                .totalTickets(p.getTotalTickets() != null ? p.getTotalTickets() : 0L)
+                .build()
+        ).collect(Collectors.toList());
+
+        // 2. Calculate Repeat Purchase/Customer Retention Rate
+        List<Long> orderCountsPerUser = reservationRepository.getOrderCountsPerUser(userId, startDateTime, endDateTime);
+        long totalUniqueCustomers = orderCountsPerUser.size();
+        long repeatCustomers = orderCountsPerUser.stream().filter(count -> count >= 2).count();
+        double retentionRate = totalUniqueCustomers > 0 
+                ? Math.round(((double) repeatCustomers * 100.0 / totalUniqueCustomers) * 10.0) / 10.0 
+                : 0.0;
+
+        return CustomerAnalyticsResponse.builder()
+                .customers(topCustomers)
+                .totalUniqueCustomers(totalUniqueCustomers)
+                .retentionRate(retentionRate)
+                .build();
     }
 }

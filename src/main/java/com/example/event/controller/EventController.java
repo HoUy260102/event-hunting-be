@@ -6,6 +6,7 @@ import com.example.event.dto.response.ApiResponse;
 import com.example.event.dto.response.EventTrendingResponse;
 import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.service.EventInteractionService;
+import com.example.event.service.EventRecommendationService;
 import com.example.event.service.EventService;
 import com.example.event.service.ShowService;
 import jakarta.validation.Valid;
@@ -26,6 +27,7 @@ public class EventController {
     private final EventService eventService;
     private final ShowService showService;
     private final EventInteractionService eventInteractionService;
+    private final EventRecommendationService eventRecommendationService;
 
     @PostMapping
     public ResponseEntity<?> createEvent(@Valid @RequestBody CreateEventReq req) {
@@ -103,6 +105,28 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
+    @GetMapping("/recommendations")
+    public ResponseEntity<?> getRecommendations(@RequestParam(defaultValue = "6") int limit) {
+        List<EventSearchPublicDTO> recommendedEvents = eventRecommendationService.getPersonalizedRecommendations(limit);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(recommendedEvents)
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @PostMapping("/recommendations/trigger")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> triggerRecommendationJob(@RequestParam(defaultValue = "90") int days) {
+        eventRecommendationService.runRecommendationJob(days);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Kích hoạt tính toán ma trận gợi ý thành công cho " + days + " ngày qua.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
     @GetMapping("/{id}/info")
     public ResponseEntity<?> findEventByIdForInfo(@PathVariable String id) {
         EventInfoDTO eventInfoDTO = eventService.findEventInfoById(id);
@@ -128,6 +152,17 @@ public class EventController {
     @GetMapping("/{id}/shows")
     public ResponseEntity<?> findAllShowsByEventId(@PathVariable String id) {
         List<ShowDTO> shows = showService.findShowsByEventId(id);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(shows)
+                .message("Thành công.")
+                .build();
+        return ResponseEntity.status(HttpStatus.OK).body(response);
+    }
+
+    @GetMapping("/{id}/shows/deleted")
+    public ResponseEntity<?> findDeletedShowsByEventId(@PathVariable String id) {
+        List<ShowDTO> shows = showService.findDeletedShowsByEventId(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(shows)

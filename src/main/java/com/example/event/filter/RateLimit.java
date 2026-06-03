@@ -134,6 +134,7 @@ public class RateLimit extends OncePerRequestFilter {
             ErrorResponse err = ErrorResponse.builder()
                     .status(HttpStatus.TOO_MANY_REQUESTS.value())
                     .message("Quá nhiều request, vui lòng thử lại!")
+                    .path(request.getRequestURI())
                     .timestamp(LocalDateTime.now())
                     .build();
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

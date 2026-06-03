@@ -29,6 +29,20 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
                 UPDATE Seat s
                 SET s.deletedAt = :now,
                     s.deletedBy = :deletorId
+                WHERE s.ticketType.id IN :ticketTypeIds
+                  AND s.deletedAt IS NULL
+            """)
+    void softDeleteSeatsByTicketTypeIds(
+            @Param("ticketTypeIds") List<String> ticketTypeIds,
+            @Param("now") LocalDateTime now,
+            @Param("deletorId") String deletorId
+    );
+
+    @Modifying(clearAutomatically = true)
+    @Query("""
+                UPDATE Seat s
+                SET s.deletedAt = :now,
+                    s.deletedBy = :deletorId
                 WHERE s.ticketType.show.id IN :showIds
                   AND s.deletedAt IS NULL
             """)
@@ -85,6 +99,7 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
 
     @Query(value = "SELECT * FROM seat " +
             "WHERE status = 'AVAILABLE' AND ticket_type_id = :typeId " +
+            "AND deleted_at IS NULL " +
             "ORDER BY queue_no ASC " +
             "LIMIT :quantity FOR UPDATE SKIP LOCKED", nativeQuery = true)
     List<Seat> findBestAvailableUnassignedSeats(@Param("typeId") String typeId, @Param("quantity") int quantity);

@@ -37,6 +37,7 @@ public class RedisStreamConfig {
     // Container bean — poll every 1 s, decode both key & hash fields
     // as plain UTF-8 strings so MapRecord<String,String,String> works.
     // ---------------------------------------------------------------
+    
     @Bean(destroyMethod = "stop")
     public StreamMessageListenerContainer<String, MapRecord<String, String, String>>
     ticketStreamContainer(RedisConnectionFactory factory) {

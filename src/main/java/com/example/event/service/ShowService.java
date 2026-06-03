@@ -23,4 +23,7 @@ public interface ShowService {
     List<ShowSelectionDTO> findShowSelectionByEventId(String eventId);
     void softDeleteShows(List<String> ids, String deletorId);
     void restoreShows(List<String> ids, String restorerId);
+    void softDeleteShow(String id);
+    void restoreShow(String id);
+    List<ShowDTO> findDeletedShowsByEventId(String eventId);
 }

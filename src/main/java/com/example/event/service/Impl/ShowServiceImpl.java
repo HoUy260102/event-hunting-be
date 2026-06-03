@@ -39,6 +39,7 @@ public class ShowServiceImpl implements ShowService {
     private final EventRepository eventRepository;
     private final ShowValidator showValidator;
     private final RedisTemplate<String, String> redisTemplate;
+    private final ReservationRepository reservationRepository;
 
     private static final String KEY_TYPE_TOTAL = "ticket_type:{show:%s}:%s:total";
     private static final String KEY_TYPE_RESERVED = "ticket_type:{show:%s}:%s:reserved";
@@ -434,7 +435,20 @@ public class ShowServiceImpl implements ShowService {
     @Override
     @Transactional(readOnly = true)
     public List<ShowDTO> findShowsByEventId(String eventId) {
-        List<Show> shows = showRepository.findShowsByEvent_Id(eventId);
+        List<Show> shows = showRepository.findByEvent_IdAndDeletedAtIsNull(eventId);
+        if (shows.isEmpty()) return new ArrayList<>();
+        shows.forEach(show -> {
+            show.getTicketTypes().forEach(type -> {
+                type.getTicketTiers().size();
+            });
+        });
+        return shows.stream().map(showMapper::toDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShowDTO> findDeletedShowsByEventId(String eventId) {
+        List<Show> shows = showRepository.findByEvent_IdAndDeletedAtIsNotNull(eventId);
         if (shows.isEmpty()) return new ArrayList<>();
         shows.forEach(show -> {
             show.getTicketTypes().forEach(type -> {
@@ -448,7 +462,10 @@ public class ShowServiceImpl implements ShowService {
     public List<ShowSelectionDTO> findShowSelectionByEventId(String eventId) {
         Event event = Optional.ofNullable(eventRepository.findEventById(eventId))
                 .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
-        List<ShowSelectionDTO> showSelectionDTOS = showRepository.findShowsByEvent_Id(event.getId())
+        if (event.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+        }
+        List<ShowSelectionDTO> showSelectionDTOS = showRepository.findByEvent_IdAndDeletedAtIsNull(event.getId())
                 .stream()
                 .map(show -> {
                     ShowSelectionDTO showSelectionDTO = new ShowSelectionDTO();
@@ -467,9 +484,6 @@ public class ShowServiceImpl implements ShowService {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
-        seatRepository.softDeleteSeatsByShowIds(ids, now, deletorId);
-        ticketTierRepository.softDeleteTiersByShowIds(ids, now, deletorId);
-        ticketTypeRepository.softDeleteTypesByShowIds(ids, now, deletorId);
         showRepository.softDeleteShows(ids, now, deletorId);
     }
 
@@ -480,9 +494,6 @@ public class ShowServiceImpl implements ShowService {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
-        seatRepository.restoreSeatsByShowIds(ids, now, restorerId);
-        ticketTierRepository.restoreTiersByShowIds(ids, now, restorerId);
-        ticketTypeRepository.restoreTypesByShowIds(ids, now, restorerId);
         showRepository.restoreShows(ids, now, restorerId);
     }
 
@@ -550,5 +561,49 @@ public class ShowServiceImpl implements ShowService {
             }
         }
         log.info("Đã đồng bộ dữ liệu Show {} lên Redis an toàn.", showId);
+    }
+
+    @Override
+    @Transactional
+    public void softDeleteShow(String id) {
+        Show show = showRepository.findShowById(id);
+        if (show == null) {
+            throw new AppException(ErrorCode.SHOW_NOT_FOUND);
+        }
+        if (show.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        if (show.getStatus() != ShowStatus.DRAFT) {
+            throw new AppException(ErrorCode.ONLY_DRAFT_SHOW_CAN_BE_DELETED);
+        }
+
+        boolean hasReservations = reservationRepository.existsByShowIdAndDeletedAtIsNull(id);
+        if (hasReservations) {
+            throw new AppException(ErrorCode.SHOW_HAS_RESERVATIONS);
+        }
+
+        String userId = securityUtils.getCurrentUserId();
+        softDeleteShows(List.of(id), userId);
+    }
+
+    @Override
+    @Transactional
+    public void restoreShow(String id) {
+        Show show = showRepository.findShowById(id);
+        if (show == null) {
+            throw new AppException(ErrorCode.SHOW_NOT_FOUND);
+        }
+        if (show.getDeletedAt() == null) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        Event event = show.getEvent();
+        if (event.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+        }
+
+        String userId = securityUtils.getCurrentUserId();
+        restoreShows(List.of(id), userId);
     }
 }

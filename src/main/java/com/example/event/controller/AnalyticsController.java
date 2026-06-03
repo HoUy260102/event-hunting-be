@@ -58,4 +58,22 @@ public class AnalyticsController {
 
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/customers")
+    @PreAuthorize("hasAnyRole('ADMIN', 'ORGANIZER')")
+    public ResponseEntity<?> getTopCustomers(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "10") Integer limit
+    ) {
+        com.example.event.dto.response.CustomerAnalyticsResponse data = analyticsService.getCustomerAnalytics(startDate, endDate, limit);
+
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Thành công.")
+                .data(data)
+                .build();
+
+        return ResponseEntity.ok(response);
+    }
 }

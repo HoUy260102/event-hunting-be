@@ -91,6 +91,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     .code(e.getErrorCode().name())
                     .status(HttpStatus.UNAUTHORIZED.value())
                     .message(e.getMessage())
+                    .path(request.getRequestURI())
                     .timestamp(LocalDateTime.now())
                     .build();
             ObjectMapper mapper = new ObjectMapper();
@@ -110,6 +111,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     .code(HttpStatus.INTERNAL_SERVER_ERROR.name())
                     .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                     .message(e.getMessage())
+                    .path(request.getRequestURI())
                     .timestamp(LocalDateTime.now())
                     .build();
             ObjectMapper mapper = new ObjectMapper();
@@ -140,8 +142,10 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 Pair.of("/auth/resend-verify", "POST"),
 
                 Pair.of("/categories", "GET"),
+                Pair.of("/provinces", "GET"),
                 Pair.of("/events/public/search", "GET"),
                 Pair.of("/events/trending", "GET"),
+                Pair.of("/events/recommendations", "GET"),
                 Pair.of("/events/*/info", "GET"),
                 Pair.of("/payments/vnpay-callback", "GET")
         ));

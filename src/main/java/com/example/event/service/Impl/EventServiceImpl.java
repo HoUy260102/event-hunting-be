@@ -525,6 +525,30 @@ public class EventServiceImpl implements EventService {
     public EventSummaryDTO getEventSummaryById(String eventId) {
         List<TicketStatProjection> rows = ticketRepository.getStatByEvent(eventId);
 
+        if (rows.isEmpty()) {
+            Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(eventId))
+                    .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
+            if (event.getDeletedAt() != null) {
+                throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+            }
+            return EventSummaryDTO.builder()
+                    .id(event.getId())
+                    .name(event.getName())
+                    .location(event.getLocation())
+                    .address(event.getAddress())
+                    .startTime(event.getStartTime())
+                    .endTime(event.getEndTime())
+                    .posterUrl(event.getPoster() != null ? event.getPoster().getUrl() : null)
+                    .status(event.getStatus())
+                    .totalAmount(0L)
+                    .discountAmount(0L)
+                    .totalFinalAmount(0L)
+                    .totalQuantity(0)
+                    .soldQuantity(0)
+                    .shows(Collections.emptyList())
+                    .build();
+        }
+
         // Lấy thông tin event từ row đầu (mọi row đều có cùng event info)
         TicketStatProjection firstRow = rows.get(0);
 
@@ -729,6 +753,11 @@ public class EventServiceImpl implements EventService {
         if (event.getDeletedAt() != null) {
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
+        if (event.getStatus() == EventStatus.APPROVED ||
+            event.getStatus() == EventStatus.PUBLISHED ||
+            event.getStatus() == EventStatus.CANCELLED) {
+            throw new AppException(ErrorCode.CANNOT_DELETE_APPROVED_OR_PUBLISHED_EVENT);
+        }
 
         // Kiểm tra xem event đã có giao dịch reservation nào chưa
         boolean hasReservations = reservationRepository.existsByEventIdAndDeletedAtIsNull(id);
@@ -744,14 +773,14 @@ public class EventServiceImpl implements EventService {
         eventRepository.save(event);
 
         // Fetch and soft-delete associated shows (and their ticket types & tiers)
-        List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
-                .map(Show::getId)
-                .collect(Collectors.toList());
-                
-        if (!showIds.isEmpty()) {
-            log.info("Cascading soft-delete to {} shows under event {}", showIds.size(), id);
-            showService.softDeleteShows(showIds, userId);
-        }
+        // List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
+        //         .map(Show::getId)
+        //         .collect(Collectors.toList());
+        //         
+        // if (!showIds.isEmpty()) {
+        //     log.info("Cascading soft-delete to {} shows under event {}", showIds.size(), id);
+        //     showService.softDeleteShows(showIds, userId);
+        // }
     }
 
     @Override
@@ -775,12 +804,12 @@ public class EventServiceImpl implements EventService {
         eventRepository.save(event);
 
         // Fetch and restore associated shows (and their ticket types & tiers)
-        List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
-                .map(Show::getId)
-                .collect(Collectors.toList());
-        if (!showIds.isEmpty()) {
-            log.info("Cascading restore to {} shows under event {}", showIds.size(), id);
-            showService.restoreShows(showIds, userId);
-        }
+        // List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
+        //         .map(Show::getId)
+        //         .collect(Collectors.toList());
+        // if (!showIds.isEmpty()) {
+        //     log.info("Cascading restore to {} shows under event {}", showIds.size(), id);
+        //     showService.restoreShows(showIds, userId);
+        // }
     }
 }

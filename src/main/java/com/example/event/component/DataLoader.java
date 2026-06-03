@@ -71,6 +71,7 @@ public class DataLoader {
                 {"EVENT:CREATE", "Tạo sự kiện", "EVENT"},
                 {"EVENT:UPDATE", "Cập nhật sự kiện", "EVENT"},
                 {"EVENT:DELETE", "Xóa sự kiện", "EVENT"},
+                {"EVENT:RESTORE", "Khôi phục sự kiện", "EVENT"},
                 {"EVENT:APPROVE", "Duyệt sự kiện", "EVENT"},
                 {"EVENT:REJECT", "Từ chối sự kiện", "EVENT"},
 

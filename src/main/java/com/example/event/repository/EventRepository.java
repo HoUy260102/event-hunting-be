@@ -12,6 +12,13 @@ import java.util.List;
 
 public interface EventRepository extends JpaRepository<Event, String>, JpaSpecificationExecutor<Event> {
     Event findEventById(String id);
+
+    @Query("SELECT e FROM Event e " +
+            "LEFT JOIN FETCH e.poster " +
+            "LEFT JOIN FETCH e.province " +
+            "LEFT JOIN FETCH e.category " +
+            "WHERE e.id IN :ids")
+    List<Event> findEventsByIdsWithDetails(@Param("ids") List<String> ids);
     @Query("SELECT e FROM Event e " +
             "LEFT JOIN FETCH e.banner " +
             "LEFT JOIN FETCH e.poster " +

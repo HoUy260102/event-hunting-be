@@ -10,6 +10,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -18,7 +19,7 @@ import java.util.Map;
 @ControllerAdvice
 public class GlobalException {
     @ExceptionHandler(AppException.class)
-    public ResponseEntity<ErrorResponse> handlerAppException(AppException exception) {
+    public ResponseEntity<ErrorResponse> handlerAppException(AppException exception, HttpServletRequest request) {
         ErrorCode errorCode = exception.getErrorCode();
         ErrorResponse response = ErrorResponse.builder()
                 .code(errorCode.name())
@@ -27,6 +28,7 @@ public class GlobalException {
                         : errorCode.getMessage())
                 .details(exception.getDetails())
                 .status(errorCode.getHttpStatus().value())
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(errorCode.getHttpStatus().value()).body(response);
@@ -34,12 +36,13 @@ public class GlobalException {
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleOptimisticLockException(
-            ObjectOptimisticLockingFailureException exception) {
+            ObjectOptimisticLockingFailureException exception, HttpServletRequest request) {
 
         ErrorResponse response = ErrorResponse.builder()
                 .code("OPTIMISTIC_LOCK_ERROR")
                 .status(HttpStatus.CONFLICT.value())
                 .message("Dữ liệu vừa có ai đó được cập nhật trước, vui lòng tải lại và thử lại.")
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
 
@@ -47,21 +50,23 @@ public class GlobalException {
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handlerBadCredentialsExceptionException(BadCredentialsException exception) {
+    public ResponseEntity<ErrorResponse> handlerBadCredentialsExceptionException(BadCredentialsException exception, HttpServletRequest request) {
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())
                 .message("Tài khoản đăng nhập hoặc mật khẩu không chính xác!")
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST.value()).body(response);
     }
 
     @ExceptionHandler(JwtAuthenticationException.class)
-    public ResponseEntity<ErrorResponse> handlerJwtAuthenticationException(JwtAuthenticationException exception) {
+    public ResponseEntity<ErrorResponse> handlerJwtAuthenticationException(JwtAuthenticationException exception, HttpServletRequest request) {
         ErrorResponse response = ErrorResponse.builder()
                 .code(exception.getErrorCode().name())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .message(exception.getErrorCode().getMessage())
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST.value()).body(response);
@@ -90,18 +95,19 @@ public class GlobalException {
 //    }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handlerException(Exception exception) {
+    public ResponseEntity<ErrorResponse> handlerException(Exception exception, HttpServletRequest request) {
         exception.printStackTrace();
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .message(exception.getMessage())
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR.value()).body(response);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException exception) {
+    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException exception, HttpServletRequest request) {
         Map<String, String> details = new HashMap<>();
 
         exception.getBindingResult().getFieldErrors().forEach(fieldError ->
@@ -113,16 +119,18 @@ public class GlobalException {
                 .code("VALIDATION_ERROR")
                 .message("Dữ liệu không hợp lệ")
                 .details(details)
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<?> handleAccessDeniedException(AccessDeniedException ex) {
+    public ResponseEntity<?> handleAccessDeniedException(AccessDeniedException ex, HttpServletRequest request) {
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.FORBIDDEN.value())
                 .message("Bạn không có quyền truy cập tài nguyên này")
+                .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
         return new ResponseEntity<>(response, HttpStatus.FORBIDDEN);

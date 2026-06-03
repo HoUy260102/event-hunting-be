@@ -1,5 +1,5 @@
 package com.example.event.constant;
 
 public enum InteractionType {
-    VIEW, REGISTER, FAVORITE
+    VIEW, REGISTER, FAVORITE, COMMENT
 }

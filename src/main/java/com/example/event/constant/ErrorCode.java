@@ -56,6 +56,9 @@ public enum ErrorCode {
     SHOW_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được show."),
     INVALID_EVENT_SHOW_RELATION(HttpStatus.BAD_REQUEST, "Suất diễn không thuộc sự kiện này."),
     INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "Chuyển đổi trạng thái không hợp lệ"),
+    SHOW_HAS_RESERVATIONS(HttpStatus.BAD_REQUEST, "Không thể xóa suất diễn này vì đang có đơn đặt chỗ."),
+    CANNOT_DELETE_APPROVED_OR_PUBLISHED_SHOW(HttpStatus.BAD_REQUEST, "Không thể xóa suất diễn của sự kiện đã được duyệt hoặc công bố."),
+    ONLY_DRAFT_SHOW_CAN_BE_DELETED(HttpStatus.BAD_REQUEST, "Chỉ có suất diễn ở trạng thái bản nháp mới được phép xóa."),
     SHOW_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST, "Suất diễn đã bị hủy, không thể chỉnh sửa"),
     SHOW_CANCELLED(HttpStatus.GONE, "Sự kiện đã bị hủy. Vui lòng kiểm tra thông báo để biết thêm chi tiết về việc hoàn tiền."),
     SHOW_POSTPONED(HttpStatus.BAD_REQUEST, "Sự kiện đang tạm hoãn và không tiếp nhận đặt vé mới tại thời điểm này."),
@@ -66,6 +69,7 @@ public enum ErrorCode {
     EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được event."),
     EVENT_NOT_PENDING(HttpStatus.BAD_REQUEST, "Sự kiện không ở trạng thái chờ duyệt."),
     EVENT_NOT_PUBLISHED(HttpStatus.BAD_REQUEST, "Sự kiện không ở trạng thái công khai."),
+    CANNOT_DELETE_APPROVED_OR_PUBLISHED_EVENT(HttpStatus.BAD_REQUEST, "Không thể xóa sự kiện đã được duyệt hoặc công bố."),
 
     TICKET_TYPE_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được ticket type."),
     TICKET_TYPE_IN_ACTIVE(HttpStatus.BAD_REQUEST, "Loại vé này đã ngưng hoạt động."),
@@ -128,6 +132,11 @@ public enum ErrorCode {
     VOUCHER_EXPIRED(HttpStatus.BAD_REQUEST, "Voucher này hiện tại đã hết hạn sử dụng."),
     VOUCHER_NOT_APPLICABLE(HttpStatus.BAD_REQUEST, "Sự kiện không hỗ trợ voucher này."),
     VOUCHER_MIN_ORDER_NOT_MET(HttpStatus.BAD_REQUEST, "Đơn hàng có giá trị nhỏ hơn giá trị tối thiểu."),
+
+    COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy bình luận."),
+    COMMENT_LEVEL_EXCEEDED(HttpStatus.BAD_REQUEST, "Chỉ hỗ trợ tối đa 2 cấp bình luận."),
+    IMAGE_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "Vượt quá giới hạn ảnh đính kèm cho mỗi bình luận (Tối đa 4 ảnh)."),
+    COMMENT_EMPTY(HttpStatus.BAD_REQUEST, "Bình luận phải có nội dung chữ hoặc hình ảnh đi kèm."),
 
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để thực hiện hành động này."),
