@@ -26,7 +26,7 @@ public class LockServiceImpl implements LockService {
     private final SeatRepository seatRepository;
     private final TicketQueueService ticketQueueService;
 
-    private static final int LOCK_TIMEOUT_SECONDS = 300;
+    private static final int LOCK_TIMEOUT_SECONDS = 600;
     private static final int EXTRA_PERIOD_SECONDS = 40;
 
     private static final String BULK_RESERVE_UNASSIGN_LUA = "local itemCount = #ARGV / 3 " +

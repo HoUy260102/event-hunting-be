@@ -15,6 +15,7 @@ import com.example.event.util.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,7 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final TicketService ticketService;
     private final SimpMessagingTemplate messagingTemplate;
     private final TicketEmailProducer ticketEmailProducer;
+
     private static final Map<String, String> VNPAY_MESSAGES;
 
     static {
@@ -60,13 +62,14 @@ public class VNPaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest) {
+        String reservationId = reservationDTO.getId();
         LocalDateTime now = LocalDateTime.now();
-        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationDTO.getId()))
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationId))
                 .orElseThrow(() -> {
-                    log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationDTO.getId());
+                    log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationId);
                     return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
                 });
-        // valite dữ liệu reservation;
+        // validate dữ liệu reservation;
         reservationService.validateReservationForPayment(reservation);
         // Xử lý voucher
         handleVoucherChange(reservation, reservationDTO);
@@ -395,4 +398,5 @@ public class VNPaymentServiceImpl implements PaymentService {
                     reservationId, dto.getFinalAmount(), calculated.getFinalAmount());
         }
     }
+
 }

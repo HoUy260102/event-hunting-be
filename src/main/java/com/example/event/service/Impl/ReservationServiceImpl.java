@@ -52,7 +52,7 @@ public class ReservationServiceImpl implements ReservationService {
     private final VoucherService voucherService;
     private final ReservationCodeGenerator reservationCodeGenerator;
 
-    private static final long RESERVATION_TTL_SECONDS = 300L;
+    private static final long RESERVATION_TTL_SECONDS = 600L;
     private static final int EXTRA_PERIOD_SECONDS = 30;
 
     @Override

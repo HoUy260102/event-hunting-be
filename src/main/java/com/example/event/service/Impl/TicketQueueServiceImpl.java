@@ -23,8 +23,7 @@ public class TicketQueueServiceImpl implements TicketQueueService {
 
     private static final int MAX_BUYING = 2;
     private static final int BATCH_SIZE = 10;
-    //    private static final long BUYING_TTL_MS = 600000;
-    private static final long BUYING_TTL_MS = 300000;
+    private static final long BUYING_TTL_MS = 600000;
     private static final long HB_TTL_MS = 30000;
 
     private static final String WAITING = "waiting:show:%s";
@@ -120,6 +119,21 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         });
 
         position = redis.opsForZSet().rank(waitingKey, userId);
+        if (position == null) {
+            buyingScore = redis.opsForZSet().score(buyingKey, userId);
+            if (buyingScore != null) {
+                String tokenKey = String.format(TOKEN, showId, userId);
+                String token = redis.opsForValue().get(tokenKey);
+                if (token != null) {
+                    long expiresIn = (long) ((buyingScore - System.currentTimeMillis()) / 1000);
+                    result.put("status", "BUYING");
+                    result.put("token", token);
+                    result.put("expiresIn", expiresIn);
+                    return result;
+                }
+            }
+            throw new AppException(ErrorCode.SYSTEM_ERROR, "Không thể xác định vị trí trong hàng đợi, vui lòng thử lại.");
+        }
         result.put("position", position + 1);
         result.put("peopleAhead", position);
         result.put("status", "WAITING");
