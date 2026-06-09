@@ -14,5 +14,6 @@ public class ReservationReq {
     private Long totalAmount;
     private Long finalAmount;
 
+    private String queueToken;
     private List<ReservationItemReq> items;
 }

@@ -22,7 +22,10 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @PostMapping
-    public ResponseEntity<?> createReservation(@Valid @RequestBody ReservationReq req) {
+    public ResponseEntity<?> createReservation(
+            @Valid @RequestBody ReservationReq req,
+            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken) {
+        req.setQueueToken(queueToken);
         ReservationDTO reservationDTO = reservationService.createReservation(req);
         ApiResponse response = ApiResponse.builder()
                 .data(reservationDTO)

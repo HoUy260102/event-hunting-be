@@ -49,6 +49,7 @@ public class TicketServiceImpl implements TicketService {
     public TicketDetailDTO getTicketDetailById(String id) {
         Ticket ticket = Optional.ofNullable(ticketRepository.findTicketDetailsById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.TICKET_NOT_FOUND));
+        securityUtils.canAccessThisResource(ticket.getUser().getId());
         return ticketMapper.toDetailDTO(ticket);
     }
 

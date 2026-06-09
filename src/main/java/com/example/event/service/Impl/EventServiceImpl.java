@@ -523,14 +523,21 @@ public class EventServiceImpl implements EventService {
 
     @Override
     public EventSummaryDTO getEventSummaryById(String eventId) {
+        Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(eventId))
+                .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
+        if (event.getDeletedAt() != null) {
+            throw new AppException(ErrorCode.EVENT_NOT_FOUND);
+        }
+
+        if (event.getUser() != null) {
+            securityUtils.canAccessThisResource(event.getUser().getId());
+        } else {
+            securityUtils.canAccessThisResource(""); 
+        }
+
         List<TicketStatProjection> rows = ticketRepository.getStatByEvent(eventId);
 
         if (rows.isEmpty()) {
-            Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(eventId))
-                    .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
-            if (event.getDeletedAt() != null) {
-                throw new AppException(ErrorCode.EVENT_NOT_FOUND);
-            }
             return EventSummaryDTO.builder()
                     .id(event.getId())
                     .name(event.getName())

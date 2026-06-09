@@ -125,6 +125,11 @@ public class ReservationServiceImpl implements ReservationService {
                     log.warn("[RESERVATION] User không tồn tại: {}", creatorId);
                     return new AppException(ErrorCode.USER_NOT_FOUND);
                 });
+
+        // Kiểm tra quyền mua vé của user trong hàng đợi (Fail-fast)
+        ticketQueueService.validateQueueToken(show.getId(), req.getQueueToken());
+        long reservationTTLSeconds = ticketQueueService.getRemainingTimeSeconds(show.getId(), user.getId());
+
         Event event = show.getEvent();
 
         // Check xem show có đang active
@@ -241,8 +246,6 @@ public class ReservationServiceImpl implements ReservationService {
             }
 
             // Tạo reservation
-            long reservationTTLSeconds = ticketQueueService.getRemainingTimeSeconds(show.getId(), user.getId());
-
             Reservation reservation = new Reservation();
             reservation.setCustomerEmail(req.getCustomerEmail());
             reservation.setCustomerName(req.getCustomerName());

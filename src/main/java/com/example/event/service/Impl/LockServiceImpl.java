@@ -168,7 +168,7 @@ public class LockServiceImpl implements LockService {
         List<String> keys = new ArrayList<>();
         List<String> args = new ArrayList<>();
         args.add(userId);
-        args.add(Integer.toString((int) lockTimeOutSeconds) + EXTRA_PERIOD_SECONDS);
+        args.add(Integer.toString((int) lockTimeOutSeconds + EXTRA_PERIOD_SECONDS));
         sortedSeatIds.forEach(seatId -> {
             keys.add(String.format(KEY_SEAT_STATUS, showId, seatId));
             args.add(seatId);
