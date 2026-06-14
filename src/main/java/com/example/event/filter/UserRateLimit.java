@@ -62,7 +62,7 @@ public class UserRateLimit extends OncePerRequestFilter {
             put("/events/*/info", new RateLimitConfig(30L, 10L));
 
             // Transactional/Sensitive APIs
-            put("/reservations", new RateLimitConfig(5L, 10L));
+            put("/reservations", new RateLimitConfig(10L, 10L));
             put("/reservations/*/cancel", new RateLimitConfig(5L, 10L));
             put("/payments/create_payment_url", new RateLimitConfig(5L, 10L));
             put("/favorites/*", new RateLimitConfig(10L, 10L));
