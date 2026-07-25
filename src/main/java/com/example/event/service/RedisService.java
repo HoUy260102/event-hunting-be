@@ -6,6 +6,7 @@ public interface RedisService {
     <T> T get(String key, Class<T> tClass);
     void del(String key);
     boolean exists(String key);
+    boolean setIfAbsent(String key, String value, Long ttl);
     Long incr(String key, int by);
     void expire(String key, int seconds);
 }

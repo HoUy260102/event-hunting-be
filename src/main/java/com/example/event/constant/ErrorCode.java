@@ -141,7 +141,9 @@ public enum ErrorCode {
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "Thông tin tài nguyên này không tồn tại hoặc bạn không có quyền truy cập."),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Bạn cần đăng nhập để thực hiện hành động này."),
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu không hợp lệ."),
-    SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống.");
+    SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống."),
+
+    DUPLICATE_PAYMENT_REQUEST_IN_PROGRESS(HttpStatus.CONFLICT, "Yêu cầu tạo thanh toán đang được xử lý. Vui lòng không bấm liên tục và đợi trong giây lát.");
 
     private final String message;
     private final HttpStatus httpStatus;

@@ -6,7 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 public interface PaymentService {
-    String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest);
+    String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest, String idempotencyKey);
     Map<String, String> processReturn(HttpServletRequest request);
     void processPayment(Map<String, String> vnpayParams);
 }

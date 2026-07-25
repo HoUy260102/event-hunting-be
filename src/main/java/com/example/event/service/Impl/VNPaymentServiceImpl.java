@@ -4,7 +4,6 @@ import com.example.event.component.TicketEmailProducer;
 import com.example.event.config.VNPayConfig;
 import com.example.event.constant.*;
 import com.example.event.dto.ReservationDTO;
-import com.example.event.dto.TicketEmailMessage;
 import com.example.event.dto.TicketSummaryDTO;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
@@ -15,7 +14,6 @@ import com.example.event.util.VNPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +41,11 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final TicketService ticketService;
     private final SimpMessagingTemplate messagingTemplate;
     private final TicketEmailProducer ticketEmailProducer;
-
+    private final RedisService redisService;
     private static final Map<String, String> VNPAY_MESSAGES;
+    private static final String PAYMENT_IDEMPOTENCY_KEY_FORMAT = "PAYMENT_CREATE:%s";
+    private static final long PAYMENT_IDEMPOTENCY_TTL = 30 * 60; // 30 phút
+    private static final long LOCK_TIMEOUT_SECONDS = 10; // 10s
 
     static {
         Map<String, String> tempMap = new HashMap<>();
@@ -61,23 +62,49 @@ public class VNPaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest) {
+    public String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest, String idempotencyKey) {
         String reservationId = reservationDTO.getId();
         LocalDateTime now = LocalDateTime.now();
-        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationId))
-                .orElseThrow(() -> {
-                    log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationId);
-                    return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
-                });
-        // validate dữ liệu reservation;
-        reservationService.validateReservationForPayment(reservation);
-        // Xử lý voucher
-        handleVoucherChange(reservation, reservationDTO);
-        // Tạo hoặc update payment
-        Payment payment = Optional.ofNullable(findPaymentAndUpdate(reservation))
-                .orElseGet(() -> createNewPayment(reservation, now));
-        // Build VNPay URL
-        return buildPaymentUrl(payment, httpRequest);
+        String paymentIdempotencyKey = String.format(
+                PAYMENT_IDEMPOTENCY_KEY_FORMAT,
+                idempotencyKey
+        );
+        // Check idempotency cache
+        boolean acquired = redisService.setIfAbsent(paymentIdempotencyKey, "PROCESSING", LOCK_TIMEOUT_SECONDS);
+        if (!acquired) {
+            String cachedPaymentUrl = redisService.get(paymentIdempotencyKey, String.class);
+            if ("PROCESSING".equals(cachedPaymentUrl)) {
+                log.warn("[PAYMENT] Request trùng lặp đang được xử lý | ReservationId={}", reservationId);
+                throw new AppException(ErrorCode.DUPLICATE_PAYMENT_REQUEST_IN_PROGRESS);
+            }
+            if (cachedPaymentUrl != null) {
+                log.info("[PAYMENT] Idempotent request đã thấy | ReservationId={} | trả về url trong cache",
+                        reservationId);
+                return cachedPaymentUrl;
+            }
+        }
+        try {
+            Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationId))
+                    .orElseThrow(() -> {
+                        log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationId);
+                        return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+                    });
+            // validate dữ liệu reservation;
+            reservationService.validateReservationForPayment(reservation);
+            // Xử lý voucher
+            handleVoucherChange(reservation, reservationDTO);
+            // Tạo hoặc update payment
+            Payment payment = Optional.ofNullable(findPaymentAndUpdate(reservation))
+                    .orElseGet(() -> createNewPayment(reservation, now));
+            // Build VNPay URL
+            String paymentUrl = buildPaymentUrl(payment, httpRequest);
+            // Set cache
+            redisService.set(paymentIdempotencyKey, paymentUrl, PAYMENT_IDEMPOTENCY_TTL);
+            return paymentUrl;
+        } catch (AppException e) {
+            redisService.del(paymentIdempotencyKey);
+            throw e;
+        }
     }
 
     @Override

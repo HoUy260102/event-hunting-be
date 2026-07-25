@@ -69,4 +69,23 @@ public class FileServiceImpl implements FileService {
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
     }
+
+    @Override
+    public Map<String, Object> generateUploadSignature() {
+        long timestamp = System.currentTimeMillis() / 1000L;
+
+        Map<String, Object> params = new HashMap<>();
+        String folder = "eventhunting/test";
+        params.put("timestamp", timestamp);
+        params.put("folder", folder);
+        String signature = cloudinary.apiSignRequest(params, cloudinary.config.apiSecret);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("signature", signature);
+        response.put("timestamp", timestamp);
+        response.put("folder", folder);
+        response.put("api_key", cloudinary.config.apiKey);
+        response.put("cloud_name", cloudinary.config.cloudName);
+        return response;
+    }
 }
