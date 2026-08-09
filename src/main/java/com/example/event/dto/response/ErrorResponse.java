@@ -1,5 +1,6 @@
 package com.example.event.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -11,10 +12,11 @@ import java.util.Map;
 @Getter
 @Builder
 public class ErrorResponse<T>{
-    private String code;            // Mã lỗi nội bộ (ví dụ: "REFRESH_EXPIRED")
-    private T message;      // Thông báo ngắn gọn dành cho người dùng hoặc dev
+    private String code;
+    private T message;
     private Map<String, String> details;
-    private int status;          // Mã HTTP status (ví dụ: 401)
+    private int status;
     private String path;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime timestamp;
 }

@@ -6,6 +6,8 @@ import com.example.event.constant.ErrorCode;
 import com.example.event.dto.response.ErrorResponse;
 import com.example.event.exception.JwtAuthenticationException;
 import com.example.event.service.SessionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,7 +22,6 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
-import tools.jackson.databind.ObjectMapper;
 
 import javax.security.sasl.AuthenticationException;
 import java.io.IOException;
@@ -95,6 +96,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     .timestamp(LocalDateTime.now())
                     .build();
             ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
             String json = mapper.writeValueAsString(errorResponse);
             response.getWriter().write(json);
             return;
@@ -115,6 +117,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                     .timestamp(LocalDateTime.now())
                     .build();
             ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
             String json = mapper.writeValueAsString(errorResponse);
             response.getWriter().write(json);
             return;

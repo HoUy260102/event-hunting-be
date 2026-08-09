@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # 1. Spring Boot Application
+  event-app:
+    build: .
+    container_name: event-app-container
+    restart: always
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    environment:
+      - SERVER_PORT=${SERVER_PORT}
+      - DB_URL=jdbc:mysql://${SPRING_DB_HOST}:3306/${MYSQL_DATABASE_NAME}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - DB_USERNAME=root
+      - DB_PASSWORD=${MYSQL_ROOT_PASS}
+
+      - REDIS_HOST=${SPRING_REDIS_HOST}
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
+      - JWT_VERIFY_EXPIRATION=${JWT_VERIFY_EXPIRATION}
+
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+
+      - VNPAY_TMN_CODE=${VNPAY_TMN_CODE}
+      - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET}
+      - VNPAY_URL=${VNPAY_URL}
+      - VNPAY_RETURN_URL=${VNPAY_RETURN_URL}
+    depends_on:
+      - mysql-container
+      - my-redis
+
+  # 2. Database MySQL
+  mysql-container:
+    image: mysql:8.0
+    container_name: mysql-container
+    restart: always
+    ports:
+      - "${MYSQL_PORT_HOST}:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASS}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE_NAME}"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # 3. Redis Cache
+  my-redis:
+    image: redis:alpine
+    container_name: my-redis
+    restart: always
+    ports:
+      - "${REDIS_PORT_HOST}:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data:
+  redis_data:

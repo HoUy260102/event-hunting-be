@@ -101,7 +101,7 @@ public class VNPaymentServiceImpl implements PaymentService {
             // Set cache
             redisService.set(paymentIdempotencyKey, paymentUrl, PAYMENT_IDEMPOTENCY_TTL);
             return paymentUrl;
-        } catch (AppException e) {
+        } catch (Exception e) {
             redisService.del(paymentIdempotencyKey);
             throw e;
         }
@@ -168,7 +168,7 @@ public class VNPaymentServiceImpl implements PaymentService {
         String responseCode = result.get("responseCode");
         String paymentId = extractIdFromTxnRef(txnRef);
 
-        Payment payment = Optional.ofNullable(paymentRepository.findPaymentById(paymentId))
+        Payment payment = Optional.ofNullable(paymentRepository.findPaymentByIdForUpdate(paymentId))
                 .orElseThrow(() -> {
                     log.error("[PAYMENT] Không tìm thấy Payment với ID: {}", paymentId);
                     return new AppException(ErrorCode.PAYMENT_NOT_FOUND);

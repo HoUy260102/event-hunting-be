@@ -1,6 +1,6 @@
 package com.example.event.config;
 
-import org.springframework.boot.mail.autoconfigure.MailProperties;
+import org.springframework.boot.autoconfigure.mail.MailProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.mail.javamail.JavaMailSender;
