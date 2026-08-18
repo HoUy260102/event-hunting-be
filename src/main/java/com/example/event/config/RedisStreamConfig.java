@@ -18,6 +18,7 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer;
 import org.springframework.data.redis.stream.StreamMessageListenerContainer.StreamMessageListenerContainerOptions;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -32,11 +33,6 @@ public class RedisStreamConfig {
     public static final String AUTH_STREAM_KEY  = "stream:auth-verify-email";
     public static final String AUTH_GROUP_NAME  = "auth-verify-email-group";
     public static final String AUTH_CONSUMER_NAME = "auth-verify-consumer-1";
-
-    // ---------------------------------------------------------------
-    // Container bean — poll every 1 s, decode both key & hash fields
-    // as plain UTF-8 strings so MapRecord<String,String,String> works.
-    // ---------------------------------------------------------------
     
     @Bean(destroyMethod = "stop")
     public StreamMessageListenerContainer<String, MapRecord<String, String, String>>
@@ -52,43 +48,41 @@ public class RedisStreamConfig {
         return StreamMessageListenerContainer.create(factory, opts);
     }
 
-    // ---------------------------------------------------------------
-    // On startup: ensure stream + group exist, then start listening.
-    // "BUSYGROUP" → group already exists → safe to ignore.
-    // ---------------------------------------------------------------
     @Bean
     public ApplicationRunner ticketStreamInit(
             StringRedisTemplate stringRedisTemplate,
             StreamMessageListenerContainer<String, MapRecord<String, String, String>> ticketStreamContainer,
             TicketEmailConsumer ticketEmailConsumer) {
-
         return args -> {
-            // 1. Ensure the stream key exists (Redis requires the stream before creating a group)
+
+            // 1. Đảm bảo khóa stream tồn tại (Redis cần stream trước khi tạo group)
             if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(STREAM_KEY))) {
+                Map<String, String> body = new HashMap<>();
+                body.put("_init", "1");
                 stringRedisTemplate.opsForStream()
-                        .add(STREAM_KEY, Map.of("_init", "1"));
-                log.info("[TICKET-STREAM] Created stream '{}'", STREAM_KEY);
+                        .add(STREAM_KEY, body);
+                log.info("[TICKET-STREAM] Đã tạo stream '{}'", STREAM_KEY);
             }
 
-            // 2. Create consumer group (ignore BUSYGROUP if already exists)
+            // 2. Tạo consumer group (bỏ qua lỗi BUSYGROUP nếu group đã tồn tại)
             try {
                 stringRedisTemplate.opsForStream()
                         .createGroup(STREAM_KEY, ReadOffset.from("0-0"), GROUP_NAME);
-                log.info("[TICKET-STREAM] Created consumer group '{}'", GROUP_NAME);
+                log.info("[TICKET-STREAM] Đã tạo consumer group '{}'", GROUP_NAME);
             } catch (Exception e) {
-                log.info("[TICKET-STREAM] Consumer group '{}' already exists — OK", GROUP_NAME);
+                log.info("[TICKET-STREAM] Consumer group '{}' đã tồn tại — OK", GROUP_NAME);
             }
 
-            // 3. Register consumer — manual ACK so failures stay in Pending
+            // 3. Đăng ký consumer — ACK thủ công để lỗi vẫn nằm trong Pending
             ticketStreamContainer.receive(
                     Consumer.from(GROUP_NAME, CONSUMER_NAME),
                     StreamOffset.create(STREAM_KEY, ReadOffset.lastConsumed()),
                     ticketEmailConsumer
             );
 
-            // 4. Start the polling loop
+            // 4. Khởi động vòng lặp polling
             ticketStreamContainer.start();
-            log.info("[TICKET-STREAM] StreamMessageListenerContainer started");
+            log.info("[TICKET-STREAM] StreamMessageListenerContainer đã được khởi động");
         };
     }
 
@@ -113,32 +107,35 @@ public class RedisStreamConfig {
             AuthVerifyEmailConsumer authVerifyEmailConsumer) {
 
         return args -> {
-            // 1. Ensure the stream key exists
+
+            // 1. Đảm bảo khóa stream tồn tại
             if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(AUTH_STREAM_KEY))) {
+                Map<String, String> body = new HashMap<>();
+                body.put("_init", "1");
                 stringRedisTemplate.opsForStream()
-                        .add(AUTH_STREAM_KEY, Map.of("_init", "1"));
-                log.info("[AUTH-STREAM] Created stream '{}'", AUTH_STREAM_KEY);
+                        .add(AUTH_STREAM_KEY, body);
+                log.info("[AUTH-STREAM] Đã tạo stream '{}'", AUTH_STREAM_KEY);
             }
 
-            // 2. Create consumer group
+            // 2. Tạo consumer group
             try {
                 stringRedisTemplate.opsForStream()
                         .createGroup(AUTH_STREAM_KEY, ReadOffset.from("0-0"), AUTH_GROUP_NAME);
-                log.info("[AUTH-STREAM] Created consumer group '{}'", AUTH_GROUP_NAME);
+                log.info("[AUTH-STREAM] Đã tạo consumer group '{}'", AUTH_GROUP_NAME);
             } catch (Exception e) {
-                log.info("[AUTH-STREAM] Consumer group '{}' already exists — OK", AUTH_GROUP_NAME);
+                log.info("[AUTH-STREAM] Consumer group '{}' đã tồn tại — OK", AUTH_GROUP_NAME);
             }
 
-            // 3. Register consumer
+            // 3. Đăng ký consumer
             authStreamContainer.receive(
                     Consumer.from(AUTH_GROUP_NAME, AUTH_CONSUMER_NAME),
                     StreamOffset.create(AUTH_STREAM_KEY, ReadOffset.lastConsumed()),
                     authVerifyEmailConsumer
             );
 
-            // 4. Start
+            // 4. Khởi động
             authStreamContainer.start();
-            log.info("[AUTH-STREAM] StreamMessageListenerContainer started");
+            log.info("[AUTH-STREAM] StreamMessageListenerContainer đã được khởi động");
         };
     }
 }

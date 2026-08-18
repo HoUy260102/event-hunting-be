@@ -39,10 +39,6 @@ public class RedisConfig {
         return template;
     }
 
-    /**
-     * Pure String-serialized template used exclusively by the ticket-email Redis Stream.
-     * All stream field keys and values are stored/read as plain UTF-8 strings.
-     */
     @Bean
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
         StringRedisTemplate template = new StringRedisTemplate();
