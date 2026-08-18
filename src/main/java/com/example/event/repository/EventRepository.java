@@ -1,7 +1,7 @@
 package com.example.event.repository;
 
 import com.example.event.entity.Event;
-import com.example.event.dto.response.TopEventProjection;
+import com.example.event.projection.TopEventProjection;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.JpaRepository;

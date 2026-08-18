@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/event_db?useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
 
   jpa:
     show-sql: true
@@ -31,9 +31,9 @@ spring:
             redirect-uri: http://localhost:8080/api/v1/auth/callback/google
 
 redis:
-  host: ${REDIS_HOST}
-  port: ${REDIS_PORT}
-  password: ${REDIS_PASSWORD}
+  host: ${REDIS_HOST:localhost}
+  port: ${REDIS_PORT:6379}
+  password: ${REDIS_PASSWORD:}
 
 jwt:
   secret: ${JWT_SECRET}

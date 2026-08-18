@@ -127,16 +127,16 @@ public class TicketMailService {
               <div class="footer">© 2025 EventHunting. Mọi quyền được bảo lưu.</div>
             </div>
             </body></html>
-            """.formatted(name, eventName, veWord, eventName, showTime, location, ref, veWord);
+            """.format(name, eventName, veWord, eventName, showTime, location, ref, veWord);
     }
 
     private String parseDt(String raw) {
-        if (raw == null || raw.isBlank()) return "—";
+        if (raw == null || raw.trim().isEmpty()) return "—";
         try { return LocalDateTime.parse(raw).format(DT); }
         catch (Exception e) { return raw; }
     }
 
 
 
-    private String nvl(String s, String fb) { return (s == null || s.isBlank()) ? fb : s; }
+    private String nvl(String s, String fb) { return (s == null || s.trim().isEmpty()) ? fb : s; }
 }

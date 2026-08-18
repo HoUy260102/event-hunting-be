@@ -2,16 +2,14 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.dto.response.AnalyticsOverviewResponse;
-import com.example.event.dto.response.AnalyticsOverviewProjection;
+import com.example.event.projection.AnalyticsOverviewProjection;
 import com.example.event.dto.response.RevenueChartPointResponse;
 import com.example.event.dto.response.TopEventResponse;
-import com.example.event.dto.response.TopEventProjection;
+import com.example.event.projection.TopEventProjection;
 import com.example.event.dto.response.TopShowResponse;
-import com.example.event.dto.response.TopShowProjection;
-import com.example.event.dto.response.TicketTierDistributionResponse;
-import com.example.event.dto.response.TicketTierDistributionProjection;
+import com.example.event.projection.TopShowProjection;
 import com.example.event.dto.response.TopCustomerResponse;
-import com.example.event.dto.response.TopCustomerProjection;
+import com.example.event.projection.TopCustomerProjection;
 import com.example.event.dto.response.CustomerAnalyticsResponse;
 import org.springframework.data.domain.PageRequest;
 import java.util.stream.Collectors;
@@ -28,7 +26,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 

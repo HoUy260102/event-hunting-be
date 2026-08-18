@@ -1,4 +1,4 @@
-package com.example.event.dto.response;
+package com.example.event.projection;
 
 public interface TicketTierDistributionProjection {
     String getTierName();

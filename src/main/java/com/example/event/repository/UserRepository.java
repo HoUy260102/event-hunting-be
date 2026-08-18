@@ -9,8 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface UserRepository extends JpaRepository<User, String>, JpaSpecificationExecutor<User> {
     @Query("""
                 SELECT DISTINCT u FROM User u
-                LEFT JOIN FETCH u.role r
                 LEFT JOIN FETCH u.avatar a
+                LEFT JOIN FETCH u.role r
                 LEFT JOIN FETCH r.permissions
                 WHERE u.email = :email
             """)

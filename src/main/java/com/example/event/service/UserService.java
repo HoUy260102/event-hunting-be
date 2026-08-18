@@ -1,10 +1,10 @@
 package com.example.event.service;
 
 import com.example.event.dto.UserDTO;
-import com.example.event.dto.response.AuthResponse;
 import com.example.event.dto.request.ChangePasswordReq;
 import com.example.event.dto.request.CreateUserReq;
 import com.example.event.dto.request.UpdateUserReq;
+import com.example.event.dto.response.AuthResponse;
 import org.springframework.data.domain.Page;
 
 public interface UserService {

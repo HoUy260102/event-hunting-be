@@ -38,14 +38,9 @@ public class FileCleanupJob {
     @Value("${app.cleanup.sleep-ms:500}")
     private long sleepMs;
 
-    /**
-     * Cron job running every day at 1:00 AM to clean up:
-     * 1. Files in PENDING status older than X days.
-     * 2. Files in DELETED status (soft-deleted) older than X days.
-     */
     @Scheduled(cron = "0 0 1 * * ?")
     public void cleanupExpiredFiles() {
-        log.info("Starting expired files cleanup job task...");
+        log.info("Bắt đầu cleanup file hết hạn");
 
         LocalDateTime pendingThreshold = LocalDateTime.now().minusDays(pendingDaysThreshold);
         LocalDateTime deletedThreshold = LocalDateTime.now().minusDays(deletedDaysThreshold);
@@ -62,54 +57,49 @@ public class FileCleanupJob {
                 break;
             }
 
-            log.info("Found {} expired files in the current batch. Processing Cloudinary deletion...", filesToClean.size());
+            log.info("Tìm thấy {} file hết hạn trong batch, đang xử lý xóa Cloudinary...", filesToClean.size());
 
-            // 2. Loop and delete from Cloudinary first (outside active DB transaction)
             for (File file : filesToClean) {
                 if (file.getPublicId() != null && !file.getPublicId().isEmpty()) {
                     try {
-                        log.info("Deleting file from Cloudinary: fileId={}, publicId={}", file.getId(), file.getPublicId());
+                        log.info("Xóa file trên Cloudinary: fileId={}, publicId={}", file.getId(), file.getPublicId());
                         Map destroyResult = cloudinary.uploader().destroy(file.getPublicId(), new HashMap<>());
-                        log.debug("Cloudinary destruction result for {}: {}", file.getPublicId(), destroyResult);
-
-                        // Pause between deletions to respect Cloudinary API rate limits
+                        log.debug("Kết quả xóa Cloudinary cho {}: {}", file.getPublicId(), destroyResult);
                         if (sleepMs > 0) {
                             Thread.sleep(sleepMs);
                         }
                     } catch (IOException e) {
-                        log.error("Failed to delete file from Cloudinary (publicId={}): {}. Proceeding to delete from DB to prevent infinite loop.", 
+                        log.error("Không xóa được file trên Cloudinary (publicId={}): {}. Tiếp tục xóa khỏi DB để tránh loop.", 
                                 file.getPublicId(), e.getMessage());
                     } catch (InterruptedException e) {
-                        log.warn("File cleanup job interrupted during sleep: {}", e.getMessage());
-                        Thread.currentThread().interrupt(); // Restore interrupted status flag
-                        break; // Exit loop on interruption request
+                        log.warn("Cleanup bị gián đoạn khi chờ: {}", e.getMessage());
+                        Thread.currentThread().interrupt();
+                        break;
                     } catch (Exception e) {
-                        log.error("Unexpected error deleting from Cloudinary (publicId={}): {}", 
+                        log.error("Lỗi khi xóa trên Cloudinary (publicId={}): {}", 
                                 file.getPublicId(), e.getMessage());
                     }
                 }
             }
 
-            // 3. Perform high-performance bulk database deletion
             try {
                 fileRepository.deleteAll(filesToClean);
                 totalDeleted += filesToClean.size();
-                log.info("Successfully cleaned batch of {} files from database.", filesToClean.size());
+                log.info("Đã xóa {} file khỏi DB trong batch này.", filesToClean.size());
             } catch (Exception e) {
-                log.error("Error performing bulk database deletion for current batch: {}", e.getMessage());
-                // Fallback to individual deletions to ensure progress if there is a specific DB constraint error
+                log.error("Lỗi khi xóa hàng loạt file khỏi DB: {}", e.getMessage());
                 for (File file : filesToClean) {
                     try {
                         fileRepository.delete(file);
                         totalDeleted++;
                     } catch (Exception ex) {
-                        log.error("Failed to delete file from DB individually (id={}): {}", file.getId(), ex.getMessage());
+                        log.error("Không xóa được file khỏi DB (id={}): {}", file.getId(), ex.getMessage());
                     }
                 }
-                break; // Stop to prevent potential infinite loops on DB failure
+                break;
             }
         }
 
-        log.info("Expired files cleanup job finished successfully. Total files cleaned: {}", totalDeleted);
+        log.info("Cleanup file hết hạn hoàn tất. Tổng file đã xử lý: {}", totalDeleted);
     }
 }

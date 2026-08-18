@@ -1,4 +1,4 @@
-package com.example.event.dto.response;
+package com.example.event.projection;
 
 import java.time.LocalDateTime;
 

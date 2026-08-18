@@ -302,7 +302,7 @@ public class TicketPdfService {
     // ── Format helpers ────────────────────────────────────────────────────────
 
     private String parseDt(String raw) {
-        if (raw == null || raw.isBlank()) return "—";
+        if (raw == null || raw.trim().isEmpty()) return "—";
         try { return LocalDateTime.parse(raw).format(DT_FMT); }
         catch (Exception e) { return raw; }
     }
@@ -310,9 +310,9 @@ public class TicketPdfService {
     private String seatStr(TicketEmailMessage m) {
         StringBuilder sb = new StringBuilder();
         if (notBlank(m.getDisplayName())) sb.append(m.getDisplayName());
-        if (notBlank(m.getSection()))    { if (!sb.isEmpty()) sb.append("\n"); sb.append(m.getSection()); }
-        if (notBlank(m.getSeatLabel()))  { if (!sb.isEmpty()) sb.append(" ");  sb.append(m.getSeatLabel()); }
-        return sb.isEmpty() ? "—" : sb.toString();
+        if (notBlank(m.getSection()))    { if (sb.length() > 0) sb.append("\n"); sb.append(m.getSection()); }
+        if (notBlank(m.getSeatLabel()))  { if (sb.length() > 0) sb.append(" ");  sb.append(m.getSeatLabel()); }
+        return sb.length() == 0 ? "—" : sb.toString();
     }
 
     private String fmtPrice(String raw) {
@@ -320,6 +320,6 @@ public class TicketPdfService {
         catch (Exception e) { return nvl(raw, "—"); }
     }
 
-    private String nvl(String s, String fb) { return (s == null || s.isBlank()) ? fb : s; }
-    private boolean notBlank(String s)       { return s != null && !s.isBlank(); }
+    private String nvl(String s, String fb) { return (s == null || s.trim().isEmpty()) ? fb : s; }
+    private boolean notBlank(String s)       { return s != null && !s.trim().isEmpty(); }
 }

@@ -2,10 +2,10 @@ package com.example.event.repository;
 
 import com.example.event.constant.ReservationStatus;
 import com.example.event.entity.Reservation;
-import com.example.event.dto.response.AnalyticsOverviewProjection;
-import com.example.event.dto.response.TicketTierDistributionProjection;
-import com.example.event.dto.response.TopShowProjection;
-import com.example.event.dto.response.TopCustomerProjection;
+import com.example.event.projection.AnalyticsOverviewProjection;
+import com.example.event.projection.TicketTierDistributionProjection;
+import com.example.event.projection.TopShowProjection;
+import com.example.event.projection.TopCustomerProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
