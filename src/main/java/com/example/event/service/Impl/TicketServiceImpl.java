@@ -191,11 +191,11 @@ public class TicketServiceImpl implements TicketService {
                     ? Sort.by("show.startTime").descending()
                     : Sort.by("show.startTime").ascending();
         }
-        
+
         Specification<Ticket> spec = Specification
                 .where(TicketSpecification.fetchAll())
                 .and(TicketSpecification.isNotDeleted());
-                
+
         if (req.getStartTime() != null || req.getEndTime() != null) {
             spec = spec.and(TicketSpecification.hasOverlap(req.getStartTime(), req.getEndTime()));
         } else {
@@ -205,7 +205,7 @@ public class TicketServiceImpl implements TicketService {
                 spec = spec.and(TicketSpecification.hasFinished());
             }
         }
-        
+
         spec = spec.and(TicketSpecification.hasUserId(userId));
         Pageable pageable = PageRequest.of(req.getPageNumber() - 1, req.getSize(), sort);
         Page<Ticket> tickets = ticketRepository.findAll(spec, pageable);
@@ -250,7 +250,7 @@ public class TicketServiceImpl implements TicketService {
         Ticket ticket;
         CheckInMethod method;
         switch (req.getCheckInMethod()) {
-            case CheckInMethod.QR_CODE :
+            case CheckInMethod.QR_CODE:
                 ticket = Optional.ofNullable(ticketRepository.findTicketByQrCode(code))
                         .orElseThrow(() -> new AppException(ErrorCode.TICKET_NOT_AVAILABLE));
                 method = CheckInMethod.QR_CODE;
@@ -273,14 +273,21 @@ public class TicketServiceImpl implements TicketService {
         if (ticket.getCheckInAt() != null || ticket.getStatus() == TicketStatus.USED) {
             throw new AppException(ErrorCode.TICKET_ALREADY_CHECKED_IN);
         }
-        ticket.setCheckInAt(now);
-        ticket.setStatus(TicketStatus.USED);
-        ticket.setCheckInMethod(method);
 
-        ticket.setUpdatedAt(now);
-        ticket.setUpdatedBy(userId);
-        ticketRepository.save(ticket);
-        return ticketMapper.toDTO(ticket);
+        int updated = ticketRepository.checkInIfAvailable(
+                ticket.getId(),
+                req.getShowId(),
+                now,
+                method,
+                now,
+                userId
+        );
+        if (updated == 0) {
+            throw new AppException(ErrorCode.TICKET_ALREADY_CHECKED_IN);
+        }
+
+        Ticket checkedInTicket = ticketRepository.findTicketById(ticket.getId());
+        return ticketMapper.toDTO(checkedInTicket);
     }
 
 }

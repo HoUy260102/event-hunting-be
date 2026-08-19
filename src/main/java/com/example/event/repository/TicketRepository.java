@@ -47,6 +47,29 @@ public interface TicketRepository extends JpaRepository<Ticket, String>, JpaSpec
     Ticket findTicketByQrCode(String qrCode);
 
     Ticket findTicketById(String id);
+    
+        @Modifying
+        @Query("""
+            UPDATE Ticket t
+            SET t.checkInAt = :checkInAt,
+            t.status = 'USED',
+            t.checkInMethod = :checkInMethod,
+            t.updatedAt = :updatedAt,
+            t.updatedBy = :updatedBy
+            WHERE t.id = :ticketId
+              AND t.show.id = :showId
+              AND t.deletedAt IS NULL
+              AND t.checkInAt IS NULL
+              AND t.status <> 'USED'
+            """)
+        int checkInIfAvailable(
+            @Param("ticketId") String ticketId,
+            @Param("showId") String showId,
+            @Param("checkInAt") java.time.LocalDateTime checkInAt,
+            @Param("checkInMethod") com.example.event.constant.CheckInMethod checkInMethod,
+            @Param("updatedAt") java.time.LocalDateTime updatedAt,
+            @Param("updatedBy") String updatedBy
+        );
 
     @Query("""
             SELECT 
