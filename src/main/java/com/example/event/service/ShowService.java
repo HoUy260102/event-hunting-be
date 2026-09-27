@@ -5,6 +5,7 @@ import com.example.event.dto.*;
 import com.example.event.dto.request.CreateShowReq;
 import com.example.event.dto.request.UpdateShowReq;
 import com.example.event.entity.Event;
+import com.example.event.entity.Show;
 
 import java.util.List;
 
@@ -26,4 +27,5 @@ public interface ShowService {
     void softDeleteShow(String id);
     void restoreShow(String id);
     List<ShowDTO> findDeletedShowsByEventId(String eventId);
+    void warmUpMissingShowStockKeys(String showId);
 }

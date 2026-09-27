@@ -62,7 +62,7 @@ public enum ErrorCode {
     SHOW_ALREADY_CANCELLED(HttpStatus.BAD_REQUEST, "Suất diễn đã bị hủy, không thể chỉnh sửa"),
     SHOW_CANCELLED(HttpStatus.GONE, "Sự kiện đã bị hủy. Vui lòng kiểm tra thông báo để biết thêm chi tiết về việc hoàn tiền."),
     SHOW_POSTPONED(HttpStatus.BAD_REQUEST, "Sự kiện đang tạm hoãn và không tiếp nhận đặt vé mới tại thời điểm này."),
-    SHOW_ENDED(HttpStatus.BAD_REQUEST, "Sự kiện này đã kết thúc. Bạn không thể đặt vé được nữa."),
+    SHOW_ENDED(HttpStatus.BAD_REQUEST, "Sự kiện này đã kết thúc."),
     SHOW_NOT_AVAILABLE(HttpStatus.BAD_REQUEST, "Hiện tại sự kiện này chưa sẵn sàng để mở bán vé. Vui lòng quay lại sau."),
 
     EVENT_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu sự kiện không hợp lệ."),

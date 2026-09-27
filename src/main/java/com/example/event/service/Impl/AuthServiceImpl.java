@@ -316,6 +316,7 @@ public class AuthServiceImpl implements AuthService {
     private AuthResponse buildAuthResponse(User user, String deviceId) {
         // Tạo refresh token
         String refeshToken = jwtUtils.generateToken(user.getEmail(), null, "refresh");
+       
         // Tìm kiếm session trong db nếu không có trả session mới
         Session session = new Session();
         session.setUser(user);
@@ -327,6 +328,7 @@ public class AuthServiceImpl implements AuthService {
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime());
         sessionRepository.save(session);
+        
         // Tạo access token
         String accessToken = jwtUtils.generateToken(user.getEmail(), session.getId(), "access");
         AuthResponse authResponse = AuthResponse.builder()

@@ -24,6 +24,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -333,8 +334,8 @@ public class ReservationConcurrencyTest {
             itemReq.setTicketTypeId(testTicketType.getId());
             itemReq.setTicketTierId(testTicketTier.getId());
             itemReq.setQuantity(1);
-            itemReq.setSeatIds(List.of(testSeat.getId()));
-            req.setItems(List.of(itemReq));
+            itemReq.setSeatIds(Arrays.asList(testSeat.getId()));
+            req.setItems(Arrays.asList(itemReq));
 
             final User finalUser = user;
             executorService.submit(() -> {

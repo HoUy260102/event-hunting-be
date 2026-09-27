@@ -44,10 +44,19 @@ public class LockServiceImpl implements LockService {
 
             "    if not buyQty or buyQty <= 0 then return 'ERR_INVALID_QTY' end " +
 
-            "    local typeTotal = tonumber(redis.call('GET', KEYS[keyIdx + 1]) or '0') " +
-            "    local typeRes   = tonumber(redis.call('GET', KEYS[keyIdx + 2]) or '0') " +
-            "    local tierLimit = tonumber(redis.call('GET', KEYS[keyIdx + 3]) or '0') " +
-            "    local tierRes   = tonumber(redis.call('GET', KEYS[keyIdx + 4]) or '0') " +
+            "    local typeTotalRaw = redis.call('GET', KEYS[keyIdx + 1]) " +
+            "    if not typeTotalRaw then return 'ERR_MISSING_KEY:type_total:' .. KEYS[keyIdx + 1] end " +
+            "    local typeResRaw = redis.call('GET', KEYS[keyIdx + 2]) " +
+            "    if not typeResRaw then return 'ERR_MISSING_KEY:type_reserved:' .. KEYS[keyIdx + 2] end " +
+            "    local tierLimitRaw = redis.call('GET', KEYS[keyIdx + 3]) " +
+            "    if not tierLimitRaw then return 'ERR_MISSING_KEY:tier_limit:' .. KEYS[keyIdx + 3] end " +
+            "    local tierResRaw = redis.call('GET', KEYS[keyIdx + 4]) " +
+            "    if not tierResRaw then return 'ERR_MISSING_KEY:tier_reserved:' .. KEYS[keyIdx + 4] end " +
+
+            "    local typeTotal = tonumber(typeTotalRaw) " +
+            "    local typeRes = tonumber(typeResRaw) " +
+            "    local tierLimit = tonumber(tierLimitRaw) " +
+            "    local tierRes = tonumber(tierResRaw) " +
 
             "    if (typeRes + buyQty) > typeTotal then table.insert(errors, 'ERR_TYPE_FULL:' .. typeId) end " +
             "    if (tierRes + buyQty) > tierLimit then table.insert(errors, 'ERR_TIER_FULL:' .. tierId) end " +
@@ -149,6 +158,11 @@ public class LockServiceImpl implements LockService {
             throw new RuntimeException("Hệ thống bận, vui lòng thử lại sau.");
         }
         if (result == null || !"OK".equals(result)) {
+            if (result != null && result.startsWith("ERR_MISSING_KEY")) {
+                log.error("Redis thiếu stock key cho show {}: {}. Đang warm-up cache từ DB.", showId, result);
+            } else {
+                log.error("Không thể reserve ticket cho show {}: {}", showId, result);
+            }
             handleReservationError(result, requests);
         }
         log.info("Successfully reserved tickets for show: {}", showId);
@@ -299,6 +313,10 @@ public class LockServiceImpl implements LockService {
     private void handleReservationError(String result, List<ReservationItemReq> requests) {
         if (result == null) {
             throw new RuntimeException("Phản hồi từ hệ thống không hợp lệ.");
+        }
+
+        if (result.startsWith("ERR_MISSING_KEY")) {
+            throw new RuntimeException("ERR_MISSING_KEY:" + result);
         }
 
         List<String> failedTypeIds = new ArrayList<>(Arrays.asList(result.split(",")))

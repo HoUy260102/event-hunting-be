@@ -12,6 +12,7 @@ import com.example.event.mapper.ReservationMapper;
 import com.example.event.repository.*;
 import com.example.event.service.LockService;
 import com.example.event.service.ReservationService;
+import com.example.event.service.ShowService;
 import com.example.event.service.TicketQueueService;
 import com.example.event.service.VoucherService;
 import com.example.event.specification.ReservationSpecification;
@@ -42,6 +43,7 @@ public class ReservationServiceImpl implements ReservationService {
     private final TicketTierRepository ticketTierRepository;
     private final UserRepository userRepository;
     private final LockService lockService;
+    private final ShowService showService;
     private final ShowRepository showRepository;
     private final SecurityUtils securityUtils;
     private final SeatRepository seatRepository;
@@ -105,7 +107,6 @@ public class ReservationServiceImpl implements ReservationService {
         return reservationMapper.toSummaryDto(reservation);
     }
 
-
     @Override
     @Transactional
     public ReservationDTO createReservation(ReservationReq req) {
@@ -151,7 +152,7 @@ public class ReservationServiceImpl implements ReservationService {
             }
         }
 
-        //Check xem event của show có hợp lệ
+        // Check xem event của show có hợp lệ
         if (event.getDeletedAt() != null) {
             log.warn("[RESERVATION] Event {} không khả dụng.", event.getId());
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
@@ -162,7 +163,7 @@ public class ReservationServiceImpl implements ReservationService {
             throw new AppException(ErrorCode.EVENT_NOT_PUBLISHED);
         }
 
-        //Check số lượng vé đã đặt
+        // Check số lượng vé đã đặt
         Integer totalQuantity = req.getItems().stream()
                 .map(item -> item.getQuantity())
                 .reduce(0, Integer::sum);
@@ -210,7 +211,8 @@ public class ReservationServiceImpl implements ReservationService {
                 ticketTierMap.put(tier.getId(), tier);
             }
             if (itemReq.getQuantity() <= 0) {
-                throw new AppException(ErrorCode.INVALID_QUANTITY, String.format("Số lượng vé %s của hạng vé %s phải lớn hơn 0", type.getName(), tier.getName()));
+                throw new AppException(ErrorCode.INVALID_QUANTITY,
+                        String.format("Số lượng vé %s của hạng vé %s phải lớn hơn 0", type.getName(), tier.getName()));
             }
             validateTicketStatusAndTime(type, tier, now);
             itemReq.setUnitPrice(tier.getPrice());
@@ -234,13 +236,15 @@ public class ReservationServiceImpl implements ReservationService {
         try {
             // Lock các vé unassign (không có ghế)
             if (!unassignedItems.isEmpty()) {
-                log.info("[RESERVATION] User {} | Show {} - Đang giữ chỗ cho {} loại vé không số ghế", creatorId, show.getId(), unassignedItems.size());
+                log.info("[RESERVATION] User {} | Show {} - Đang giữ chỗ cho {} loại vé không số ghế", creatorId,
+                        show.getId(), unassignedItems.size());
                 lockService.reserveUnassignedTickets(show.getId(), unassignedItems);
                 isUnassignedReserved = true;
             }
             // Lock các vé assign (có ghế)
             if (!assignedItems.isEmpty()) {
-                log.info("[RESERVATION] User {} | Show {} - Đang lock {} ghế", creatorId, show.getId(), assignedItems.size());
+                log.info("[RESERVATION] User {} | Show {} - Đang lock {} ghế", creatorId, show.getId(),
+                        assignedItems.size());
                 lockService.lockSeats(show.getId(), assignedItems, creatorId);
                 isSeatsLocked = true;
             }
@@ -261,13 +265,14 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setCreatedAt(now);
             reservation.setUpdatedBy(creatorId);
             reservation.setUpdatedAt(now);
-            
+
             // Sinh mã đơn hàng duy nhất thông qua Redis Sequence + Hashids
             String orderCode = reservationCodeGenerator.generateCode();
             reservation.setCode(orderCode);
-            
+
             reservationRepository.saveAndFlush(reservation);
-            log.info("[RESERVATION]User {} | Show {} - Đã lưu Reservation. ID: {}", creatorId, show.getId(), reservation.getId());
+            log.info("[RESERVATION]User {} | Show {} - Đã lưu Reservation. ID: {}", creatorId, show.getId(),
+                    reservation.getId());
 
             List<ReservationItem> itemsToSave = new ArrayList<>();
             for (ReservationItemReq unassignedItem : unassignedItems) {
@@ -288,13 +293,15 @@ public class ReservationServiceImpl implements ReservationService {
                     log.error("[RESERVATION][SOLD_OUT] User: {} | Show: {} | TicketType: {} đã hết vé!",
                             creatorId, show.getId(), unassignedItem.getTicketTypeId());
                     throw new AppException(ErrorCode.TICKET_TYPE_SOLD_OUT,
-                            String.format("Vé %s đã hết chỗ, vui lòng chọn loại khác.", unassignedItem.getTicketTypeName()));
+                            String.format("Vé %s đã hết chỗ, vui lòng chọn loại khác.",
+                                    unassignedItem.getTicketTypeName()));
                 }
                 if (tierUpdated == 0) {
                     log.error("[RESERVATION][SOLD_OUT] User: {} | Show: {} | TicketTier: {} đã hết vé!",
                             creatorId, show.getId(), unassignedItem.getTicketTierId());
                     throw new AppException(ErrorCode.TICKET_TIER_SOLD_OUT,
-                            String.format("Hạng vé %s đã hết chỗ, vui lòng chọn loại khác.", unassignedItem.getTicketTierName()));
+                            String.format("Hạng vé %s đã hết chỗ, vui lòng chọn loại khác.",
+                                    unassignedItem.getTicketTierName()));
                 }
 
                 // Tạo item
@@ -329,14 +336,18 @@ public class ReservationServiceImpl implements ReservationService {
                         now,
                         creatorId);
                 if (typeUpdated == 0) {
-                    log.error("[RESERVATION][SOLD_OUT] User {} | Show {} | TicketType {} đã hết vé!", creatorId, show.getId(), assignedItem.getTicketTypeId());
+                    log.error("[RESERVATION][SOLD_OUT] User {} | Show {} | TicketType {} đã hết vé!", creatorId,
+                            show.getId(), assignedItem.getTicketTypeId());
                     throw new AppException(ErrorCode.TICKET_TYPE_SOLD_OUT,
-                            String.format("Vé %s đã hết chỗ, vui lòng chọn loại khác.", assignedItem.getTicketTypeName()));
+                            String.format("Vé %s đã hết chỗ, vui lòng chọn loại khác.",
+                                    assignedItem.getTicketTypeName()));
                 }
                 if (tierUpdated == 0) {
-                    log.error("[RESERVATION][SOLD_OUT] User {} | Show {} | TicketTier {} đã hết vé!", creatorId, show.getId(), assignedItem.getTicketTierId());
+                    log.error("[RESERVATION][SOLD_OUT] User {} | Show {} | TicketTier {} đã hết vé!", creatorId,
+                            show.getId(), assignedItem.getTicketTierId());
                     throw new AppException(ErrorCode.TICKET_TIER_SOLD_OUT,
-                            String.format("Hạng vé %s đã hết chỗ, vui lòng chọn loại khác.", assignedItem.getTicketTierName()));
+                            String.format("Hạng vé %s đã hết chỗ, vui lòng chọn loại khác.",
+                                    assignedItem.getTicketTierName()));
                 }
 
                 for (String seatId : assignedItem.getSeatIds()) {
@@ -345,8 +356,11 @@ public class ReservationServiceImpl implements ReservationService {
                     // Kiểm tra ghế có người giữ chưa
                     int holdResult = seatRepository.holdSeat(seatId, creatorId, now);
                     if (holdResult == 0) {
-                        log.error("[RESERVATION] User{} | Show {} - Ghế {} đã bị chiếm bởi người khác ngay trước đó!", creatorId, show.getId(), seatId);
-                        throw new AppException(ErrorCode.SEAT_ALREADY_RESERVED, String.format("Hạng vé %s ghế row %s number %s đã có người đặt", assignedItem.getTicketTypeName(), seat.getRowName(), seat.getSeatNumber()));
+                        log.error("[RESERVATION] User{} | Show {} - Ghế {} đã bị chiếm bởi người khác ngay trước đó!",
+                                creatorId, show.getId(), seatId);
+                        throw new AppException(ErrorCode.SEAT_ALREADY_RESERVED,
+                                String.format("Hạng vé %s ghế row %s number %s đã có người đặt",
+                                        assignedItem.getTicketTypeName(), seat.getRowName(), seat.getSeatNumber()));
                     }
                     seatSockettCodes.add(seat.getSeatCode());
                     // Tạo item
@@ -373,7 +387,8 @@ public class ReservationServiceImpl implements ReservationService {
             // Thêm danh sách item vào db
             if (!itemsToSave.isEmpty()) {
                 reservationItemRepository.saveAll(itemsToSave);
-                log.info("[RESERVATION] User {} | Show {} - Thành công! Tổng cộng {} items đã được lưu cho Reservation {}",
+                log.info(
+                        "[RESERVATION] User {} | Show {} - Thành công! Tổng cộng {} items đã được lưu cho Reservation {}",
                         creatorId, show.getId(), itemsToSave.size(), reservation.getId());
             }
 
@@ -391,8 +406,16 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setUser(user);
             return reservationMapper.toDto(reservation);
         } catch (Exception e) {
+            String message = e.getMessage();
+            if (e instanceof RuntimeException && message != null && message.startsWith("ERR_MISSING_KEY")) {
+                log.warn("[RESERVATION] Redis thiếu stock key cho show {}. Bắt đầu warm-up cache từ DB. Chi tiết: {}",
+                        show.getId(), message);
+                showService.warmUpMissingShowStockKeys(show.getId());
+                throw new RuntimeException("Dữ liệu stock Redis đang được tải lại, vui lòng thử lại sau.");
+            }
             log.error("[RESERVATION] LỖI khi tạo đơn hàng. ShowId: {}, UserId: {}. Lý do: {}",
-                    show.getId(), creatorId, e.getMessage());
+                    show.getId(), creatorId, message);
+
             if (isUnassignedReserved) {
                 log.info("[RESERVATION] Đang giải phóng unassigned tickets do lỗi...");
                 lockService.releaseUnassignedTickets(show.getId(), unassignedItems);
@@ -430,7 +453,8 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void releaseReservationResources(Reservation reservation, LocalDateTime now, ReservationStatus status, String updatedBy) {
+    public void releaseReservationResources(Reservation reservation, LocalDateTime now, ReservationStatus status,
+            String updatedBy) {
         try {
             String showId = reservation.getShow().getId();
             Voucher voucher = reservation.getVoucher();
@@ -462,10 +486,8 @@ public class ReservationServiceImpl implements ReservationService {
             }
 
             // Cập nhật Database
-            typeQtyMap.forEach((id, qty) ->
-                    ticketTypeRepository.decrementReservedQuantity(id, qty, now, "cleanup"));
-            tierQtyMap.forEach((id, qty) ->
-                    ticketTierRepository.decrementReservedQuantity(id, qty, now, "cleanup"));
+            typeQtyMap.forEach((id, qty) -> ticketTypeRepository.decrementReservedQuantity(id, qty, now, "cleanup"));
+            tierQtyMap.forEach((id, qty) -> ticketTierRepository.decrementReservedQuantity(id, qty, now, "cleanup"));
 
             if (!seatedItems.isEmpty()) {
                 seatRepository.releaseAllSeatsByReservation(reservation.getId(), now);
@@ -573,7 +595,8 @@ public class ReservationServiceImpl implements ReservationService {
 
         // 2. Trạng thái có hợp lệ để thanh toán không
         if (reservation.getStatus() != ReservationStatus.PENDING) {
-            log.warn("Payment validation failed: Reservation {} is in status {}, expected PENDING", resId, reservation.getStatus());
+            log.warn("Payment validation failed: Reservation {} is in status {}, expected PENDING", resId,
+                    reservation.getStatus());
             throw new AppException(ErrorCode.RESERVATION_NOT_PAYABLE);
         }
 
@@ -585,7 +608,8 @@ public class ReservationServiceImpl implements ReservationService {
 
         // 4. Số tiền hợp lệ không
         if (reservation.getFinalAmount() <= 0) {
-            log.warn("Payment validation failed: Reservation {} has invalid final amount: {}", resId, reservation.getFinalAmount());
+            log.warn("Payment validation failed: Reservation {} has invalid final amount: {}", resId,
+                    reservation.getFinalAmount());
             throw new AppException(ErrorCode.INVALID_AMOUNT);
         }
 
@@ -711,7 +735,8 @@ public class ReservationServiceImpl implements ReservationService {
         });
 
         // Kiểu tra xem có voucher không
-        if (voucher == null) return dto;
+        if (voucher == null)
+            return dto;
 
         // Kiểm tra điều kiện áp dụng Voucher
         long totalAmount = reservation.getTotalAmount();

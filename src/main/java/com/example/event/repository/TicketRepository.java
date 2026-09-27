@@ -7,124 +7,124 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
 public interface TicketRepository extends JpaRepository<Ticket, String>, JpaSpecificationExecutor<Ticket> {
-    @Query("""
-                SELECT t from Ticket t
-                JOIN FETCH t.event e
-                JOIN FETCH t.user u
-                JOIN FETCH t.show s
-                JOIN FETCH t.reservation r
-                LEFT JOIN FETCH e.poster p
-                WHERE t.id = :ticketId AND t.deletedAt IS NULL
-            """)
-    Ticket findTicketDetailsById(@Param("ticketId") String ticketId);
+        @Query("""
+                            SELECT t from Ticket t
+                            JOIN FETCH t.event e
+                            JOIN FETCH t.user u
+                            JOIN FETCH t.show s
+                            JOIN FETCH t.reservation r
+                            LEFT JOIN FETCH e.poster p
+                            WHERE t.id = :ticketId AND t.deletedAt IS NULL
+                        """)
+        Ticket findTicketDetailsById(@Param("ticketId") String ticketId);
 
-    @Query("""
-                SELECT count(t) from Ticket t
-                WHERE t.show.id = :showId AND t.deletedAt IS NULL
-            """)
-    int countTotalIssuedTickets(@Param("showId") String showId);
+        @Query("""
+                            SELECT count(t) from Ticket t
+                            WHERE t.show.id = :showId AND t.deletedAt IS NULL
+                        """)
+        int countTotalIssuedTickets(@Param("showId") String showId);
 
-    @Query("""
-                SELECT count(t) from Ticket t
-                WHERE t.show.id = :showId AND t.deletedAt IS NULL AND t.status = 'USED'
-            """)
-    int countTotalCheckedInTickets(@Param("showId") String showId);
+        @Query("""
+                            SELECT count(t) from Ticket t
+                            WHERE t.show.id = :showId AND t.deletedAt IS NULL AND t.status = 'USED'
+                        """)
+        int countTotalCheckedInTickets(@Param("showId") String showId);
 
-    @Query("""
-                SELECT count(t) from Ticket t
-                WHERE t.show.id = :showId AND t.deletedAt IS NULL AND t.status <> 'USED'
-            """)
-    int countTotalRemainingTickets(@Param("showId") String showId);
+        @Query("""
+                            SELECT count(t) from Ticket t
+                            WHERE t.show.id = :showId AND t.deletedAt IS NULL AND t.status <> 'USED'
+                        """)
+        int countTotalRemainingTickets(@Param("showId") String showId);
 
-    Page<Ticket> findAll(Specification<Ticket> spec, Pageable pageable);
+        Page<Ticket> findAll(Specification<Ticket> spec, Pageable pageable);
 
-    Ticket findTicketByQrCode(String qrCode);
+        Ticket findTicketByQrCode(String qrCode);
 
-    Ticket findTicketById(String id);
-    
+        Ticket findTicketById(String id);
+
         @Modifying
         @Query("""
-            UPDATE Ticket t
-            SET t.checkInAt = :checkInAt,
-            t.status = 'USED',
-            t.checkInMethod = :checkInMethod,
-            t.updatedAt = :updatedAt,
-            t.updatedBy = :updatedBy
-            WHERE t.id = :ticketId
-              AND t.show.id = :showId
-              AND t.deletedAt IS NULL
-              AND t.checkInAt IS NULL
-              AND t.status <> 'USED'
-            """)
+                        UPDATE Ticket t
+                        SET t.checkInAt = :checkInAt,
+                        t.status = 'USED',
+                        t.checkInMethod = :checkInMethod,
+                        t.updatedAt = :updatedAt,
+                        t.updatedBy = :updatedBy
+                        WHERE t.id = :ticketId
+                          AND t.show.id = :showId
+                          AND t.deletedAt IS NULL
+                          AND t.checkInAt IS NULL
+                          AND t.status <> 'USED'
+                        """)
         int checkInIfAvailable(
-            @Param("ticketId") String ticketId,
-            @Param("showId") String showId,
-            @Param("checkInAt") java.time.LocalDateTime checkInAt,
-            @Param("checkInMethod") com.example.event.constant.CheckInMethod checkInMethod,
-            @Param("updatedAt") java.time.LocalDateTime updatedAt,
-            @Param("updatedBy") String updatedBy
-        );
+                        @Param("ticketId") String ticketId,
+                        @Param("showId") String showId,
+                        @Param("checkInAt") java.time.LocalDateTime checkInAt,
+                        @Param("checkInMethod") com.example.event.constant.CheckInMethod checkInMethod,
+                        @Param("updatedAt") java.time.LocalDateTime updatedAt,
+                        @Param("updatedBy") String updatedBy);
 
-    @Query("""
-            SELECT 
-                e.id                                    as eventId,
-                e.name                                  as eventName,
-                e.location                              as eventLocation,
-                e.address                               as eventAddress,
-                e.startTime                             as eventStartTime,
-                e.endTime                               as eventEndTime,
-                e.status                                as eventStatus,
-                f.url                                   as eventPosterUrl,
-            
-                s.id                                    as showId,
-                s.startTime                             as showStartTime,
-                s.endTime                               as showEndTime,
-                s.status                                as showStatus,
-                EXTRACT(DAY FROM s.startTime)           as showStartDay,
-                EXTRACT(MONTH FROM s.startTime)         as showStartMonth,
-            
-                tt.id                                   as ticketTypeId,
-                tt.name                                 as typeTypeName,
-                tt.totalQuantity                        as ticketTypeTotalQuantity,
-                tt.soldQuantity                         as ticketTypeSoldQuantity,
-                tt.reservedQuantity                     as ticketTypeReservedQuantity,
-                tt.totalQuantity - tt.reservedQuantity  as ticketTypeAvailableQuantity,
-                tt.status                               as ticketTypeStatus,
-            
-                ti.id                                   as ticketTierId,
-                ti.name                                 as ticketTierName,
-                ti.price                                as ticketTierUnitPrice,
-                ti.status                               as ticketTierStatus,
-                ti.limitQuantity                        as ticketTierLimitQuantity,
-                ti.soldQuantity                         as ticketTierSoldQuantity,
-                ti.reservedQuantity                     as ticketTierReservedQuantity,
-            
-                COALESCE(SUM(ri.totalPrice), 0)  as ticketTierTotalPrice,
-                COALESCE(SUM(COALESCE(ri.discountAmount, 0)), 0) as ticketTierTotalDiscountAmount,
-                COALESCE(SUM(COALESCE(ri.finalPrice, ri.totalPrice)), 0) AS ticketTierFinalPrice            
-            FROM Event e
-            JOIN File f             ON f.referenceId = e.id AND f.folder = 'EVENT_POSTER' AND f.status = 'ACTIVE'
-            JOIN Show s             ON s.event.id = e.id
-            JOIN TicketType tt      ON tt.show.id = s.id
-            JOIN TicketTier ti            ON ti.ticketType.id = tt.id
-            LEFT JOIN ReservationItem ri ON ri.ticketTier.id = ti.id AND ri.reservation.status = 'PAID'            
-            
-            WHERE e.id = :eventId
-              AND e.deletedAt IS NULL
-              AND s.deletedAt IS NULL
-              AND tt.deletedAt IS NULL
-              AND ti.deletedAt IS NULL
-            GROUP BY e.id, e.name, e.location, e.startTime, e.endTime, e.status, f.url,
-                        s.id, s.startTime, s.endTime, s.status,
-                        tt.id, tt.name, tt.totalQuantity, tt.soldQuantity, tt.reservedQuantity, tt.status,
-                        ti.id, ti.name, ti.price, ti.status, ti.limitQuantity, ti.soldQuantity, ti.reservedQuantity
-            ORDER BY s.startTime, tt.name, ti.name
-            """)
-    List<TicketStatProjection> getStatByEvent(@Param("eventId") String eventId);
+        @Query("""
+                        SELECT
+                            e.id                                    as eventId,
+                            e.name                                  as eventName,
+                            e.location                              as eventLocation,
+                            e.address                               as eventAddress,
+                            e.startTime                             as eventStartTime,
+                            e.endTime                               as eventEndTime,
+                            e.status                                as eventStatus,
+                            f.url                                   as eventPosterUrl,
+
+                            s.id                                    as showId,
+                            s.startTime                             as showStartTime,
+                            s.endTime                               as showEndTime,
+                            s.status                                as showStatus,
+                            EXTRACT(DAY FROM s.startTime)           as showStartDay,
+                            EXTRACT(MONTH FROM s.startTime)         as showStartMonth,
+
+                            tt.id                                   as ticketTypeId,
+                            tt.name                                 as typeTypeName,
+                            tt.totalQuantity                        as ticketTypeTotalQuantity,
+                            tt.soldQuantity                         as ticketTypeSoldQuantity,
+                            tt.reservedQuantity                     as ticketTypeReservedQuantity,
+                            tt.totalQuantity - tt.reservedQuantity  as ticketTypeAvailableQuantity,
+                            tt.status                               as ticketTypeStatus,
+
+                            ti.id                                   as ticketTierId,
+                            ti.name                                 as ticketTierName,
+                            ti.price                                as ticketTierUnitPrice,
+                            ti.status                               as ticketTierStatus,
+                            ti.limitQuantity                        as ticketTierLimitQuantity,
+                            ti.soldQuantity                         as ticketTierSoldQuantity,
+                            ti.reservedQuantity                     as ticketTierReservedQuantity,
+
+                            COALESCE(SUM(ri.totalPrice), 0)  as ticketTierTotalPrice,
+                            COALESCE(SUM(COALESCE(ri.discountAmount, 0)), 0) as ticketTierTotalDiscountAmount,
+                            COALESCE(SUM(COALESCE(ri.finalPrice, ri.totalPrice)), 0) AS ticketTierFinalPrice
+                        FROM Event e
+                        JOIN File f             ON f.referenceId = e.id AND f.folder = 'EVENT_POSTER' AND f.status = 'ACTIVE'
+                        JOIN Show s             ON s.event.id = e.id
+                        JOIN TicketType tt      ON tt.show.id = s.id
+                        JOIN TicketTier ti            ON ti.ticketType.id = tt.id
+                        LEFT JOIN ReservationItem ri ON ri.ticketTier.id = ti.id AND ri.reservation.status = 'PAID'
+
+                        WHERE e.id = :eventId
+                          AND e.deletedAt IS NULL
+                          AND s.deletedAt IS NULL
+                          AND tt.deletedAt IS NULL
+                          AND ti.deletedAt IS NULL
+                        GROUP BY e.id, e.name, e.location, e.startTime, e.endTime, e.status, f.url,
+                                    s.id, s.startTime, s.endTime, s.status,
+                                    tt.id, tt.name, tt.totalQuantity, tt.soldQuantity, tt.reservedQuantity, tt.status,
+                                    ti.id, ti.name, ti.price, ti.status, ti.limitQuantity, ti.soldQuantity, ti.reservedQuantity
+                        ORDER BY s.startTime, tt.name, ti.name
+                        """)
+        List<TicketStatProjection> getStatByEvent(@Param("eventId") String eventId);
 }

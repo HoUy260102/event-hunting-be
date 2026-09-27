@@ -45,7 +45,6 @@ public class ShowServiceImpl implements ShowService {
     private static final String KEY_TYPE_RESERVED = "ticket_type:{show:%s}:%s:reserved";
     private static final String KEY_TIER_LIMIT = "ticket_tier:{show:%s}:%s:limit";
     private static final String KEY_TIER_RESERVED = "ticket_tier:{show:%s}:%s:reserved";
-    private final TicketRepository ticketRepository;
 
     @Override
     public void createShows(List<CreateShowReq> showsReq, Event event, String creatorId) {
@@ -251,24 +250,6 @@ public class ShowServiceImpl implements ShowService {
     @Override
     @Transactional
     public ShowRegistryDTO findShowRegistryById(String id) {
-//        Show show = Optional.ofNullable(showRepository.findShowById(id))
-//                .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
-//        if (show.getDeletedAt() != null) {
-//            throw new AppException(ErrorCode.SHOW_NOT_FOUND);
-//        }
-//        Event event = show.getEvent();
-//        int totalTickets = ticketRepository.countTotalIssuedTickets(show.getId());
-//        int totalCheckedInTicket = ticketRepository.countTotalCheckedInTickets(show.getId());
-//        int totalRemainingTicket = ticketRepository.countTotalRemainingTickets(show.getId());
-//        ShowRegistryDTO showRegistryDTO = ShowRegistryDTO.builder()
-//                .eventName(event.getName())
-//                .eventLocation(event.getLocation())
-//                .totalTickets(totalTickets)
-//                .checkedInCount(totalCheckedInTicket)
-//                .remainingCount(totalRemainingTicket)
-//                .startTime(show.getStartTime())
-//                .endTime(show.getEndTime())
-//                .build();
         ShowRegistryDTO showRegistryDTO = Optional.ofNullable(showRepository.findShowRegistryById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
         return showRegistryDTO;
@@ -366,6 +347,7 @@ public class ShowServiceImpl implements ShowService {
                 .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
 
         Show show = new Show();
+
         // Update show fields
         show.setMinOrder(showReq.getMinOrder());
         show.setMaxOrder(showReq.getMaxOrder());
@@ -565,6 +547,57 @@ public class ShowServiceImpl implements ShowService {
 
     @Override
     @Transactional
+    public void warmUpMissingShowStockKeys(String showId) {
+        Show show = Optional.ofNullable(showRepository.findShowById(showId))
+                .orElse(null);
+
+        if (show == null) {
+            log.warn("Không tìm thấy Show {} để warm-up Redis stock.", showId);
+            return;
+        }
+
+        for (TicketType type : show.getTicketTypes()) {
+            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED) {
+                continue;
+            }
+
+            String typeId = type.getId();
+            String typeTotalKey = String.format(KEY_TYPE_TOTAL, showId, typeId);
+            if (!Boolean.TRUE.equals(redisTemplate.hasKey(typeTotalKey))) {
+                redisTemplate.opsForValue().set(typeTotalKey, String.valueOf(type.getTotalQuantity()));
+                log.info("Warm-up missing Redis key: {}", typeTotalKey);
+            }
+
+            String typeReservedKey = String.format(KEY_TYPE_RESERVED, showId, typeId);
+            if (!Boolean.TRUE.equals(redisTemplate.hasKey(typeReservedKey))) {
+                boolean setOk = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(typeReservedKey, "0"));
+                if (setOk) {
+                    log.info("Warm-up missing Redis key: {}", typeReservedKey);
+                }
+            }
+
+            for (TicketTier tier : type.getTicketTiers()) {
+                String tierId = tier.getId();
+                String tierLimitKey = String.format(KEY_TIER_LIMIT, showId, tierId);
+                if (!Boolean.TRUE.equals(redisTemplate.hasKey(tierLimitKey))) {
+                    redisTemplate.opsForValue().set(tierLimitKey, String.valueOf(tier.getLimitQuantity()));
+                    log.info("Warm-up missing Redis key: {}", tierLimitKey);
+                }
+
+                String tierReservedKey = String.format(KEY_TIER_RESERVED, showId, tierId);
+                if (!Boolean.TRUE.equals(redisTemplate.hasKey(tierReservedKey))) {
+                    boolean setOk = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(tierReservedKey, "0"));
+                    if (setOk) {
+                        log.info("Warm-up missing Redis key: {}", tierReservedKey);
+                    }
+                }
+            }
+        }
+        log.info("Đã warm-up missing keys cho Show {} trên Redis.", showId);
+    }
+
+    @Override
+    @Transactional
     public void softDeleteShow(String id) {
         Show show = showRepository.findShowById(id);
         if (show == null) {
@@ -584,7 +617,7 @@ public class ShowServiceImpl implements ShowService {
         }
 
         String userId = securityUtils.getCurrentUserId();
-        softDeleteShows(List.of(id), userId);
+        softDeleteShows(Arrays.asList(id), userId);
     }
 
     @Override
@@ -604,6 +637,6 @@ public class ShowServiceImpl implements ShowService {
         }
 
         String userId = securityUtils.getCurrentUserId();
-        restoreShows(List.of(id), userId);
+        restoreShows(Arrays.asList(id), userId);
     }
 }
