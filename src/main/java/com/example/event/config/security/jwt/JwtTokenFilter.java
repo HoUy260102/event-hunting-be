@@ -137,7 +137,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
 
         List<Pair<String, String>> bypassTokens = new ArrayList<>(Arrays.asList(
                 Pair.of("/auth/login", "POST"),
-                Pair.of("/auth/refresh-token", "GET"),
+                Pair.of("/auth/refresh-token", "POST"),
                 Pair.of("/auth/callback/google", "GET"),
                 Pair.of("/auth/google/url", "GET"),
                 Pair.of("/auth/signup", "POST"),

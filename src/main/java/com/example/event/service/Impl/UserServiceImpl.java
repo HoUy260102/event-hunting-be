@@ -2,6 +2,7 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.config.security.jwt.JwtUtils;
+import com.example.event.config.security.jwt.RefreshTokenUtils;
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.FileStatus;
 import com.example.event.constant.FileType;
@@ -47,6 +48,7 @@ public class UserServiceImpl implements UserService {
     private final FileRepository fileRepository;
     private final ReservationRepository reservationRepository;
     private final JwtUtils jwtUtils;
+    private final RefreshTokenUtils refreshTokenUtils;
     private final SessionRepository sessionRepository;
     private final AuthMapper authMapper;
 
@@ -331,16 +333,21 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
 
         // 5. Generate new session for "silent refresh"
-        String refreshToken = jwtUtils.generateToken(user.getEmail(), null, "refresh");
+        LocalDateTime createdAt = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         Session session = new Session();
         session.setUser(user);
         session.setRevoked(false);
-        session.setRefreshToken(refreshToken);
         session.setDeviceId(deviceId);
-        session.setCreatedAt(LocalDateTime.now());
-        session.setExpiryDate(jwtUtils.getExpiryDate(refreshToken).toInstant()
-                .atZone(ZoneId.systemDefault())
-                .toLocalDateTime());
+        session.setCreatedAt(createdAt);
+        session.setTokenFamily(UUID.randomUUID().toString());
+        sessionRepository.saveAndFlush(session);
+
+        String refreshToken = refreshTokenUtils.generateToken();
+        LocalDateTime initialExpiry = refreshTokenUtils.getInitialExpiry(createdAt);
+        session.setRefreshTokenHash(refreshTokenUtils.hashToken(refreshToken));
+        session.setExpiryDate(initialExpiry);
+        session.setTokenFamilyExpiresAt(initialExpiry);
+        session.setTokenVersion(user.getTokenVersion());
         sessionRepository.save(session);
 
         String accessToken = jwtUtils.generateToken(user.getEmail(), session.getId(), "access");

@@ -54,16 +54,16 @@ public class RateLimit extends OncePerRequestFilter {
 
     private final Map<String, RateLimitConfig> limits = new HashMap<>() {
         {
-            put("/auth/login", new RateLimitConfig(3L, 10L));
+            put("/auth/login", new RateLimitConfig(5L, 10L));
             put("/auth/resend-verify", new RateLimitConfig(1L, 60L));
             put("/auth/signup", new RateLimitConfig(3L, 60L));
             put("/auth/verify", new RateLimitConfig(5L, 60L));
-            put("/auth/refresh-token", new RateLimitConfig(5L, 10L));
+            put("/auth/refresh-token", new RateLimitConfig(5L, 60L));
             put("/auth/google/url", new RateLimitConfig(5L, 10L));
             put("/auth/callback/google", new RateLimitConfig(5L, 10L));
-            put("/events/public/search", new RateLimitConfig(10L, 10L));
-            put("/events/trending", new RateLimitConfig(10L, 10L));
-            put("/events/*/info", new RateLimitConfig(20L, 10L));
+            put("/events/public/search", new RateLimitConfig(100L, 10L));
+            put("/events/trending", new RateLimitConfig(100L, 10L));
+            put("/events/*/info", new RateLimitConfig(200L, 10L));
         }
     };
 

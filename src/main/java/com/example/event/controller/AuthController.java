@@ -5,6 +5,7 @@ import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.dto.response.AuthResponse;
+import com.example.event.dto.response.AuthTokensResponse;
 import com.example.event.exception.AppException;
 import com.example.event.exception.JwtAuthenticationException;
 import com.example.event.service.AuthService;
@@ -102,9 +103,7 @@ public class AuthController {
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> bodyReq, @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
         String refreshToken = bodyReq.get("refreshToken");
-        String accessToken = authService.refreshToken(refreshToken, deviceId);
-        Map<String, String> tokenRes = new HashMap<>();
-        tokenRes.put("accessToken", accessToken);
+        AuthTokensResponse tokenRes = authService.refreshToken(refreshToken, deviceId);
         ApiResponse response = ApiResponse.builder()
                 .data(tokenRes)
                 .status(HttpStatus.OK.value())

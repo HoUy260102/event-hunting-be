@@ -62,14 +62,15 @@ public class GlobalException {
 
     @ExceptionHandler(JwtAuthenticationException.class)
     public ResponseEntity<ErrorResponse> handlerJwtAuthenticationException(JwtAuthenticationException exception, HttpServletRequest request) {
+        HttpStatus status = exception.getErrorCode().getHttpStatus();
         ErrorResponse response = ErrorResponse.builder()
                 .code(exception.getErrorCode().name())
-                .status(HttpStatus.BAD_REQUEST.value())
+                .status(status.value())
                 .message(exception.getErrorCode().getMessage())
                 .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST.value()).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
 //    @ExceptionHandler(HttpMessageNotReadableException.class)

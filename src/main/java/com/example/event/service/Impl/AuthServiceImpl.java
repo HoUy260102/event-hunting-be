@@ -3,16 +3,19 @@ package com.example.event.service.Impl;
 import com.example.event.component.AuthVerifyEmailProducer;
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.config.security.jwt.JwtUtils;
+import com.example.event.config.security.jwt.RefreshTokenUtils;
 import com.example.event.config.security.user.CustomUserDetails;
 import com.example.event.constant.ErrorCode;
 import com.example.event.constant.FileFolder;
 import com.example.event.constant.FileStatus;
 import com.example.event.constant.FileType;
+import com.example.event.constant.SessionRevokeReason;
 import com.example.event.constant.UserStatus;
 import com.example.event.dto.AuthDTO;
 import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
 import com.example.event.dto.response.AuthResponse;
+import com.example.event.dto.response.AuthTokensResponse;
 import com.example.event.entity.File;
 import com.example.event.entity.Role;
 import com.example.event.entity.Session;
@@ -37,6 +40,7 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -48,19 +52,23 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
     private final AuthenticationManager authenticationManager;
     private final SessionRepository sessionRepository;
     private final RoleRepository roleRepository;
     private final JwtUtils jwtUtils;
+    private final RefreshTokenUtils refreshTokenUtils;
     private final SecurityUtils securityUtils;
     private final AuthMapper authMapper;
     private final RedisService redisService;
@@ -132,26 +140,134 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String refreshToken(String refreshToken, String deviceId) {
-        Session session = sessionRepository.findByRefreshTokenAndDeviceId(refreshToken, deviceId);
-        if (session == null)
-            return "";
+    @Transactional(noRollbackFor = AppException.class)
+    public AuthTokensResponse refreshToken(String refreshToken, String deviceId) {
+        log.info("Bắt đầu xử lý yêu cầu làm mới refresh token.");
+        if (refreshToken == null || refreshToken.isBlank()) {
+            log.warn("Từ chối refresh vì request không có refresh token.");
+            throw new AppException(ErrorCode.TOKEN_INVALID);
+        }
+
+        String refreshTokenHash = refreshTokenUtils.hashToken(refreshToken);
+        Session session = sessionRepository.findByRefreshTokenHashForUpdate(refreshTokenHash)
+                .orElseThrow(() -> {
+                    log.warn("Từ chối refresh vì không tìm thấy session cho token đã gửi.");
+                    return new AppException(ErrorCode.TOKEN_INVALID);
+                });
+        String tokenFamily = session.getTokenFamily();
+        String sid = session.getId();
+
+        if (!Objects.equals(deviceId, session.getDeviceId())) {
+            log.warn("Từ chối refresh do device id không khớp, session id={}", sid);
+            throw new AppException(ErrorCode.TOKEN_INVALID);
+        }
+
+        if (session.isRevoked()) {
+            SessionRevokeReason reuseReason = session.getRevokeReason() == SessionRevokeReason.TOKEN_ROTATED
+                    ? SessionRevokeReason.REFRESH_TOKEN_REUSE
+                    : SessionRevokeReason.REVOKED_TOKEN_REUSE;
+            log.warn("Phát hiện gửi lại refresh token đã thu hồi, session id={}, nguyên nhân={}", sid, reuseReason);
+            revokeTokenFamily(tokenFamily, reuseReason);
+            throw new AppException(ErrorCode.TOKEN_INVALID);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (session.getTokenFamilyExpiresAt() == null
+                || !session.getTokenFamilyExpiresAt().isAfter(now)) {
+            // Hạn family cố định theo refresh token đầu tiên, không được kéo dài khi rotation.
+            log.warn("Từ chối refresh vì token family đã hết hạn, session id={}", sid);
+            revokeTokenFamily(tokenFamily, SessionRevokeReason.TOKEN_FAMILY_EXPIRED);
+            throw new AppException(ErrorCode.TOKEN_EXPIRED);
+        }
+
+        if (session.getExpiryDate() == null || !session.getExpiryDate().isAfter(now)) {
+            log.warn("Từ chối refresh vì refresh token đã hết hạn, session id={}", sid);
+            throw new AppException(ErrorCode.TOKEN_EXPIRED);
+        }
+
         User user = session.getUser();
-        return jwtUtils.generateToken(user.getEmail(), session.getId(), "access");
+        if (session.getTokenVersion() != null
+                && !session.getTokenVersion().equals(user.getTokenVersion())) {
+            log.warn("Từ chối refresh vì token version đã thay đổi, session id={}", sid);
+            revokeTokenFamily(tokenFamily, SessionRevokeReason.PASSWORD_CHANGED);
+            throw new AppException(ErrorCode.TOKEN_INVALID);
+        }
+
+        // Mỗi lần rotation tạo một row mới nhưng giữ nguyên family và deadline tuyệt đối.
+        Session rotatedSession = new Session();
+        rotatedSession.setUser(user);
+        rotatedSession.setDeviceId(session.getDeviceId());
+        rotatedSession.setTokenFamily(session.getTokenFamily());
+        rotatedSession.setTokenFamilyExpiresAt(session.getTokenFamilyExpiresAt());
+        rotatedSession.setTokenVersion(user.getTokenVersion());
+        rotatedSession.setCreatedAt(now);
+        rotatedSession.setRevoked(false);
+        sessionRepository.saveAndFlush(rotatedSession);
+
+        // Client nhận UUID mới; database chỉ lưu hash và hạn không vượt deadline family.
+        String rotatedRefreshToken = refreshTokenUtils.generateToken();
+        rotatedSession.setRefreshTokenHash(refreshTokenUtils.hashToken(rotatedRefreshToken));
+        rotatedSession.setExpiryDate(refreshTokenUtils.getRotatedExpiry(
+            now, rotatedSession.getTokenFamilyExpiresAt()));
+        sessionRepository.save(rotatedSession);
+
+        // Đánh dấu token cũ đã rotate; lần dùng lại nó sẽ kích hoạt thu hồi family.
+        session.setRevoked(true);
+        session.setRevokeReason(SessionRevokeReason.TOKEN_ROTATED);
+        session.setRevokedAt(now);
+        sessionRepository.save(session);
+
+        String accessToken = jwtUtils.generateToken(user.getEmail(), rotatedSession.getId(), "access");
+        log.info("Làm mới token thành công; session cũ id={}, session mới id={}",
+            session.getId(), rotatedSession.getId());
+        return new AuthTokensResponse(accessToken, rotatedRefreshToken);
+    }
+
+    private void revokeTokenFamily(String tokenFamily, SessionRevokeReason reason) {
+        List<Session> familySessions = sessionRepository.findAllByTokenFamilyForUpdate(tokenFamily);
+        if (!familySessions.isEmpty()) {
+            revokeFamily(familySessions, reason);
+        }
     }
 
     @Override
+    @Transactional
     public void logout(String accessToken) {
         Claims claims = jwtUtils.extractAllClaims(accessToken);
-        String sid = (String) claims.get("sid");
-        Session session = Optional.ofNullable(sessionRepository.findSessionById(sid))
-                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_INVALID));
-        session.setRevoked(true);
-        sessionRepository.save(session);
-        if (session.getExpiryDate().isAfter(LocalDateTime.now())) {
-            long duration = Duration.between(LocalDateTime.now(), session.getExpiryDate()).getSeconds();
-            sessionService.addToBlackList(sid, duration);
+        String sid = claims.get("sid", String.class);
+        if (!"access".equalsIgnoreCase(claims.get("type", String.class)) || sid == null) {
+            throw new AppException(ErrorCode.TOKEN_INVALID);
         }
+        Session session = sessionRepository.findSessionByIdForUpdate(sid)
+                .orElseThrow(() -> new AppException(ErrorCode.TOKEN_INVALID));
+        if (session.getTokenFamily() == null) {
+            throw new AppException(ErrorCode.TOKEN_INVALID);
+        }
+
+        // Logout cần lấy toàn family để thu hồi tất cả session liên quan.
+        List<Session> familySessions = sessionRepository.findAllByTokenFamilyForUpdate(session.getTokenFamily());
+        if (!familySessions.isEmpty()) {
+            revokeFamily(familySessions, SessionRevokeReason.LOGOUT);
+        }
+    }
+
+    private void revokeFamily(List<Session> sessions, SessionRevokeReason reason) {
+        // Ghi lý do thu hồi và blacklist sid trong thời gian access token còn hiệu lực.
+        LocalDateTime now = LocalDateTime.now();
+        long blacklistSeconds = Math.max(1, (jwtUtils.getAccessExpirationMillis() + 999) / 1000);
+        for (Session familySession : sessions) {
+            familySession.setRevoked(true);
+            familySession.setRevokeReason(reason);
+            familySession.setRevokedAt(now);
+            if (familySession.getId() != null) {
+                sessionService.addToBlackList(familySession.getId(), blacklistSeconds);
+            }
+        }
+        sessionRepository.saveAll(sessions);
+    }
+
+    private LocalDateTime toLocalDateTime(java.util.Date date) {
+        return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 
     @Override
@@ -314,26 +430,29 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user, String deviceId) {
-        // Tạo refresh token
-        String refeshToken = jwtUtils.generateToken(user.getEmail(), null, "refresh");
-       
-        // Tìm kiếm session trong db nếu không có trả session mới
+        LocalDateTime createdAt = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        // Lưu session trước để JWT đầu tiên mang sid; exp của JWT này trở thành
+        // deadline bất biến của family.
         Session session = new Session();
         session.setUser(user);
         session.setRevoked(false);
-        session.setRefreshToken(refeshToken);
         session.setDeviceId(deviceId);
-        session.setCreatedAt(LocalDateTime.now());
-        session.setExpiryDate(jwtUtils.getExpiryDate(refeshToken).toInstant()
-                .atZone(ZoneId.systemDefault())
-                .toLocalDateTime());
+        session.setCreatedAt(createdAt);
+        session.setTokenFamily(UUID.randomUUID().toString());
+        sessionRepository.saveAndFlush(session);
+
+        String refreshToken = refreshTokenUtils.generateToken();
+        LocalDateTime initialExpiry = refreshTokenUtils.getInitialExpiry(createdAt);
+        session.setRefreshTokenHash(refreshTokenUtils.hashToken(refreshToken));
+        session.setExpiryDate(initialExpiry);
+        session.setTokenFamilyExpiresAt(initialExpiry);
+        session.setTokenVersion(user.getTokenVersion());
         sessionRepository.save(session);
-        
-        // Tạo access token
+
         String accessToken = jwtUtils.generateToken(user.getEmail(), session.getId(), "access");
         AuthResponse authResponse = AuthResponse.builder()
                 .accessToken(accessToken)
-                .refreshToken(refeshToken)
+                .refreshToken(refreshToken)
                 .user(authMapper.toDTO(user))
                 .build();
         return authResponse;

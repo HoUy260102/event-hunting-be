@@ -58,9 +58,9 @@ public class UserRateLimit extends OncePerRequestFilter {
     private final Map<String, RateLimitConfig> limits = new HashMap<>() {
         {
             // Public read APIs
-            put("/events/public/search", new RateLimitConfig(50L, 10L));
-            put("/events/trending", new RateLimitConfig(30L, 10L));
-            put("/events/*/info", new RateLimitConfig(30L, 10L));
+            put("/events/public/search", new RateLimitConfig(60L, 10L));
+            put("/events/trending", new RateLimitConfig(60L, 10L));
+            put("/events/*/info", new RateLimitConfig(60L, 10L));
 
             // Transactional/Sensitive APIs
             put("/reservations", new RateLimitConfig(10L, 10L));

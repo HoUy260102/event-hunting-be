@@ -26,8 +26,6 @@ public class JwtUtils {
     private String jwtSecretKey;
     @Value("${jwt.access-expiration}")
     private int accessExpiration;
-    @Value("${jwt.refresh-expiration}")
-    private int refreshExpiration;
     @Value("${jwt.verify-expiration}")
     private int verifyExpiration;
     private final UserRepository userRepository;
@@ -55,9 +53,7 @@ public class JwtUtils {
                         .claim("sid", sid);
                 break;
             case "refresh":
-                expirationDate = new Date(now.getTime() + refreshExpiration);
-                builder.setExpiration(expirationDate);
-                break;
+                throw new IllegalArgumentException("Refresh token không còn được phát hành dưới dạng JWT.");
             case "verify":
                 expirationDate = new Date(now.getTime() + verifyExpiration);
                 builder.setExpiration(expirationDate);
@@ -69,6 +65,10 @@ public class JwtUtils {
                 .signWith(getKey(), SignatureAlgorithm.HS256)
                 .compact();
         return jwt;
+    }
+
+    public long getAccessExpirationMillis() {
+        return accessExpiration;
     }
 
     private Key getKey() {
@@ -170,7 +170,6 @@ public class JwtUtils {
 
     public boolean validateToken(String token) {
         try {
-//            log.debug(String.valueOf(blackListTokenRedisService.isBlackListToken(token)));
             return !isTokenExpried(token);
         } catch (JwtAuthenticationException e) {
             throw e;
