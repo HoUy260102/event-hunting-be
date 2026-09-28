@@ -166,9 +166,9 @@ public class ShowServiceImpl implements ShowService {
             throw new AppException(ErrorCode.SHOW_ALREADY_CANCELLED);
         }
 
-        if (show.getEndTime().isBefore(LocalDateTime.now())) {
-            throw new AppException(ErrorCode.SHOW_ENDED);
-        }
+        // if (show.getEndTime().isBefore(LocalDateTime.now())) {
+        //     throw new AppException(ErrorCode.SHOW_ENDED);
+        // }
 
         if (show.getStatus() != ShowStatus.DRAFT &&
                 !Objects.equals(show.getSeatMapSvg(), showReq.getSeatMapSvg())) {
