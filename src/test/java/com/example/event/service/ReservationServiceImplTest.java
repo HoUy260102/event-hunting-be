@@ -541,7 +541,7 @@ class ReservationServiceImplTest {
 
         // Then
         assertEquals(ErrorCode.SEAT_NOT_FOUND, ex.getErrorCode());
-        verify(lockService, times(1)).unlockSeats(eq(show.getId()), any());
+        verify(lockService, times(1)).unlockSeats(eq(show.getId()), any(), anyString());
         verify(reservationRepository, times(1)).saveAndFlush(any());
     }
 
@@ -588,7 +588,7 @@ class ReservationServiceImplTest {
 
         // Then
         assertEquals(ErrorCode.SEAT_ALREADY_RESERVED, ex.getErrorCode());
-        verify(lockService, times(1)).unlockSeats(eq(show.getId()), any());
+        verify(lockService, times(1)).unlockSeats(eq(show.getId()), any(), anyString());
         verify(reservationRepository, times(1)).saveAndFlush(any());
     }
 
@@ -636,7 +636,11 @@ class ReservationServiceImplTest {
 
         // Then
         assertNotNull(result);
-        verify(lockService, times(1)).lockSeats(eq(show.getId()), any(), eq(user.getId()));
+        ArgumentCaptor<Reservation> reservationCaptor = ArgumentCaptor.forClass(Reservation.class);
+        verify(reservationRepository).saveAndFlush(reservationCaptor.capture());
+        String lockToken = reservationCaptor.getValue().getLockToken();
+        assertNotNull(lockToken);
+        verify(lockService, times(1)).lockSeats(eq(show.getId()), any(), eq(user.getId()), eq(lockToken));
         verify(reservationItemRepository, times(1)).saveAll(any());
         verify(messagingTemplate, times(1)).convertAndSend(eq("/topic/show/" + show.getId() + "/seats"), any(Object.class));
     }

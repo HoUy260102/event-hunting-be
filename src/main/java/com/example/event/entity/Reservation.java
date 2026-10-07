@@ -26,6 +26,9 @@ public class Reservation {
     @Column(name = "code", unique = true, nullable = true, length = 20)
     private String code;
 
+    @Column(name = "lock_token", length = 36)
+    private String lockToken;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;

@@ -92,29 +92,30 @@ public class LockServiceImpl implements LockService {
             "end " +
             "return 1";
 
-    private static final String SEAT_LOCK_LUA =
-            "local seatCount = #KEYS " +
-                    "local occupiedSeats = {} " +
-                    "for i = 1, seatCount do " +
-                    "    if redis.call('EXISTS', KEYS[i]) == 1 then " +
-                    "        table.insert(occupiedSeats, ARGV[i + 2]) " +
-                    "    end " +
-                    "end " +
-                    "if #occupiedSeats > 0 then " +
-                    "    return 'ERR_SEATS_OCCUPIED:' .. table.concat(occupiedSeats, ',') " +
-                    "end " +
-                    "for i = 1, seatCount do " +
-                    "    redis.call('SET', KEYS[i], ARGV[1]) " +
-                    "    redis.call('EXPIRE', KEYS[i], tonumber(ARGV[2])) " +
-                    "end " +
-                    "return 'OK'";
+    private static final String SEAT_LOCK_LUA = "local seatCount = #KEYS " +
+            "local occupiedSeats = {} " +
+            "for i = 1, seatCount do " +
+            "    if redis.call('EXISTS', KEYS[i]) == 1 then " +
+            "        table.insert(occupiedSeats, ARGV[i + 2]) " +
+            "    end " +
+            "end " +
+            "if #occupiedSeats > 0 then " +
+            "    return 'ERR_SEATS_OCCUPIED:' .. table.concat(occupiedSeats, ',') " +
+            "end " +
+            "for i = 1, seatCount do " +
+            "    redis.call('SET', KEYS[i], ARGV[1]) " +
+            "    redis.call('EXPIRE', KEYS[i], tonumber(ARGV[2])) " +
+            "end " +
+            "return 'OK'";
 
-    private static final String SEAT_UNLOCK_LUA =
+    private static final String SEAT_UNLOCK_LUA = "local lockToken = ARGV[1] " +
             "local seatCount = #KEYS " +
-                    "for i = 1, seatCount do " +
-                    "    redis.call('DEL', KEYS[i]) " +
-                    "end " +
-                    "return 'OK'";
+            "for i = 1, seatCount do " +
+            "    if redis.call('GET', KEYS[i]) == lockToken then " +
+            "        redis.call('DEL', KEYS[i]) " +
+            "    end " +
+            "end " +
+            "return 'OK'";
 
     private static final String KEY_TYPE_TOTAL = "ticket_type:{show:%s}:%s:total";
     private static final String KEY_TYPE_RESERVED = "ticket_type:{show:%s}:%s:reserved";
@@ -122,7 +123,8 @@ public class LockServiceImpl implements LockService {
     private static final String KEY_TIER_RESERVED = "ticket_tier:{show:%s}:%s:reserved";
     private static final String KEY_SEAT_STATUS = "ticket_seat:{show:%s}:%s:lock";
 
-    private final DefaultRedisScript<String> bulkUnassginReserveScript = createScript(BULK_RESERVE_UNASSIGN_LUA, String.class);
+    private final DefaultRedisScript<String> bulkUnassginReserveScript = createScript(BULK_RESERVE_UNASSIGN_LUA,
+            String.class);
     private final DefaultRedisScript<Long> releaseUnassignScript = createScript(RELEASE_UNASSIGN_LUA, Long.class);
     private final DefaultRedisScript<String> seatLockScript = createScript(SEAT_LOCK_LUA, String.class);
     private final DefaultRedisScript<String> seatUnlockScript = createScript(SEAT_UNLOCK_LUA, String.class);
@@ -153,7 +155,8 @@ public class LockServiceImpl implements LockService {
         try {
             result = redisTemplate.execute(bulkUnassginReserveScript, keys, args.toArray());
         } catch (Exception e) {
-            if (e instanceof RuntimeException) throw e;
+            if (e instanceof RuntimeException)
+                throw e;
             log.error("Redis execution error", e);
             throw new RuntimeException("Hệ thống bận, vui lòng thử lại sau.");
         }
@@ -169,19 +172,21 @@ public class LockServiceImpl implements LockService {
     }
 
     @Override
-    public void lockSeats(String showId, List<ReservationItemReq> req, String userId) {
-        if (req == null || req.isEmpty()) return;
+    public void lockSeats(String showId, List<ReservationItemReq> req, String userId, String lockToken) {
+        if (req == null || req.isEmpty())
+            return;
         List<String> sortedSeatIds = req.stream()
                 .flatMap(item -> item.getSeatIds().stream())
                 .filter(id -> id != null && !id.trim().isEmpty())
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());
-        if (sortedSeatIds.isEmpty()) return;
+        if (sortedSeatIds.isEmpty())
+            return;
         long lockTimeOutSeconds = ticketQueueService.getRemainingTimeSeconds(showId, userId);
         List<String> keys = new ArrayList<>();
         List<String> args = new ArrayList<>();
-        args.add(userId);
+        args.add(lockToken);
         args.add(Integer.toString((int) lockTimeOutSeconds + EXTRA_PERIOD_SECONDS));
         sortedSeatIds.forEach(seatId -> {
             keys.add(String.format(KEY_SEAT_STATUS, showId, seatId));
@@ -202,7 +207,8 @@ public class LockServiceImpl implements LockService {
             if ("OK".equals(result)) {
                 String seatIdsForLog = sortedSeatIds.stream()
                         .collect(Collectors.joining(","));
-                log.info("[SeatLock] User {} đã khóa thành công các ghế: [{}] cho show {}", userId, seatIdsForLog, showId);
+                log.info("[SeatLock] User {} đã khóa thành công các ghế: [{}] cho show {}", userId, seatIdsForLog,
+                        showId);
             }
         } catch (AppException e) {
             throw e;
@@ -213,21 +219,23 @@ public class LockServiceImpl implements LockService {
     }
 
     @Override
-    public void unlockSeats(String showId, List<ReservationItemReq> req) {
-        if (req == null || req.isEmpty()) return;
+    public void unlockSeats(String showId, List<ReservationItemReq> req, String lockToken) {
+        if (req == null || req.isEmpty() || lockToken == null || lockToken.isBlank())
+            return;
         List<String> seatIds = req.stream()
                 .flatMap(item -> item.getSeatIds().stream())
                 .filter(id -> id != null && !id.trim().isEmpty())
                 .distinct()
                 .collect(Collectors.toList());
-        if (seatIds.isEmpty()) return;
+        if (seatIds.isEmpty())
+            return;
 
         List<String> keys = new ArrayList<>();
         for (String seatId : seatIds) {
             keys.add(String.format(KEY_SEAT_STATUS, showId, seatId));
         }
         try {
-            String result = redisTemplate.execute(seatUnlockScript, keys);
+            String result = redisTemplate.execute(seatUnlockScript, keys, lockToken);
             if ("OK".equals(result)) {
                 log.info("[SeatUnlock] Đã giải phóng thành công {} ghế cho show: {}", seatIds.size(), showId);
             }
@@ -238,7 +246,8 @@ public class LockServiceImpl implements LockService {
 
     @Override
     public void releaseUnassignedTickets(String showId, List<ReservationItemReq> requests) {
-        if (requests == null || requests.isEmpty()) return;
+        if (requests == null || requests.isEmpty())
+            return;
 
         List<String> keys = new ArrayList<>();
         List<String> args = new ArrayList<>();
@@ -261,13 +270,15 @@ public class LockServiceImpl implements LockService {
 
     @Override
     public void releaseUnassignedReservationItem(String showId, List<ReservationItem> requests) {
-        if (requests == null || requests.isEmpty()) return;
+        if (requests == null || requests.isEmpty())
+            return;
 
         List<String> keys = new ArrayList<>();
         List<String> args = new ArrayList<>();
 
         for (ReservationItem req : requests) {
-            if (req.getSeat() != null) continue;
+            if (req.getSeat() != null)
+                continue;
             keys.add(String.format(KEY_TYPE_RESERVED, showId, req.getTicketType().getId()));
             keys.add(String.format(KEY_TIER_RESERVED, showId, req.getTicketTier().getId()));
             args.add(req.getQuantity().toString());
@@ -287,13 +298,15 @@ public class LockServiceImpl implements LockService {
     }
 
     @Override
-    public void unlockSeatsReservationItem(String showId, List<ReservationItem> req) {
-        if (req == null || req.isEmpty()) return;
+    public void unlockSeatsReservationItem(String showId, List<ReservationItem> req, String lockToken) {
+        if (req == null || req.isEmpty() || lockToken == null || lockToken.isBlank())
+            return;
         List<String> seatIds = req.stream()
                 .filter(item -> item.getSeat() != null)
                 .map(item -> item.getSeat().getId())
                 .collect(Collectors.toList());
-        if (seatIds.isEmpty()) return;
+        if (seatIds.isEmpty())
+            return;
 
         List<String> keys = new ArrayList<>();
         for (String seatId : seatIds) {
@@ -301,7 +314,7 @@ public class LockServiceImpl implements LockService {
         }
 
         try {
-            String result = redisTemplate.execute(seatUnlockScript, keys);
+            String result = redisTemplate.execute(seatUnlockScript, keys, lockToken);
             if ("OK".equals(result)) {
                 log.info("[SeatUnlock] Đã giải phóng thành công {} ghế cho show: {}", seatIds.size(), showId);
             }

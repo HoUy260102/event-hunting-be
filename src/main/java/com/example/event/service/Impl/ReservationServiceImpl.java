@@ -233,6 +233,7 @@ public class ReservationServiceImpl implements ReservationService {
         boolean isUnassignedReserved = false;
         boolean isSeatsLocked = false;
         List<String> seatSockettCodes = new ArrayList<>();
+        String lockToken = assignedItems.isEmpty() ? null : UUID.randomUUID().toString();
         try {
             // Lock các vé unassign (không có ghế)
             if (!unassignedItems.isEmpty()) {
@@ -245,7 +246,7 @@ public class ReservationServiceImpl implements ReservationService {
             if (!assignedItems.isEmpty()) {
                 log.info("[RESERVATION] User {} | Show {} - Đang lock {} ghế", creatorId, show.getId(),
                         assignedItems.size());
-                lockService.lockSeats(show.getId(), assignedItems, creatorId);
+                lockService.lockSeats(show.getId(), assignedItems, creatorId, lockToken);
                 isSeatsLocked = true;
             }
 
@@ -261,6 +262,7 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setExpiresAt(now.plusSeconds(reservationTTLSeconds + EXTRA_PERIOD_SECONDS));
             reservation.setStatus(ReservationStatus.PENDING);
             reservation.setUser(user);
+            reservation.setLockToken(lockToken);
             reservation.setCreatedBy(creatorId);
             reservation.setCreatedAt(now);
             reservation.setUpdatedBy(creatorId);
@@ -422,7 +424,7 @@ public class ReservationServiceImpl implements ReservationService {
             }
             if (isSeatsLocked) {
                 log.info("[RESERVATION] Đang giải phóng ghế do lỗi...");
-                lockService.unlockSeats(show.getId(), assignedItems);
+                lockService.unlockSeats(show.getId(), assignedItems, lockToken);
             }
             if (e instanceof AppException) {
                 throw (AppException) e;
@@ -482,7 +484,7 @@ public class ReservationServiceImpl implements ReservationService {
                 lockService.releaseUnassignedReservationItem(showId, unassignedItems);
             }
             if (!seatedItems.isEmpty()) {
-                lockService.unlockSeatsReservationItem(showId, seatedItems);
+                lockService.unlockSeatsReservationItem(showId, seatedItems, reservation.getLockToken());
             }
 
             // Cập nhật Database
