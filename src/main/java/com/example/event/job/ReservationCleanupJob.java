@@ -1,33 +1,54 @@
 package com.example.event.job;
 
-import com.example.event.service.ReservationCleanupService;
+import com.example.event.constant.ReservationStatus;
+import com.example.event.entity.Reservation;
+import com.example.event.repository.ReservationRepository;
+import com.example.event.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Component
-@Slf4j
 @RequiredArgsConstructor
+@Slf4j
 public class ReservationCleanupJob {
-    private final ReservationCleanupService reservationCleanupService;
-    private final RedissonClient redissonClient;
+    private static final int BATCH_SIZE = 100;
+
+    private final ReservationRepository reservationRepository;
+    private final ReservationService reservationService;
 
     @Scheduled(fixedRate = 60000)
+    @SchedulerLock(
+            name = "reservationCleanupJob",
+            lockAtMostFor = "PT5M",
+            lockAtLeastFor = "PT30S"
+    )
+    @Transactional
     public void cleanupExpiredReservations() {
-        RLock lock = redissonClient.getLock("job:reservation-cleanup");
-        if (!lock.tryLock()) {
-            log.debug("Bỏ qua cleanup reservation vì server khác đang xử lý");
+        LocalDateTime now = LocalDateTime.now();
+        List<Reservation> reservations = reservationRepository.findAllByStatusAndExpiresAtBefore(
+                ReservationStatus.PENDING,
+                now,
+                PageRequest.of(0, BATCH_SIZE, Sort.by(Sort.Order.asc("expiresAt"), Sort.Order.asc("id"))));
+        if (reservations.isEmpty()) {
             return;
         }
 
-        try {
-            reservationCleanupService.cleanupExpiredReservationsBatch();
-        } finally {
-            if (lock.isHeldByCurrentThread()) {
-                lock.unlock();
+        log.info("Phát hiện {} đơn hàng hết hạn trong batch", reservations.size());
+        for (Reservation reservation : reservations) {
+            try {
+                reservationService.releaseReservationResources(
+                        reservation, now, ReservationStatus.EXPIRED, "cleanup");
+            } catch (Exception e) {
+                log.error("Lỗi khi giải phóng đơn hàng: {}", reservation.getId(), e);
             }
         }
     }

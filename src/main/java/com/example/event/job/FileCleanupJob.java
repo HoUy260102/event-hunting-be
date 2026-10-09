@@ -5,6 +5,7 @@ import com.example.event.entity.File;
 import com.example.event.repository.FileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +40,11 @@ public class FileCleanupJob {
     private long sleepMs;
 
     @Scheduled(cron = "0 0 1 * * ?")
+    @SchedulerLock(
+            name = "fileCleanupJob",
+            lockAtMostFor = "PT6H",
+            lockAtLeastFor = "PT1M"
+    )
     public void cleanupExpiredFiles() {
         log.info("Bắt đầu cleanup file hết hạn");
 

@@ -163,14 +163,14 @@ public class VNPaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public void processPayment(Map<String, String> result) {
-        // 1. Lấy thông tin thô
+        
         String txnRef = result.get("txnRef");
         String responseCode = result.get("responseCode");
         String paymentId = extractIdFromTxnRef(txnRef);
 
         Payment payment = Optional.ofNullable(paymentRepository.findPaymentByIdForUpdate(paymentId))
                 .orElseThrow(() -> {
-                    log.error("[PAYMENT] Không tìm thấy Payment với ID: {}", paymentId);
+                    log.warn("[PAYMENT] Không tìm thấy Payment với ID: {}", paymentId);
                     return new AppException(ErrorCode.PAYMENT_NOT_FOUND);
                 });
 
@@ -181,14 +181,14 @@ public class VNPaymentServiceImpl implements PaymentService {
 
     private void validatePaymentState(Payment payment, Map<String, String> result) {
         if (payment.getStatus() != PaymentStatus.PENDING) {
-            log.warn("[PAYMENT] Giao dịch {} đã được xử lý trước đó (Status: {}). Bỏ qua Webhook.",
+            log.info("[PAYMENT] Giao dịch {} đã được xử lý trước đó (Status: {}). Bỏ qua callback.",
                     payment.getId(), payment.getStatus());
             throw new AppException(ErrorCode.PAYMENT_NOT_AVAILABLE);
         }
 
         long vnpAmount = Long.parseLong(result.get("amount")) / 100;
         if (!payment.getFinalAmount().equals(vnpAmount)) {
-            log.error("[PAYMENT] Gian lận hoặc sai lệch số tiền! DB: {}, VNPAY: {}",
+            log.warn("[PAYMENT] Sai lệch số tiền thanh toán. DB: {}, VNPAY: {}",
                     payment.getFinalAmount(), vnpAmount);
             throw new AppException(ErrorCode.INVALID_AMOUNT);
         }
@@ -214,6 +214,7 @@ public class VNPaymentServiceImpl implements PaymentService {
                 log.error("Lỗi parse ngày thanh toán: {}", payDateStr);
             }
         }
+        
         paymentRepository.save(payment);
     }
 
