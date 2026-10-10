@@ -15,6 +15,8 @@ import java.util.List;
 @Data
 public class UpdateShowReq {
     private String id;
+    @NotNull(message = "Vui lòng truyền version để tránh lost update")
+    private Long version;
     private ShowStatus status;
 
     @NotNull(message = "Vui lòng nhập số")

@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @Data
 public class UpdateTicketTierReq {
     private String id;
+    private Long version;
     private TicketTierStatus status;
 
     @NotBlank(message = "Tên tier không được để trống")

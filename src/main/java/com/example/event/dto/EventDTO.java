@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class EventDTO {
     private String id;
+    private Long version;
     private String name;
     private String location;
     private String address;

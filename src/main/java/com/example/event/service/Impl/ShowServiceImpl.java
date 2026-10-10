@@ -158,6 +158,10 @@ public class ShowServiceImpl implements ShowService {
         Show show = Optional.ofNullable(showRepository.findShowById(showId))
                 .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
 
+        if (showReq.getVersion() != null && !showReq.getVersion().equals(show.getVersion())) {
+            throw new AppException(ErrorCode.CONCURRENT_UPDATE);
+        }
+
         if (!show.getEvent().getId().equals(eventId)) {
             throw new AppException(ErrorCode.INVALID_EVENT_SHOW_RELATION);
         }
@@ -193,7 +197,7 @@ public class ShowServiceImpl implements ShowService {
         show.setUpdatedAt(LocalDateTime.now());
         show.setUpdatedBy(updatorId);
 
-        Show savedShow = showRepository.save(show);
+        Show savedShow = showRepository.saveAndFlush(show);
 
         List<TicketType> updatedTypes = ticketTypeService.updateTicketTypes(
                 showReq.getTicketTypes(),
@@ -201,7 +205,7 @@ public class ShowServiceImpl implements ShowService {
                 updatorId
         );
 
-        ticketTypeRepository.saveAll(updatedTypes);
+        ticketTypeRepository.saveAllAndFlush(updatedTypes);
         List<TicketTier> tiersToSave = new ArrayList<>();
         List<Seat> seatsToSave = new ArrayList<>();
         for (int i = 0; i < showReq.getTicketTypes().size(); i++) {
@@ -238,12 +242,15 @@ public class ShowServiceImpl implements ShowService {
             updatedTypes.get(i).setSeats(currentTypeSeats);
         }
         seatRepository.saveAll(seatsToSave);
-        ticketTierRepository.saveAll(tiersToSave);
+        ticketTierRepository.saveAllAndFlush(tiersToSave);
+
         savedShow.setTicketTypes(updatedTypes);
+        
         updateEventTime(event);
         if (savedShow.getStatus() == ShowStatus.ACTIVE) {
             syncShowStockToRedis(savedShow);
         }
+        
         return showMapper.toDTO(savedShow);
     }
 

@@ -265,6 +265,10 @@ public class EventServiceImpl implements EventService {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
 
+        if (updateEventReq.getVersion() != null && !updateEventReq.getVersion().equals(event.getVersion())) {
+            throw new AppException(ErrorCode.CONCURRENT_UPDATE);
+        }
+
         //Check event có hợp lệ không
         Province province = provinceRepository.findProvinceById(updateEventReq.getProvinceId());
         if (province == null) {
@@ -336,8 +340,8 @@ public class EventServiceImpl implements EventService {
         event.setOrganizerInfo(updateEventReq.getOrganizerInfo());
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(updatorId);
-        eventRepository.save(event);
-        return eventMapper.toDTO(event);
+        Event savedEvent = eventRepository.saveAndFlush(event);
+        return eventMapper.toDTO(savedEvent);
     }
 
     @Override

@@ -18,6 +18,7 @@ import java.util.List;
 public class VoucherDTO {
 
     private String id;
+    private Long version;
 
     private String name;
     private String code;

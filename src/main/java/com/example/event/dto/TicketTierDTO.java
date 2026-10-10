@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 @Builder
 public class TicketTierDTO {
     private String id;
+    private Long version;
     private String name;
     private Long price;
     private Integer limitQuantity;

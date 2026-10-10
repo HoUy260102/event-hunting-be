@@ -14,6 +14,7 @@ import java.util.List;
 @Data
 public class UpdateTicketTypeReq {
     private String id;
+    private Long version;
     private TicketTypeStatus status;
 
     @NotBlank(message = "Tên vé không được để trống")

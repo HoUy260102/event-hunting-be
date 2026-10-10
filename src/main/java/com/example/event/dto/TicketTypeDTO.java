@@ -16,6 +16,7 @@ import java.util.List;
 @Builder
 public class TicketTypeDTO {
     private String id;
+    private Long version;
     private String name;
     private Integer totalQuantity;
     private Integer soldQuantity;

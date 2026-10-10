@@ -14,6 +14,8 @@ import java.util.List;
 @Data
 public class UpdateVoucherReq {
 
+    private Long version;
+
     @NotBlank(message = "Tên voucher không được để trống")
     private String name;
 

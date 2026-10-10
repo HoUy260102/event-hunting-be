@@ -8,6 +8,8 @@ import java.util.List;
 
 @Data
 public class UpdateEventReq {
+    private Long version;
+
     @NotBlank(message = "Vui lòng upload hoặc chọn ảnh poster")
     private String posterId;
 

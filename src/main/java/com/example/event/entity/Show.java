@@ -24,6 +24,8 @@ public class Show {
     @Id
     @UlidID
     private String id;
+    @Version
+    private Long version;
     private Integer minOrder;
     private Integer maxOrder;
     private LocalDateTime startTime;

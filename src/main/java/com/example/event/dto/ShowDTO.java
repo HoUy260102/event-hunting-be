@@ -26,6 +26,7 @@ public class ShowDTO {
     private SeatMapType seatMapType;
     private String seatMapSvg;
     private ShowStatus status;
+    private Long version;
 
     private List<TicketTypeDTO> ticketTypes;
 

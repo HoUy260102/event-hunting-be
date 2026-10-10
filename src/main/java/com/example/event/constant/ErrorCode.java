@@ -53,6 +53,7 @@ public enum ErrorCode {
     CATEGORY_STATUS_INVALID(HttpStatus.BAD_REQUEST, "Trạng thái không hợp lệ."),
 
     SHOWS_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu suất diễn không hợp lệ."),
+    CONCURRENT_UPDATE(HttpStatus.CONFLICT, "Dữ liệu đã được cập nhật bởi một người khác. Vui lòng tải lại trang và thử lại."),
     SHOW_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy được show."),
     INVALID_EVENT_SHOW_RELATION(HttpStatus.BAD_REQUEST, "Suất diễn không thuộc sự kiện này."),
     INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "Chuyển đổi trạng thái không hợp lệ"),

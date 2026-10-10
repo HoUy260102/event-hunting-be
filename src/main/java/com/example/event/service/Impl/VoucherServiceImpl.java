@@ -127,6 +127,10 @@ public class VoucherServiceImpl implements VoucherService {
         log.info("[UPDATE VOUCHER] Request: id={}, code={}, scope={}, discountType={}",
                 voucher.getId(), voucher.getCode(), voucher.getScope(), voucher.getDiscountType());
 
+        if (req.getVersion() != null && !req.getVersion().equals(voucher.getVersion())) {
+            throw new AppException(ErrorCode.CONCURRENT_UPDATE);
+        }
+
         // validate business
         Map<String, String> errors = validateUpdate(req, voucher);
 

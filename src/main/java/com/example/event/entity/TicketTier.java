@@ -19,6 +19,8 @@ public class TicketTier {
     @Id
     @UlidID
     private String id;
+    @Version
+    private Long version;
     private String name;
     private Long price;
     private Integer limitQuantity;

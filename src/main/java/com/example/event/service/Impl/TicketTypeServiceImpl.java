@@ -104,6 +104,11 @@ public class TicketTypeServiceImpl implements TicketTypeService {
             }else {
                 TicketType ticketType = Optional.ofNullable(ticketTypeRepository.findTicketTypeById(ticketTypeReq.getId()))
                         .orElseThrow(() -> new AppException(ErrorCode.TICKET_TYPE_NOT_FOUND));
+                
+                if (ticketTypeReq.getVersion() != null && !ticketTypeReq.getVersion().equals(ticketType.getVersion())) {
+                    throw new AppException(ErrorCode.CONCURRENT_UPDATE);
+                }
+                
                 ticketType.setName(ticketTypeReq.getName());
                 if (ticketTypeReq.getTotalQuantity() < ticketType.getReservedQuantity()) {
                     throw new AppException(ErrorCode.TOTAL_QUANTITY_LESS_THAN_SOLD);

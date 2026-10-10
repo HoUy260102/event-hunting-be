@@ -23,6 +23,8 @@ public class TicketType {
     @Id
     @UlidID
     private String id;
+    @Version
+    private Long version;
     private String name;
     private Integer totalQuantity;
     private Integer reservedQuantity = 0;

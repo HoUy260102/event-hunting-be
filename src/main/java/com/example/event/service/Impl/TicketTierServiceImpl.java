@@ -87,6 +87,11 @@ public class TicketTierServiceImpl implements TicketTierService {
             } else {
                 TicketTier ticketTier = Optional.ofNullable(ticketTierRepository.findTicketTierById(ticketTierReq.getId()))
                         .orElseThrow(() -> new AppException(ErrorCode.TICKET_TIER_NOT_FOUND));
+                
+                if (ticketTierReq.getVersion() != null && !ticketTierReq.getVersion().equals(ticketTier.getVersion())) {
+                    throw new AppException(ErrorCode.CONCURRENT_UPDATE);
+                }
+                
                 ticketTier.setName(ticketTierReq.getName());
                 ticketTier.setPrice(ticketTierReq.getPrice());
                 if (ticketTierReq.getLimitQuantity() < ticketTier.getSoldQuantity()) {

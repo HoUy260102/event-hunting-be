@@ -22,6 +22,8 @@ public class Event {
     @Id
     @UlidID
     private String id;
+    @Version
+    private Long version;
     private String name;
     @Column(columnDefinition = "TEXT")
     private String descriptionHtml;
