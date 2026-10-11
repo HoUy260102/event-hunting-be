@@ -69,6 +69,26 @@ public class VNPaymentServiceImpl implements PaymentService {
                 PAYMENT_IDEMPOTENCY_KEY_FORMAT,
                 idempotencyKey
         );
+
+        Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationId))
+                .orElseThrow(() -> {
+                    log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationId);
+                    return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+                });
+
+        // validate dữ liệu reservation;
+        reservationService.validateReservationForPayment(reservation);
+
+        // Tính thời gian còn lại của reservation
+        long remainingSeconds = java.time.Duration.between(now, reservation.getExpiresAt()).getSeconds();
+        if (remainingSeconds <= 0) {
+            log.warn("[PAYMENT] Reservation {} đã hết hạn | expiresAt={}", reservationId, reservation.getExpiresAt());
+            throw new AppException(ErrorCode.RESERVATION_EXPIRED);
+        }
+
+        // VNPay URL thường có hạn tối đa 15 phút, lấy min giữa thời gian giữ vé còn lại và 15 phút
+        long effectiveTtl = Math.min(remainingSeconds, 15 * 60L);
+
         // Check idempotency cache
         boolean acquired = redisService.setIfAbsent(paymentIdempotencyKey, "PROCESSING", LOCK_TIMEOUT_SECONDS);
         if (!acquired) {
@@ -82,15 +102,10 @@ public class VNPaymentServiceImpl implements PaymentService {
                         reservationId);
                 return cachedPaymentUrl;
             }
+            // Key vừa bị giải phóng hoặc vừa hết hạn trong tích tắc: chặn để client thử lại an toàn
+            throw new AppException(ErrorCode.DUPLICATE_PAYMENT_REQUEST_IN_PROGRESS);
         }
         try {
-            Reservation reservation = Optional.ofNullable(reservationRepository.findReservationById(reservationId))
-                    .orElseThrow(() -> {
-                        log.warn("[PAYMENT] User {} | Reservation {} không tìm thấy được đơn đặt.", reservationDTO.getUserId(), reservationId);
-                        return new AppException(ErrorCode.RESERVATION_NOT_FOUND);
-                    });
-            // validate dữ liệu reservation;
-            reservationService.validateReservationForPayment(reservation);
             // Xử lý voucher
             handleVoucherChange(reservation, reservationDTO);
             // Tạo hoặc update payment
@@ -98,8 +113,8 @@ public class VNPaymentServiceImpl implements PaymentService {
                     .orElseGet(() -> createNewPayment(reservation, now));
             // Build VNPay URL
             String paymentUrl = buildPaymentUrl(payment, httpRequest);
-            // Set cache
-            redisService.set(paymentIdempotencyKey, paymentUrl, PAYMENT_IDEMPOTENCY_TTL);
+            // Set cache với thời gian sống theo reservation
+            redisService.set(paymentIdempotencyKey, paymentUrl, effectiveTtl);
             return paymentUrl;
         } catch (Exception e) {
             redisService.del(paymentIdempotencyKey);

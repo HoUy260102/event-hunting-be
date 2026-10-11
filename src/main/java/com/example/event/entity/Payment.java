@@ -36,7 +36,7 @@ public class Payment {
     private String responseCode;
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "reservation_id")
+    @JoinColumn(name = "reservation_id", unique = true, nullable = false)
     private Reservation reservation;
 
     @ManyToOne(fetch = FetchType.LAZY)
