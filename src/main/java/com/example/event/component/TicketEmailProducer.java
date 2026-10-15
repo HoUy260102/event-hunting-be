@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TicketEmailProducer {
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final com.example.event.service.OutboxService outboxService;
 
     public void sendReservationTickets(User user, List<TicketSummaryDTO> tickets) {
         if (tickets == null || tickets.isEmpty()) return;
@@ -53,12 +53,11 @@ public class TicketEmailProducer {
             Map<String, String> fields = TicketEmailMessage.toBatchMap(
                     reservationId, reservationCode, user.getEmail(), user.getName(), msgs);
 
-            RecordId id = stringRedisTemplate.opsForStream()
-                    .add(RedisStreamConfig.STREAM_KEY, fields);
-            log.info("[TICKET-PRODUCER] Pushed {} vé (reservation={}) → record={}",
-                    tickets.size(), reservationId, id);
+            outboxService.publish("RESERVATION", reservationId, "TICKET_EMAIL_BATCH", RedisStreamConfig.STREAM_KEY, fields);
+            log.info("[TICKET-PRODUCER] Queued {} vé qua Outbox (reservation={})", tickets.size(), reservationId);
         } catch (Exception e) {
-            log.error("[TICKET-PRODUCER] Lỗi push stream: {}", e.getMessage(), e);
+            log.error("[TICKET-PRODUCER] Lỗi lưu vé vào Outbox: {}", e.getMessage(), e);
+            throw new RuntimeException("Lỗi lưu sự kiện gửi vé vào Outbox", e);
         }
     }
 }

@@ -44,7 +44,6 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final RedisService redisService;
     private static final Map<String, String> VNPAY_MESSAGES;
     private static final String PAYMENT_IDEMPOTENCY_KEY_FORMAT = "PAYMENT_CREATE:%s";
-    private static final long PAYMENT_IDEMPOTENCY_TTL = 30 * 60; // 30 phút
     private static final long LOCK_TIMEOUT_SECONDS = 10; // 10s
 
     static {
@@ -60,6 +59,10 @@ public class VNPaymentServiceImpl implements PaymentService {
         VNPAY_MESSAGES = Collections.unmodifiableMap(tempMap);
     }
 
+    /**
+     * Tạo URL thanh toán VNPay kèm cơ chế Idempotency chống trùng lặp.
+     * Sử dụng Redis Distributed Lock + TTL động theo thời gian hết hạn của đơn giữ chỗ (Reservation).
+     */
     @Override
     @Transactional
     public String createPaymentUrl(ReservationDTO reservationDTO, HttpServletRequest httpRequest, String idempotencyKey) {
@@ -89,7 +92,7 @@ public class VNPaymentServiceImpl implements PaymentService {
         // VNPay URL thường có hạn tối đa 15 phút, lấy min giữa thời gian giữ vé còn lại và 15 phút
         long effectiveTtl = Math.min(remainingSeconds, 15 * 60L);
 
-        // Check idempotency cache
+        // Kiểm tra cache idempotency
         boolean acquired = redisService.setIfAbsent(paymentIdempotencyKey, "PROCESSING", LOCK_TIMEOUT_SECONDS);
         if (!acquired) {
             String cachedPaymentUrl = redisService.get(paymentIdempotencyKey, String.class);
@@ -106,14 +109,14 @@ public class VNPaymentServiceImpl implements PaymentService {
             throw new AppException(ErrorCode.DUPLICATE_PAYMENT_REQUEST_IN_PROGRESS);
         }
         try {
-            // Xử lý voucher
+            // Xử lý áp dụng/thay đổi voucher
             handleVoucherChange(reservation, reservationDTO);
-            // Tạo hoặc update payment
+            // Tạo hoặc cập nhật payment
             Payment payment = Optional.ofNullable(findPaymentAndUpdate(reservation))
                     .orElseGet(() -> createNewPayment(reservation, now));
-            // Build VNPay URL
+            // Tạo VNPay URL
             String paymentUrl = buildPaymentUrl(payment, httpRequest);
-            // Set cache với thời gian sống theo reservation
+            // Lưu cache với thời gian sống theo reservation
             redisService.set(paymentIdempotencyKey, paymentUrl, effectiveTtl);
             return paymentUrl;
         } catch (Exception e) {
@@ -122,6 +125,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         }
     }
 
+    /**
+     * Tiếp nhận dữ liệu trả về từ VNPay (Return URL / IPN), xác thực chữ ký (Checksum) và chuẩn hóa dữ liệu.
+     */
     @Override
     public Map<String, String> processReturn(HttpServletRequest request) {
         Map<String, String> fields = new HashMap<>();
@@ -155,7 +161,7 @@ public class VNPaymentServiceImpl implements PaymentService {
             }
         }
 
-        // Kiểm tra chữ ký
+        // Kiểm tra chữ ký bảo mật với secret key
         String signValue = vnPayUtil.hmacSHA512(vnPayConfig.getSecretKey(), hashData.toString());
         Map<String, String> result = new HashMap<>();
         if (signValue.equals(vnp_SecureHash)) {
@@ -175,6 +181,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         return result;
     }
 
+    /**
+     * Xử lý kết quả thanh toán: Khóa dòng pessimistic lock, cập nhật trạng thái đơn hàng và kích hoạt nghiệp vụ sau thanh toán.
+     */
     @Override
     @Transactional
     public void processPayment(Map<String, String> result) {
@@ -183,6 +192,7 @@ public class VNPaymentServiceImpl implements PaymentService {
         String responseCode = result.get("responseCode");
         String paymentId = extractIdFromTxnRef(txnRef);
 
+        // Khóa bi quan (Pessimistic Lock) để chống race condition khi callback bị gọi lặp lại
         Payment payment = Optional.ofNullable(paymentRepository.findPaymentByIdForUpdate(paymentId))
                 .orElseThrow(() -> {
                     log.warn("[PAYMENT] Không tìm thấy Payment với ID: {}", paymentId);
@@ -194,6 +204,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         handlePostPaymentBusiness(payment, responseCode);
     }
 
+    /**
+     * Kiểm tra trạng thái và số tiền của Payment để tránh thanh toán lặp hoặc sai lệch số tiền.
+     */
     private void validatePaymentState(Payment payment, Map<String, String> result) {
         if (payment.getStatus() != PaymentStatus.PENDING) {
             log.info("[PAYMENT] Giao dịch {} đã được xử lý trước đó (Status: {}). Bỏ qua callback.",
@@ -209,6 +222,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         }
     }
 
+    /**
+     * Cập nhật thông tin chi tiết giao dịch từ VNPay vào bản ghi Payment.
+     */
     private void updatePaymentDetails(Payment payment, Map<String, String> result, String responseCode) {
         ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
         LocalDateTime now = LocalDateTime.now(vnZone);
@@ -233,6 +249,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         paymentRepository.save(payment);
     }
 
+    /**
+     * Xử lý các logic nghiệp vụ sau khi có kết quả thanh toán: cập nhật đơn đặt chỗ, phát vé, gửi email, bắn WebSocket.
+     */
     private void handlePostPaymentBusiness(Payment payment, String responseCode) {
         Reservation reservation = payment.getReservation();
         User user = reservation.getUser();
@@ -248,7 +267,7 @@ public class VNPaymentServiceImpl implements PaymentService {
             reservation.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
             reservationRepository.save(reservation);
 
-            // Generate tickets then push them as a single batch to the email stream
+            // Tạo vé và gửi toàn bộ theo đợt (batch) vào Redis stream để xử lý gửi email
             List<TicketSummaryDTO> tickets = ticketService.generateTickets(resId);
             ticketEmailProducer.sendReservationTickets(user, tickets);
 
@@ -262,10 +281,16 @@ public class VNPaymentServiceImpl implements PaymentService {
         messagingTemplate.convertAndSend("/topic/reservations/" + resId + "/payment-response", socketData);
     }
 
+    /**
+     * Tách ID giao dịch gốc từ chuỗi txnRef (được ghép theo dạng {paymentId}_{timestamp}).
+     */
     private String extractIdFromTxnRef(String txnRef) {
         return (txnRef != null && txnRef.contains("_")) ? txnRef.split("_")[0] : txnRef;
     }
 
+    /**
+     * Kiểm tra tính hợp lệ của đơn đặt chỗ (thời hạn, số tiền).
+     */
     private void validateReservation(Reservation res, ReservationDTO dto) {
         if (LocalDateTime.now().isAfter(res.getExpiresAt()))
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
@@ -273,6 +298,9 @@ public class VNPaymentServiceImpl implements PaymentService {
             throw new AppException(ErrorCode.INVALID_AMOUNT);
     }
 
+    /**
+     * Tạo mới một bản ghi Payment gắn với đơn đặt chỗ ở trạng thái PENDING.
+     */
     private Payment createNewPayment(Reservation reservation, LocalDateTime now) {
         User user = reservation.getUser();
         Payment newPayment = new Payment();
@@ -293,11 +321,14 @@ public class VNPaymentServiceImpl implements PaymentService {
         return newPayment;
     }
 
+    /**
+     * Xây dựng URL thanh toán VNPay kèm các tham số cấu hình, thời gian hết hạn và chữ ký số SHA-512.
+     */
     private String buildPaymentUrl(Payment payment, HttpServletRequest httpRequest) {
         String version = "2.1.0";
         String command = "pay";
         String orderType = "other";
-        // Số tiền cần nhân với 100
+        // Số tiền theo quy định của VNPay cần nhân với 100
         long amount = payment.getFinalAmount() * 100;
         String transactionReference = payment.getId() + "_" + System.currentTimeMillis();
         String clientIpAddress = vnPayUtil.getIpAddress(httpRequest);
@@ -327,7 +358,7 @@ public class VNPaymentServiceImpl implements PaymentService {
         ZonedDateTime expire = payment.getExpiresAt().atZone(zone);
         params.put("vnp_ExpireDate", expire.format(formatter));
 
-        // Sắp xếp tham số và Build Query String
+        // Sắp xếp tham số theo alphabet và tạo Query String
         List<String> sortedFieldNames = new ArrayList<>(params.keySet());
         Collections.sort(sortedFieldNames);
 
@@ -363,6 +394,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         return vnPayConfig.getVnpPayUrl() + "?" + queryUrl;
     }
 
+    /**
+     * Tìm Payment đã tồn tại của đơn đặt chỗ để cập nhật lại số tiền nếu có thay đổi.
+     */
     private Payment findPaymentAndUpdate(Reservation reservation) {
         Payment payment = reservation.getPayment();
         if (payment == null) return null;
@@ -373,14 +407,17 @@ public class VNPaymentServiceImpl implements PaymentService {
         return payment;
     }
 
+    /**
+     * Xử lý logic thay đổi voucher: kiểm tra tính hợp lệ, giữ số lượng voucher, tính lại chiết khấu và hoàn tác nếu lỗi.
+     */
     private void handleVoucherChange(Reservation reservation, ReservationDTO dto) {
         Voucher currentVoucher = reservation.getVoucher();
         String newVoucherId = dto.getVoucherId();
 
-        // Case 1: Không có voucher cũ lẫn mới, không làm gì
+        // Trường hợp 1: Không có voucher cũ lẫn mới, không làm gì
         if (newVoucherId == null && currentVoucher == null) return;
 
-        // Case 2: Bỏ voucher
+        // Trường hợp 2: Bỏ voucher đang áp dụng
         if (newVoucherId == null) {
             log.info("[VOUCHER] Reservation {} | Bỏ voucher {}", reservation.getId(), currentVoucher.getId());
             voucherService.release(currentVoucher.getId());
@@ -388,7 +425,7 @@ public class VNPaymentServiceImpl implements PaymentService {
             return;
         }
 
-        // Case 3: Có voucher mới
+        // Trường hợp 3: Áp dụng voucher mới
         Voucher newVoucher = null;
         boolean isReservedIncreased = false;
 
@@ -397,34 +434,34 @@ public class VNPaymentServiceImpl implements PaymentService {
                     && currentVoucher.getId().equals(newVoucherId);
 
             if (isSameVoucher) {
-                // Case 3a: Cùng voucher → chỉ recalculate, không đụng reservedQty
+                // Trường hợp 3a: Cùng voucher → chỉ tính lại chiết khấu, không thay đổi số lượng giữ chỗ (reservedQty)
                 newVoucher = currentVoucher;
                 log.info("[VOUCHER] Reservation {} | Giữ nguyên voucher {}, recalculate",
                         reservation.getId(), newVoucherId);
             } else {
-                // Case 3b: Voucher mới khác cũ → reserve mới trước
+                // Trường hợp 3b: Voucher mới khác cũ → kiểm tra hợp lệ và giữ số lượng voucher mới trước
                 newVoucher = voucherService.validateVoucherForReservation(newVoucherId, reservation);
                 voucherService.reserveVoucher(newVoucherId);
                 isReservedIncreased = true;
                 log.info("[VOUCHER] Reservation {} | Đổi sang voucher {}", reservation.getId(), newVoucherId);
             }
 
-            // Server tự tính discount — KHÔNG tin số liệu từ dto
+            // Server tự tính chiết khấu — không tin tưởng số liệu từ client gửi lên
             ReservationDTO calculated = reservationService.calculateDiscount(reservation, newVoucher);
 
-            // So sánh với client để log anomaly
+            // So sánh với client để ghi log cảnh báo nếu có bất thường
             verifyClientAmount(dto, calculated, reservation.getId());
 
-            // Apply vào DB
+            // Áp dụng chiết khấu vào Database
             reservationService.applyDiscount(reservation, newVoucher, calculated);
 
-            // Release voucher cũ sau khi apply thành công
+            // Giải phóng voucher cũ sau khi áp dụng thành công voucher mới
             if (!isSameVoucher && currentVoucher != null) {
                 voucherService.release(currentVoucher.getId());
             }
 
         } catch (Exception e) {
-            // Rollback: nếu đã tăng reservedQty của voucher mới thì giảm lại
+            // Hoàn tác: nếu đã tăng số lượng giữ chỗ của voucher mới thì hoàn lại khi gặp lỗi
             if (isReservedIncreased && newVoucher != null) {
                 voucherService.release(newVoucher.getId());
                 log.warn("[VOUCHER] Rollback reservedQuantity voucher {} do lỗi: {}",
@@ -434,6 +471,9 @@ public class VNPaymentServiceImpl implements PaymentService {
         }
     }
 
+    /**
+     * So sánh số tiền client tính với số tiền server tính toán để phát hiện bất thường nếu có.
+     */
     private void verifyClientAmount(ReservationDTO dto, ReservationDTO calculated, String reservationId) {
         if (dto.getFinalAmount() != null
                 && !dto.getFinalAmount().equals(calculated.getFinalAmount())) {

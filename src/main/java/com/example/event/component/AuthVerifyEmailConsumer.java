@@ -12,8 +12,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class AuthVerifyEmailConsumer
-        implements StreamListener<String, MapRecord<String, String, String>> {
+public class AuthVerifyEmailConsumer implements StreamListener<String, MapRecord<String, String, String>> {
 
     private final MailService mailService;
     private final StringRedisTemplate stringRedisTemplate;

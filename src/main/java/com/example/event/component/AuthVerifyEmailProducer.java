@@ -14,7 +14,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AuthVerifyEmailProducer {
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final com.example.event.service.OutboxService outboxService;
 
     public void sendVerifyEmail(String email, String verifyToken) {
         try {
@@ -23,11 +23,11 @@ public class AuthVerifyEmailProducer {
                     "verifyToken", verifyToken
             );
 
-            RecordId id = stringRedisTemplate.opsForStream()
-                    .add(RedisStreamConfig.AUTH_STREAM_KEY, fields);
-            log.info("[AUTH-PRODUCER] Pushed verify email to stream (email={}) → record={}", email, id);
+            outboxService.publish("USER", email, "AUTH_VERIFY_EMAIL", RedisStreamConfig.AUTH_STREAM_KEY, fields);
+            log.info("[AUTH-PRODUCER] Queued verify email qua Outbox (email={})", email);
         } catch (Exception e) {
-            log.error("[AUTH-PRODUCER] Lỗi push stream: {}", e.getMessage(), e);
+            log.error("[AUTH-PRODUCER] Lỗi lưu verify email vào Outbox: {}", e.getMessage(), e);
+            throw new RuntimeException("Lỗi lưu sự kiện gửi mail xác thực vào Outbox", e);
         }
     }
 }

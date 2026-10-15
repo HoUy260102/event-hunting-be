@@ -127,7 +127,7 @@ public class TicketMailService {
               <div class="footer">© 2025 EventHunting. Mọi quyền được bảo lưu.</div>
             </div>
             </body></html>
-            """.format(name, eventName, veWord, eventName, showTime, location, ref, veWord);
+            """.formatted(name, eventName, veWord, eventName, showTime, location, ref, veWord);
     }
 
     private String parseDt(String raw) {

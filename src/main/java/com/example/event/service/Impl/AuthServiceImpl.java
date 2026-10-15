@@ -296,6 +296,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
     }
 
+    @Transactional
     @Override
     public void resendVerify(String email) {
         User existedUser = userRepository.findUserByEmail(email);
