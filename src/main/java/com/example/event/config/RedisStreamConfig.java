@@ -1,5 +1,6 @@
 package com.example.event.config;
 
+import com.example.event.component.AuthForgotPasswordConsumer;
 import com.example.event.component.AuthVerifyEmailConsumer;
 import com.example.event.component.TicketEmailConsumer;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer.Stre
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -26,24 +28,27 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RedisStreamConfig {
 
-    public static final String STREAM_KEY  = "stream:ticket-email";
-    public static final String GROUP_NAME  = "ticket-email-group";
+    public static final String STREAM_KEY = "stream:ticket-email";
+    public static final String GROUP_NAME = "ticket-email-group";
     public static final String CONSUMER_NAME = "consumer-1";
 
-    public static final String AUTH_STREAM_KEY  = "stream:auth-verify-email";
-    public static final String AUTH_GROUP_NAME  = "auth-verify-email-group";
+    public static final String AUTH_STREAM_KEY = "stream:auth-verify-email";
+    public static final String AUTH_GROUP_NAME = "auth-verify-email-group";
     public static final String AUTH_CONSUMER_NAME = "auth-verify-consumer-1";
-    
-    @Bean(destroyMethod = "stop")
-    public StreamMessageListenerContainer<String, MapRecord<String, String, String>>
-    ticketStreamContainer(RedisConnectionFactory factory) {
 
-        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts =
-                StreamMessageListenerContainerOptions
-                        .<String, MapRecord<String, String, String>>builder()
-                        .pollTimeout(Duration.ofSeconds(1))
-                        .serializer(new StringRedisSerializer())
-                        .build();
+    public static final String FORGOT_PASSWORD_STREAM_KEY = "stream:auth-forgot-password-email";
+    public static final String FORGOT_PASSWORD_GROUP_NAME = "auth-forgot-password-email-group";
+    public static final String FORGOT_PASSWORD_CONSUMER_NAME = "auth-forgot-consumer-1";
+
+    @Bean(destroyMethod = "stop")
+    public StreamMessageListenerContainer<String, MapRecord<String, String, String>> ticketStreamContainer(
+            RedisConnectionFactory factory) {
+
+        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
+                .<String, MapRecord<String, String, String>>builder()
+                .pollTimeout(Duration.ofSeconds(1))
+                .serializer(new StringRedisSerializer())
+                .build();
 
         return StreamMessageListenerContainer.create(factory, opts);
     }
@@ -73,12 +78,30 @@ public class RedisStreamConfig {
                 log.info("[TICKET-STREAM] Consumer group '{}' đã tồn tại — OK", GROUP_NAME);
             }
 
+            // 2b. Xử lý lại các tin nhắn Pending chưa ACK (do lỗi trước đó)
+            try {
+                List<MapRecord<String, Object, Object>> pending = stringRedisTemplate.opsForStream()
+                        .read(Consumer.from(GROUP_NAME, CONSUMER_NAME),
+                                StreamOffset.create(STREAM_KEY, ReadOffset.from("0-0")));
+                if (pending != null && !pending.isEmpty()) {
+                    log.info("[TICKET-STREAM] Tìm thấy {} tin nhắn Pending cần xử lý lại", pending.size());
+                    for (MapRecord<String, Object, Object> rawRec : pending) {
+                        Map<String, String> converted = new HashMap<>();
+                        rawRec.getValue().forEach((k, v) -> converted.put(String.valueOf(k), String.valueOf(v)));
+                        MapRecord<String, String, String> typedRecord = MapRecord.create(rawRec.getStream(), converted)
+                                .withId(rawRec.getId());
+                        ticketEmailConsumer.onMessage(typedRecord);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[TICKET-STREAM] Bỏ qua kiểm tra pending: {}", e.getMessage());
+            }
+
             // 3. Đăng ký consumer — ACK thủ công để lỗi vẫn nằm trong Pending
             ticketStreamContainer.receive(
                     Consumer.from(GROUP_NAME, CONSUMER_NAME),
                     StreamOffset.create(STREAM_KEY, ReadOffset.lastConsumed()),
-                    ticketEmailConsumer
-            );
+                    ticketEmailConsumer);
 
             // 4. Khởi động vòng lặp polling
             ticketStreamContainer.start();
@@ -87,15 +110,14 @@ public class RedisStreamConfig {
     }
 
     @Bean(destroyMethod = "stop")
-    public StreamMessageListenerContainer<String, MapRecord<String, String, String>>
-    authStreamContainer(RedisConnectionFactory factory) {
+    public StreamMessageListenerContainer<String, MapRecord<String, String, String>> authStreamContainer(
+            RedisConnectionFactory factory) {
 
-        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts =
-                StreamMessageListenerContainerOptions
-                        .<String, MapRecord<String, String, String>>builder()
-                        .pollTimeout(Duration.ofSeconds(1))
-                        .serializer(new StringRedisSerializer())
-                        .build();
+        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
+                .<String, MapRecord<String, String, String>>builder()
+                .pollTimeout(Duration.ofSeconds(1))
+                .serializer(new StringRedisSerializer())
+                .build();
 
         return StreamMessageListenerContainer.create(factory, opts);
     }
@@ -126,16 +148,85 @@ public class RedisStreamConfig {
                 log.info("[AUTH-STREAM] Consumer group '{}' đã tồn tại — OK", AUTH_GROUP_NAME);
             }
 
+            // 2b. Xử lý lại các tin nhắn Pending chưa ACK (do lỗi trước đó)
+            try {
+                List<MapRecord<String, Object, Object>> pending = stringRedisTemplate.opsForStream()
+                        .read(Consumer.from(AUTH_GROUP_NAME, AUTH_CONSUMER_NAME),
+                                StreamOffset.create(AUTH_STREAM_KEY, ReadOffset.from("0-0")));
+                if (pending != null && !pending.isEmpty()) {
+                    log.info("[AUTH-STREAM] Tìm thấy {} tin nhắn Pending cần xử lý lại", pending.size());
+                    for (MapRecord<String, Object, Object> rawRec : pending) {
+                        Map<String, String> converted = new HashMap<>();
+                        rawRec.getValue().forEach((k, v) -> converted.put(String.valueOf(k), String.valueOf(v)));
+                        MapRecord<String, String, String> typedRecord = MapRecord.create(rawRec.getStream(), converted)
+                                .withId(rawRec.getId());
+                        authVerifyEmailConsumer.onMessage(typedRecord);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("[AUTH-STREAM] Bỏ qua kiểm tra pending: {}", e.getMessage());
+            }
+
             // 3. Đăng ký consumer
             authStreamContainer.receive(
                     Consumer.from(AUTH_GROUP_NAME, AUTH_CONSUMER_NAME),
                     StreamOffset.create(AUTH_STREAM_KEY, ReadOffset.lastConsumed()),
-                    authVerifyEmailConsumer
-            );
+                    authVerifyEmailConsumer);
 
             // 4. Khởi động
             authStreamContainer.start();
             log.info("[AUTH-STREAM] StreamMessageListenerContainer đã được khởi động");
+        };
+    }
+
+    @Bean(destroyMethod = "stop")
+    public StreamMessageListenerContainer<String, MapRecord<String, String, String>> forgotPasswordStreamContainer(
+            RedisConnectionFactory factory) {
+
+        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
+                .<String, MapRecord<String, String, String>>builder()
+                .pollTimeout(Duration.ofSeconds(1))
+                .serializer(new StringRedisSerializer())
+                .build();
+
+        return StreamMessageListenerContainer.create(factory, opts);
+    }
+
+    @Bean
+    public ApplicationRunner forgotPasswordStreamInit(
+            StringRedisTemplate stringRedisTemplate,
+            StreamMessageListenerContainer<String, MapRecord<String, String, String>> forgotPasswordStreamContainer,
+            AuthForgotPasswordConsumer authForgotPasswordConsumer) {
+
+        return args -> {
+
+            // 1. Đảm bảo khóa stream tồn tại
+            if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(FORGOT_PASSWORD_STREAM_KEY))) {
+                Map<String, String> body = new HashMap<>();
+                body.put("_init", "1");
+                stringRedisTemplate.opsForStream()
+                        .add(FORGOT_PASSWORD_STREAM_KEY, body);
+                log.info("[FORGOT-PASSWORD-STREAM] Đã tạo stream '{}'", FORGOT_PASSWORD_STREAM_KEY);
+            }
+
+            // 2. Tạo consumer group
+            try {
+                stringRedisTemplate.opsForStream()
+                        .createGroup(FORGOT_PASSWORD_STREAM_KEY, ReadOffset.from("0-0"), FORGOT_PASSWORD_GROUP_NAME);
+                log.info("[FORGOT-PASSWORD-STREAM] Đã tạo consumer group '{}'", FORGOT_PASSWORD_GROUP_NAME);
+            } catch (Exception e) {
+                log.info("[FORGOT-PASSWORD-STREAM] Consumer group '{}' đã tồn tại — OK", FORGOT_PASSWORD_GROUP_NAME);
+            }
+
+            // 3. Đăng ký consumer
+            forgotPasswordStreamContainer.receive(
+                    Consumer.from(FORGOT_PASSWORD_GROUP_NAME, FORGOT_PASSWORD_CONSUMER_NAME),
+                    StreamOffset.create(FORGOT_PASSWORD_STREAM_KEY, ReadOffset.lastConsumed()),
+                    authForgotPasswordConsumer);
+
+            // 4. Khởi động
+            forgotPasswordStreamContainer.start();
+            log.info("[FORGOT-PASSWORD-STREAM] StreamMessageListenerContainer đã được khởi động");
         };
     }
 }

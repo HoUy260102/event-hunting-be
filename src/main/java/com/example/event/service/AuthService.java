@@ -18,4 +18,8 @@ public interface AuthService {
     void signup(SignUpReq req, String deviceId);
     String buildGoogleAuthUrl(String deviceId);
     String handleCallback(String code, String deviceId) throws IOException;
+
+    String sendForgotPasswordOtp(com.example.event.dto.request.ForgotPasswordSendOtpReq req);
+    void verifyForgotPasswordOtp(com.example.event.dto.request.ForgotPasswordVerifyOtpReq req);
+    void resetPassword(com.example.event.dto.request.ForgotPasswordResetReq req);
 }

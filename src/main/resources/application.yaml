@@ -22,3 +22,7 @@ spring:
   data:
     web:
       page-serialization-mode: via-dto
+
+app:
+  api-base-url: ${APP_API_BASE_URL:http://localhost:8080/api/v1}
+

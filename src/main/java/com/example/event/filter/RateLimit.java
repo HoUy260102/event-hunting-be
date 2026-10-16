@@ -31,8 +31,7 @@ public class RateLimit extends OncePerRequestFilter {
     private final RedisTemplate<String, Object> redisTemplate;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    private static final String LUA_SCRIPT =
-            "local key = KEYS[1] " +
+    private static final String LUA_SCRIPT = "local key = KEYS[1] " +
             "local member = ARGV[1] " +
             "local score = tonumber(ARGV[2]) " +
             "local minScore = tonumber(ARGV[3]) " +
@@ -55,12 +54,15 @@ public class RateLimit extends OncePerRequestFilter {
     private final Map<String, RateLimitConfig> limits = new HashMap<>() {
         {
             put("/auth/login", new RateLimitConfig(5L, 10L));
-            put("/auth/resend-verify", new RateLimitConfig(1L, 60L));
+            put("/auth/resend-verify", new RateLimitConfig(3L, 60L));
             put("/auth/signup", new RateLimitConfig(3L, 60L));
             put("/auth/verify", new RateLimitConfig(5L, 60L));
             put("/auth/refresh-token", new RateLimitConfig(5L, 60L));
             put("/auth/google/url", new RateLimitConfig(5L, 10L));
             put("/auth/callback/google", new RateLimitConfig(5L, 10L));
+            put("/auth/forgot-password/send-otp", new RateLimitConfig(3L, 60L));
+            put("/auth/forgot-password/verify-otp", new RateLimitConfig(5L, 60L));
+            put("/auth/forgot-password/reset-password", new RateLimitConfig(5L, 60L));
             put("/events/public/search", new RateLimitConfig(100L, 10L));
             put("/events/trending", new RateLimitConfig(100L, 10L));
             put("/events/*/info", new RateLimitConfig(200L, 10L));
@@ -68,9 +70,10 @@ public class RateLimit extends OncePerRequestFilter {
     };
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
         String path = request.getServletPath();
-        
+
         RateLimitConfig limit = null;
         String matchedPattern = null;
         for (Map.Entry<String, RateLimitConfig> entry : limits.entrySet()) {
@@ -92,7 +95,7 @@ public class RateLimit extends OncePerRequestFilter {
         long now = System.currentTimeMillis();
         long windowStart = now - (windowSec * 1000);
         String member = now + ":" + System.nanoTime();
-        
+
         String ip = Optional.ofNullable(request.getHeader("X-Forwarded-For"))
                 .map(h -> h.split(",")[0].trim())
                 .orElse(request.getRemoteAddr());
@@ -111,14 +114,7 @@ public class RateLimit extends OncePerRequestFilter {
             }
         }
 
-        String key = "rate:device:" + matchedPattern  + ":" + clientIdentifier;
-
-        if ("/auth/resend-verify".equals(matchedPattern)) {
-            String email = request.getParameter("email");
-            if (email != null && !email.trim().equals("")) {
-                key += ":" + email;
-            }
-        }
+        String key = "rate:device:" + matchedPattern + ":" + clientIdentifier;
 
         Long result = redisTemplate.execute(
                 SCRIPT,
@@ -127,8 +123,7 @@ public class RateLimit extends OncePerRequestFilter {
                 now,
                 windowStart,
                 maxRequests,
-                windowSec + 2
-        );
+                windowSec + 2);
 
         if (result != null && result == 0) {
             ErrorResponse err = ErrorResponse.builder()

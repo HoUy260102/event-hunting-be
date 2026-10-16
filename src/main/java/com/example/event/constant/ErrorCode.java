@@ -37,6 +37,13 @@ public enum ErrorCode {
 
     PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST,"Mật khẩu xác nhận không khớp."),
     CURRENT_PASSWORD_INCORRECT(HttpStatus.BAD_REQUEST, "Mật khẩu hiện tại không chính xác."),
+    OTP_INVALID(HttpStatus.BAD_REQUEST, "Mã xác thực OTP không chính xác."),
+    OTP_EXPIRED(HttpStatus.BAD_REQUEST, "Mã OTP đã hết hạn (quá 5 phút). Vui lòng gửi lại mã mới."),
+    RESET_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "Phiên đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng thử lại từ đầu."),
+    OTP_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Bạn chưa hoàn tất xác thực OTP."),
+    NEW_PASSWORD_SAME_AS_OLD(HttpStatus.BAD_REQUEST, "Mật khẩu mới không được trùng với mật khẩu cũ."),
+    OTP_RESEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "Vui lòng đợi 60 giây trước khi yêu cầu gửi lại mã OTP."),
+    RESEND_VERIFY_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "Vui lòng đợi 60 giây trước khi yêu cầu gửi lại email xác thực."),
 
     INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "Đuôi file không được hỗ trợ."),
     INVALID_FILE_MIME_TYPE(HttpStatus.BAD_REQUEST, "Nội dung file không hợp lệ."),

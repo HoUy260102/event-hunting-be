@@ -1,6 +1,9 @@
 package com.example.event.controller;
 
 import com.example.event.dto.AuthDTO;
+import com.example.event.dto.request.ForgotPasswordResetReq;
+import com.example.event.dto.request.ForgotPasswordSendOtpReq;
+import com.example.event.dto.request.ForgotPasswordVerifyOtpReq;
 import com.example.event.dto.request.LoginReq;
 import com.example.event.dto.request.SignUpReq;
 import com.example.event.dto.response.ApiResponse;
@@ -41,7 +44,9 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginReq loginReq, @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId, HttpServletRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginReq loginReq,
+            @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId,
+            HttpServletRequest request) {
         String ipAddress = request.getRemoteAddr();
         AuthResponse authResponse = authService.login(loginReq, deviceId, ipAddress);
         ApiResponse response = ApiResponse.builder()
@@ -53,7 +58,8 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signUp(@Valid @RequestBody SignUpReq signUpReq, @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
+    public ResponseEntity<?> signUp(@Valid @RequestBody SignUpReq signUpReq,
+            @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
         authService.signup(signUpReq, deviceId);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.CREATED.value())
@@ -63,7 +69,8 @@ public class AuthController {
     }
 
     @GetMapping("/verify")
-    public ResponseEntity<?> verify(@RequestParam(name = "verifyToken") String verifyToken, @RequestParam(name = "email") String email) {
+    public ResponseEntity<?> verify(@RequestParam(name = "verifyToken") String verifyToken,
+            @RequestParam(name = "email") String email) {
         try {
             authService.verify(verifyToken);
             messagingTemplate.convertAndSend("/topic/verify/" + email, "SUCCESS");
@@ -101,7 +108,8 @@ public class AuthController {
     }
 
     @PostMapping("/refresh-token")
-    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> bodyReq, @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> bodyReq,
+            @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
         String refreshToken = bodyReq.get("refreshToken");
         AuthTokensResponse tokenRes = authService.refreshToken(refreshToken, deviceId);
         ApiResponse response = ApiResponse.builder()
@@ -124,7 +132,8 @@ public class AuthController {
     }
 
     @GetMapping("/google/url")
-    public ResponseEntity<?> getGoogleAuthUrl(@RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
+    public ResponseEntity<?> getGoogleAuthUrl(
+            @RequestHeader(value = "X-Device-Id", defaultValue = "unknownDevice") String deviceId) {
         String url = authService.buildGoogleAuthUrl(deviceId);
         Map<String, String> result = new HashMap<>();
         result.put("url", url);
@@ -144,5 +153,38 @@ public class AuthController {
                 .contentType(MediaType.TEXT_HTML)
                 .header("Cross-Origin-Opener-Policy", "unsafe-none")
                 .body(result);
+    }
+
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<?> sendForgotPasswordOtp(@Valid @RequestBody ForgotPasswordSendOtpReq req) {
+        Map<String, String> data = new HashMap<>();
+        String resetToken = authService.sendForgotPasswordOtp(req);
+        data.put("resetToken", resetToken);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .data(data)
+                .message("Mã xác thực OTP đã được gửi đến email của bạn.")
+                .build();
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<?> verifyForgotPasswordOtp(@Valid @RequestBody ForgotPasswordVerifyOtpReq req) {
+        authService.verifyForgotPasswordOtp(req);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Xác thực mã OTP thành công.")
+                .build();
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ForgotPasswordResetReq req) {
+        authService.resetPassword(req);
+        ApiResponse response = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới.")
+                .build();
+        return ResponseEntity.ok(response);
     }
 }

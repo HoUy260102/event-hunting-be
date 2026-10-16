@@ -27,12 +27,12 @@ public class AuthVerifyEmailConsumer implements StreamListener<String, MapRecord
             String verifyToken = record.getValue().get("verifyToken");
 
             if (email == null || verifyToken == null) {
-                log.warn("[AUTH-CONSUMER] Missing fields in record {}, ACKing.", recordId);
+                log.warn("[AUTH-CONSUMER] Missing email or verifyToken in record {}, ACKing.", recordId);
                 ack(record);
                 return;
             }
 
-            // Gửi mail xác thực
+            // Gửi mail xác thực đăng ký tài khoản
             mailService.registerUser(verifyToken, email);
 
             // ACK sau khi gửi thành công

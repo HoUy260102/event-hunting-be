@@ -85,6 +85,7 @@ public class SecurityConfig {
                                     "/auth/refresh-token",
                                     "/auth/resend-verify",
                                     "/auth/signup",
+                                    "/auth/forgot-password/**",
                                     "/auth/callback/google",
                                     "/auth/google/url",
                                     "/auth/verify",

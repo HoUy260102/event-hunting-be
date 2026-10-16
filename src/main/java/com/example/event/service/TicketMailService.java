@@ -43,9 +43,9 @@ public class TicketMailService {
             MimeMessage mime = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(mime, true, "UTF-8");
 
-            helper.setFrom(fromEmail);
+            helper.setFrom(fromEmail, "Event Hunting");
             helper.setTo(first.getUserEmail());
-            helper.setSubject("Xác nhận vé — " + first.getEventName());
+            helper.setSubject("Xác nhận vé điện tử: " + first.getEventName() + " — Event Hunting");
             helper.setText(buildHtml(first, tickets.size()), true);
 
             // Đính kèm từng vé
@@ -66,68 +66,68 @@ public class TicketMailService {
     // ─────────────────────────────────────────────────────────────────────────
 
     private String buildHtml(TicketEmailMessage f, int totalTickets) {
-        String name      = nvl(f.getUserFullName(), "Quý khách");
-        String eventName = nvl(f.getEventName(), "sự kiện");
-        String location  = nvl(f.getEventLocation(), "—");
-        String showTime  = parseDt(f.getShowStartTime());
-        String ref       = nvl(f.getReservationCode(), "—");
-        String veWord    = totalTickets > 1 ? totalTickets + " vé" : "01 vé";
+        String name        = nvl(f.getUserFullName(), "Quý khách");
+        String eventName   = nvl(f.getEventName(), "sự kiện");
+        String location    = nvl(f.getEventLocation(), "—");
+        String showTime    = parseDt(f.getShowStartTime());
+        String ref         = nvl(f.getReservationCode(), "—");
+        String veWord      = totalTickets > 1 ? totalTickets + " vé" : "01 vé";
+        int currentYear    = java.time.Year.now().getValue();
 
-        return """
-            <!DOCTYPE html><html lang="vi"><head>
-            <meta charset="UTF-8"/>
-            <meta name="viewport" content="width=device-width,initial-scale=1"/>
-            <style>
-              body{margin:0;padding:0;background:#f9fafb;font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;color:#191a1a}
-              .wrap{max-width:560px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;
-                    box-shadow:0 4px 24px rgba(0,0,0,.08);border:1px solid #e2e2e2}
-              .hdr{background:#191a1a;padding:28px 32px 20px;text-align:center}
-              .hdr h1{margin:0;font-size:20px;font-weight:800;color:#fff;letter-spacing:-.5px}
-              .hdr p{margin:6px 0 0;font-size:12px;color:#c6c6c7}
-              .body{padding:28px 32px}
-              .greeting{font-size:15px;font-weight:700;margin-bottom:6px}
-              .intro{font-size:13px;color:#474848;line-height:1.6;margin-bottom:22px}
-              .badge{display:inline-block;background:#e8f0fe;color:#1967d2;font-size:10px;font-weight:800;
-                     letter-spacing:.1em;text-transform:uppercase;padding:4px 12px;border-radius:99px;margin-bottom:16px}
-              .card{background:#f7f7f7;border-radius:12px;padding:18px 22px;border:1px solid #e2e2e2;margin-bottom:20px}
-              .row{display:flex;justify-content:space-between;margin-bottom:10px}
-              .row:last-child{margin-bottom:0}
-              .lb{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#777778}
-              .vl{font-size:13px;font-weight:700;color:#191a1a;text-align:right;max-width:60%%}
-              .divider{border:none;border-top:1px dashed #c7c6c6;margin:20px 0}
-              .note{font-size:13px;color:#474848;line-height:1.6}
-              .footer{background:#f1f1f1;padding:18px 32px;text-align:center;font-size:11px;color:#777778}
-            </style></head><body>
-            <div class="wrap">
-              <div class="hdr">
-                <h1>EventHunting</h1>
-                <p>Nền tảng mua vé sự kiện hàng đầu Việt Nam</p>
-              </div>
-              <div class="body">
-                <p class="greeting">Xin chào, %s!</p>
-                <p class="intro">
-                  Cảm ơn bạn đã đặt vé. Đơn hàng của bạn cho sự kiện
-                  <strong>%s</strong> đã được xác nhận.<br/>
-                  <strong>%s</strong> được đính kèm trong email này. Vui lòng xuất trình vé khi vào cửa.
-                </p>
-                <div style="text-align:center"><span class="badge">Đã xác nhận</span></div>
-                <div class="card">
-                  <div class="row"><span class="lb">Sự kiện</span><span class="vl">%s</span></div>
-                  <div class="row"><span class="lb">Thời gian</span><span class="vl">%s</span></div>
-                  <div class="row"><span class="lb">Địa điểm</span><span class="vl">%s</span></div>
-                  <div class="row"><span class="lb">Mã đơn hàng</span><span class="vl">%s</span></div>
-                  <div class="row"><span class="lb">Số lượng vé</span><span class="vl">%s</span></div>
-                </div>
-                <hr class="divider"/>
-                <p class="note">
-                  📎 Mỗi file PDF đính kèm là một vé riêng biệt với mã QR duy nhất.<br/>
-                  Tải về và xuất trình từng vé tại quầy check-in.
-                </p>
-              </div>
-              <div class="footer">© 2025 EventHunting. Mọi quyền được bảo lưu.</div>
-            </div>
-            </body></html>
-            """.formatted(name, eventName, veWord, eventName, showTime, location, ref, veWord);
+        return "<div style=\"background-color: #f8fafc; padding: 40px 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;\">" +
+                "  <div style=\"max-width: 560px; margin: 0 auto; background-color: #ffffff; border-radius: 18px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;\">" +
+                "    <!-- Header Banner -->" +
+                "    <div style=\"background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 32px 24px; text-align: center;\">" +
+                "      <h1 style=\"color: #ffffff; margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.5px;\">Event Hunting</h1>" +
+                "      <p style=\"color: rgba(255,255,255,0.92); margin: 6px 0 0 0; font-size: 14.5px;\">Xác nhận đặt vé thành công</p>" +
+                "    </div>" +
+                "    <!-- Body Content -->" +
+                "    <div style=\"padding: 32px 28px; color: #334155; line-height: 1.6;\">" +
+                "      <p style=\"font-size: 15px; margin-top: 0;\">Xin chào <strong>" + name + "</strong>,</p>" +
+                "      <p style=\"font-size: 14.5px; color: #475569;\">Cảm ơn bạn đã tin tưởng đặt vé tại <strong>Event Hunting</strong>. Đơn hàng của bạn cho sự kiện <strong>" + eventName + "</strong> đã được thanh toán và xác nhận thành công!</p>" +
+                "      <!-- Status Badge -->" +
+                "      <div style=\"text-align: center; margin: 20px 0;\">" +
+                "        <span style=\"display: inline-block; background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; padding: 6px 20px; border-radius: 9999px;\">✓ Đã xác nhận đặt vé</span>" +
+                "      </div>" +
+                "      <!-- Ticket Info Box -->" +
+                "      <div style=\"background-color: #f8fafc; border-radius: 14px; padding: 20px 22px; border: 1px solid #e2e8f0; margin: 24px 0;\">" +
+                "        <table style=\"width: 100%; border-collapse: collapse; font-size: 14px;\">" +
+                "          <tr>" +
+                "            <td style=\"padding: 8px 0; color: #64748b; font-weight: 600; width: 35%;\">Sự kiện:</td>" +
+                "            <td style=\"padding: 8px 0; color: #1e293b; font-weight: 700; text-align: right;\">" + eventName + "</td>" +
+                "          </tr>" +
+                "          <tr>" +
+                "            <td style=\"padding: 8px 0; color: #64748b; font-weight: 600; border-top: 1px solid #f1f5f9;\">Thời gian:</td>" +
+                "            <td style=\"padding: 8px 0; color: #1e293b; font-weight: 700; text-align: right; border-top: 1px solid #f1f5f9;\">" + showTime + "</td>" +
+                "          </tr>" +
+                "          <tr>" +
+                "            <td style=\"padding: 8px 0; color: #64748b; font-weight: 600; border-top: 1px solid #f1f5f9;\">Địa điểm:</td>" +
+                "            <td style=\"padding: 8px 0; color: #1e293b; font-weight: 700; text-align: right; border-top: 1px solid #f1f5f9;\">" + location + "</td>" +
+                "          </tr>" +
+                "          <tr>" +
+                "            <td style=\"padding: 8px 0; color: #64748b; font-weight: 600; border-top: 1px solid #f1f5f9;\">Mã đơn hàng:</td>" +
+                "            <td style=\"padding: 8px 0; color: #059669; font-weight: 800; font-family: monospace; font-size: 15px; text-align: right; border-top: 1px solid #f1f5f9;\">" + ref + "</td>" +
+                "          </tr>" +
+                "          <tr>" +
+                "            <td style=\"padding: 8px 0; color: #64748b; font-weight: 600; border-top: 1px solid #f1f5f9;\">Số lượng:</td>" +
+                "            <td style=\"padding: 8px 0; color: #1e293b; font-weight: 700; text-align: right; border-top: 1px solid #f1f5f9;\">" + veWord + "</td>" +
+                "          </tr>" +
+                "        </table>" +
+                "      </div>" +
+                "      <!-- PDF Attachment Notice -->" +
+                "      <div style=\"background-color: #ecfdf5; border-left: 4px solid #10b981; border-radius: 6px; padding: 14px 18px; margin: 24px 0;\">" +
+                "        <p style=\"margin: 0; font-size: 13.5px; color: #065f46; line-height: 1.5;\">" +
+                "          📎 <strong>File vé điện tử (PDF):</strong> <strong>" + veWord + "</strong> đã được đính kèm trực tiếp trong email này. Mỗi vé đều chứa một mã QR duy nhất để check-in tại quầy soát vé." +
+                "        </p>" +
+                "      </div>" +
+                "      <p style=\"font-size: 13px; color: #94a3b8; margin-bottom: 0;\">Nếu bạn có bất kỳ thắc mắc nào, vui lòng liên hệ đội ngũ hỗ trợ của chúng tôi để được giải đáp nhanh chóng.</p>" +
+                "    </div>" +
+                "    <!-- Footer -->" +
+                "    <div style=\"background-color: #f1f5f9; padding: 18px 24px; text-align: center; border-top: 1px solid #e2e8f0;\">" +
+                "      <p style=\"margin: 0; font-size: 12px; color: #94a3b8;\">© " + currentYear + " Event Hunting. All rights reserved.</p>" +
+                "    </div>" +
+                "  </div>" +
+                "</div>";
     }
 
     private String parseDt(String raw) {
