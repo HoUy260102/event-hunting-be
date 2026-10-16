@@ -48,7 +48,6 @@ public class AuthVerifyEmailConsumer implements StreamListener<String, MapRecord
         stringRedisTemplate.opsForStream().acknowledge(
                 RedisStreamConfig.AUTH_STREAM_KEY,
                 RedisStreamConfig.AUTH_GROUP_NAME,
-                record.getId()
-        );
+                record.getId());
     }
 }

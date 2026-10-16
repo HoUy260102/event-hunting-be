@@ -48,7 +48,6 @@ public class AuthForgotPasswordConsumer implements StreamListener<String, MapRec
         stringRedisTemplate.opsForStream().acknowledge(
                 RedisStreamConfig.FORGOT_PASSWORD_STREAM_KEY,
                 RedisStreamConfig.FORGOT_PASSWORD_GROUP_NAME,
-                record.getId()
-        );
+                record.getId());
     }
 }

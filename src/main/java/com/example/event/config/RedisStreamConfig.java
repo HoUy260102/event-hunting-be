@@ -20,7 +20,6 @@ import org.springframework.data.redis.stream.StreamMessageListenerContainer.Stre
 
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -78,26 +77,8 @@ public class RedisStreamConfig {
                 log.info("[TICKET-STREAM] Consumer group '{}' đã tồn tại — OK", GROUP_NAME);
             }
 
-            // 2b. Xử lý lại các tin nhắn Pending chưa ACK (do lỗi trước đó)
-            try {
-                List<MapRecord<String, Object, Object>> pending = stringRedisTemplate.opsForStream()
-                        .read(Consumer.from(GROUP_NAME, CONSUMER_NAME),
-                                StreamOffset.create(STREAM_KEY, ReadOffset.from("0-0")));
-                if (pending != null && !pending.isEmpty()) {
-                    log.info("[TICKET-STREAM] Tìm thấy {} tin nhắn Pending cần xử lý lại", pending.size());
-                    for (MapRecord<String, Object, Object> rawRec : pending) {
-                        Map<String, String> converted = new HashMap<>();
-                        rawRec.getValue().forEach((k, v) -> converted.put(String.valueOf(k), String.valueOf(v)));
-                        MapRecord<String, String, String> typedRecord = MapRecord.create(rawRec.getStream(), converted)
-                                .withId(rawRec.getId());
-                        ticketEmailConsumer.onMessage(typedRecord);
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("[TICKET-STREAM] Bỏ qua kiểm tra pending: {}", e.getMessage());
-            }
-
             // 3. Đăng ký consumer — ACK thủ công để lỗi vẫn nằm trong Pending
+            // Tin pending (lỗi/chưa ACK) sẽ được RedisStreamRecoveryJob quét và xử lý lại định kỳ
             ticketStreamContainer.receive(
                     Consumer.from(GROUP_NAME, CONSUMER_NAME),
                     StreamOffset.create(STREAM_KEY, ReadOffset.lastConsumed()),
@@ -148,26 +129,7 @@ public class RedisStreamConfig {
                 log.info("[AUTH-STREAM] Consumer group '{}' đã tồn tại — OK", AUTH_GROUP_NAME);
             }
 
-            // 2b. Xử lý lại các tin nhắn Pending chưa ACK (do lỗi trước đó)
-            try {
-                List<MapRecord<String, Object, Object>> pending = stringRedisTemplate.opsForStream()
-                        .read(Consumer.from(AUTH_GROUP_NAME, AUTH_CONSUMER_NAME),
-                                StreamOffset.create(AUTH_STREAM_KEY, ReadOffset.from("0-0")));
-                if (pending != null && !pending.isEmpty()) {
-                    log.info("[AUTH-STREAM] Tìm thấy {} tin nhắn Pending cần xử lý lại", pending.size());
-                    for (MapRecord<String, Object, Object> rawRec : pending) {
-                        Map<String, String> converted = new HashMap<>();
-                        rawRec.getValue().forEach((k, v) -> converted.put(String.valueOf(k), String.valueOf(v)));
-                        MapRecord<String, String, String> typedRecord = MapRecord.create(rawRec.getStream(), converted)
-                                .withId(rawRec.getId());
-                        authVerifyEmailConsumer.onMessage(typedRecord);
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("[AUTH-STREAM] Bỏ qua kiểm tra pending: {}", e.getMessage());
-            }
-
-            // 3. Đăng ký consumer
+            // 3. Đăng ký consumer (tin pending sẽ được RedisStreamRecoveryJob xử lý lại định kỳ)
             authStreamContainer.receive(
                     Consumer.from(AUTH_GROUP_NAME, AUTH_CONSUMER_NAME),
                     StreamOffset.create(AUTH_STREAM_KEY, ReadOffset.lastConsumed()),
