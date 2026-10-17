@@ -162,23 +162,23 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(noRollbackFor = AppException.class)
     public AuthTokensResponse refreshToken(String refreshToken, String deviceId) {
-        log.info("Bắt đầu xử lý yêu cầu làm mới refresh token.");
+        log.info("[AUTH] Bắt đầu xử lý yêu cầu làm mới refresh token.");
         if (refreshToken == null || refreshToken.isBlank()) {
-            log.warn("Từ chối refresh vì request không có refresh token.");
+            log.warn("[AUTH] Từ chối refresh vì request không có refresh token.");
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
 
         String refreshTokenHash = refreshTokenUtils.hashToken(refreshToken);
         Session session = sessionRepository.findByRefreshTokenHashForUpdate(refreshTokenHash)
                 .orElseThrow(() -> {
-                    log.warn("Từ chối refresh vì không tìm thấy session cho token đã gửi.");
+                    log.warn("[AUTH] Từ chối refresh vì không tìm thấy session cho token đã gửi.");
                     return new AppException(ErrorCode.TOKEN_INVALID);
                 });
         String tokenFamily = session.getTokenFamily();
         String sid = session.getId();
 
         if (!Objects.equals(deviceId, session.getDeviceId())) {
-            log.warn("Từ chối refresh do device id không khớp, session id={}", sid);
+            log.warn("[AUTH] Từ chối refresh do device id không khớp, session id={}", sid);
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
 
@@ -186,7 +186,7 @@ public class AuthServiceImpl implements AuthService {
             SessionRevokeReason reuseReason = session.getRevokeReason() == SessionRevokeReason.TOKEN_ROTATED
                     ? SessionRevokeReason.REFRESH_TOKEN_REUSE
                     : SessionRevokeReason.REVOKED_TOKEN_REUSE;
-            log.warn("Phát hiện gửi lại refresh token đã thu hồi, session id={}, nguyên nhân={}", sid, reuseReason);
+            log.warn("[AUTH] Phát hiện gửi lại refresh token đã thu hồi, session id={}, nguyên nhân={}", sid, reuseReason);
             revokeTokenFamily(tokenFamily, reuseReason);
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
@@ -195,20 +195,20 @@ public class AuthServiceImpl implements AuthService {
         if (session.getTokenFamilyExpiresAt() == null
                 || !session.getTokenFamilyExpiresAt().isAfter(now)) {
             // Hạn family cố định theo refresh token đầu tiên, không được kéo dài khi rotation.
-            log.warn("Từ chối refresh vì token family đã hết hạn, session id={}", sid);
+            log.warn("[AUTH] Từ chối refresh vì token family đã hết hạn, session id={}", sid);
             revokeTokenFamily(tokenFamily, SessionRevokeReason.TOKEN_FAMILY_EXPIRED);
             throw new AppException(ErrorCode.TOKEN_EXPIRED);
         }
 
         if (session.getExpiryDate() == null || !session.getExpiryDate().isAfter(now)) {
-            log.warn("Từ chối refresh vì refresh token đã hết hạn, session id={}", sid);
+            log.warn("[AUTH] Từ chối refresh vì refresh token đã hết hạn, session id={}", sid);
             throw new AppException(ErrorCode.TOKEN_EXPIRED);
         }
 
         User user = session.getUser();
         if (session.getTokenVersion() != null
                 && !session.getTokenVersion().equals(user.getTokenVersion())) {
-            log.warn("Từ chối refresh vì token version đã thay đổi, session id={}", sid);
+            log.warn("[AUTH] Từ chối refresh vì token version đã thay đổi, session id={}", sid);
             revokeTokenFamily(tokenFamily, SessionRevokeReason.PASSWORD_CHANGED);
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
@@ -238,7 +238,7 @@ public class AuthServiceImpl implements AuthService {
         sessionRepository.save(session);
 
         String accessToken = jwtUtils.generateToken(user.getEmail(), rotatedSession.getId(), "access");
-        log.info("Làm mới token thành công; session cũ id={}, session mới id={}",
+        log.info("[AUTH] Làm mới token thành công; session cũ id={}, session mới id={}",
             session.getId(), rotatedSession.getId());
         return new AuthTokensResponse(accessToken, rotatedRefreshToken);
     }

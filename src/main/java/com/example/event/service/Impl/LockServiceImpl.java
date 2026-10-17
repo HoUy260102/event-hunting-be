@@ -157,18 +157,18 @@ public class LockServiceImpl implements LockService {
         } catch (Exception e) {
             if (e instanceof RuntimeException)
                 throw e;
-            log.error("Redis execution error", e);
+            log.error("[LOCK] Lỗi thực thi Redis khi giữ chỗ unassigned tickets", e);
             throw new RuntimeException("Hệ thống bận, vui lòng thử lại sau.");
         }
         if (result == null || !"OK".equals(result)) {
             if (result != null && result.startsWith("ERR_MISSING_KEY")) {
-                log.error("Redis thiếu stock key cho show {}: {}. Đang warm-up cache từ DB.", showId, result);
+                log.error("[LOCK] Redis thiếu stock key cho show {}: {}. Đang warm-up cache từ DB.", showId, result);
             } else {
-                log.error("Không thể reserve ticket cho show {}: {}", showId, result);
+                log.error("[LOCK] Không thể reserve ticket cho show {}: {}", showId, result);
             }
             handleReservationError(result, requests);
         }
-        log.info("Successfully reserved tickets for show: {}", showId);
+        log.info("[LOCK] Giữ chỗ vé unassigned thành công cho show: {}", showId);
     }
 
     @Override
@@ -200,20 +200,20 @@ public class LockServiceImpl implements LockService {
                         .stream()
                         .map(seat -> seat.getRowName() + "-" + seat.getSeatNumber())
                         .collect(Collectors.joining(", "));
-                log.warn("[SeatLock] Show {}: Ghế {} đã bị chiếm bởi người khác", showId, occupiedSeats);
+                log.warn("[LOCK] Show {}: Ghế {} đã bị chiếm bởi người khác", showId, occupiedSeats);
                 throw new AppException(ErrorCode.SEAT_ALREADY_RESERVED,
                         "Ghế: " + occupiedSeats + " đã có người chọn rồi bạn ơi!");
             }
             if ("OK".equals(result)) {
                 String seatIdsForLog = sortedSeatIds.stream()
                         .collect(Collectors.joining(","));
-                log.info("[SeatLock] User {} đã khóa thành công các ghế: [{}] cho show {}", userId, seatIdsForLog,
+                log.info("[LOCK] User {} đã khóa thành công các ghế: [{}] cho show {}", userId, seatIdsForLog,
                         showId);
             }
         } catch (AppException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Lỗi khóa ghế Redis", e);
+            log.error("[LOCK] Lỗi khóa ghế Redis cho show {}: ", showId, e);
             throw new RuntimeException("Hệ thống bận, không thể chọn ghế lúc này.");
         }
     }
@@ -237,10 +237,10 @@ public class LockServiceImpl implements LockService {
         try {
             String result = redisTemplate.execute(seatUnlockScript, keys, lockToken);
             if ("OK".equals(result)) {
-                log.info("[SeatUnlock] Đã giải phóng thành công {} ghế cho show: {}", seatIds.size(), showId);
+                log.info("[LOCK] Đã giải phóng thành công {} ghế cho show: {}", seatIds.size(), showId);
             }
         } catch (Exception e) {
-            log.error("Lỗi khi giải phóng ghế Redis cho show: {}", showId, e);
+            log.error("[LOCK] Lỗi khi giải phóng ghế Redis cho show: {}", showId, e);
         }
     }
 
@@ -261,9 +261,9 @@ public class LockServiceImpl implements LockService {
 
         try {
             redisTemplate.execute(releaseUnassignScript, keys, args.toArray());
-            log.info("Giải phóng thành công {} items của show: {}", requests.size(), showId);
+            log.info("[LOCK] Giải phóng thành công {} items của show: {}", requests.size(), showId);
         } catch (Exception e) {
-            log.error("Critical error in batch release for show: {}", showId, e);
+            log.error("[LOCK] Lỗi nghiêm trọng khi batch release vé unassigned cho show: {}", showId, e);
             throw new RuntimeException("Không thể giải phóng vé, vui lòng kiểm tra lại hệ thống.");
         }
     }
@@ -286,13 +286,13 @@ public class LockServiceImpl implements LockService {
 
         try {
             if (keys.isEmpty()) {
-                log.warn("Không có keys nào được tạo để giải phóng cho show: {}", showId);
+                log.warn("[LOCK] Không có keys nào được tạo để giải phóng cho show: {}", showId);
                 return;
             }
             redisTemplate.execute(releaseUnassignScript, keys, args.toArray());
-            log.info("Giải phóng thành công {} items của show: {}", requests.size(), showId);
+            log.info("[LOCK] Giải phóng thành công {} items của show: {}", requests.size(), showId);
         } catch (Exception e) {
-            log.error("Critical error in batch release for show: {}", showId, e);
+            log.error("[LOCK] Lỗi nghiêm trọng khi batch release items cho show: {}", showId, e);
             throw new RuntimeException("Không thể giải phóng vé, vui lòng kiểm tra lại hệ thống.");
         }
     }
@@ -316,10 +316,10 @@ public class LockServiceImpl implements LockService {
         try {
             String result = redisTemplate.execute(seatUnlockScript, keys, lockToken);
             if ("OK".equals(result)) {
-                log.info("[SeatUnlock] Đã giải phóng thành công {} ghế cho show: {}", seatIds.size(), showId);
+                log.info("[LOCK] Đã giải phóng thành công {} ghế cho show: {}", seatIds.size(), showId);
             }
         } catch (Exception e) {
-            log.error("Lỗi khi giải phóng ghế Redis cho show: {}", showId, e);
+            log.error("[LOCK] Lỗi khi giải phóng ghế Redis cho show: {}", showId, e);
         }
     }
 
@@ -350,7 +350,7 @@ public class LockServiceImpl implements LockService {
                     .map(ReservationItemReq::getTicketTypeName)
                     .distinct()
                     .collect(Collectors.joining(", "));
-            log.warn("Ticket Type full: {}", finalFailedTypeIds);
+            log.warn("[LOCK] Loại vé đã hết: {}", finalFailedTypeIds);
             throw new AppException(ErrorCode.TICKET_TYPE_FULL,
                     "Các loại vé: " + typeNames + " đã hết hàng!");
         }
@@ -361,7 +361,7 @@ public class LockServiceImpl implements LockService {
                     .map(item -> item.getTicketTypeName() + "(" + item.getTicketTierName() + ")")
                     .distinct()
                     .collect(Collectors.joining(", "));
-            log.warn("Ticket Tier full: {}", finalFailedTierIds);
+            log.warn("[LOCK] Hạng vé đã hết: {}", finalFailedTierIds);
             throw new AppException(ErrorCode.TICKET_TYPE_FULL,
                     "Các hạng vé: " + tierNames + " đã đạt giới hạn xin quay lại vào khung giờ bán vé khác!");
         }

@@ -67,7 +67,7 @@ public class EventServiceImpl implements EventService {
         Map<String, String> errorDetails = new HashMap<>();
         List<String> fileIdsForUpdate = new ArrayList<>();
 
-        //Check event có hop lệ
+        // Check event có hop lệ
         Province province = provinceRepository.findProvinceById(createEventReq.getProvinceId());
         if (province == null) {
             errorDetails.put("provinceId", "Không tìm thấy tỉnh thành.");
@@ -99,20 +99,21 @@ public class EventServiceImpl implements EventService {
         } else if (organizerLogo.getType() != FileType.IMAGE) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức phải là ảnh, vui lòng tải lại.");
         }
-        //Kiểm tra xem các media gửi lên có tồn tại không
+        // Kiểm tra xem các media gửi lên có tồn tại không
         if (createEventReq.getMediaIds() != null && !createEventReq.getMediaIds().isEmpty()) {
             if (createEventReq.getMediaIds().size() != fileRepository.countFileByIdIn(createEventReq.getMediaIds())) {
                 errorDetails.put("mediaIds", "Một số file đính kèm không tồn tại.");
             }
         }
-        //Check show validate
+        // Check show validate
         Map<String, String> showErrorDetails = showValidator.validate(createEventReq.getShows());
         errorDetails.putAll(showErrorDetails);
         if (!errorDetails.isEmpty()) {
+            log.warn("[EVENT] Xác thực tạo sự kiện thất bại: userId={}, errors={}", createEventReq.getUserId(), errorDetails);
             throw new AppException(ErrorCode.EVENT_VALIDATION_ERROR, errorDetails);
         }
 
-        //Tạo event
+        // Tạo event
         Event event = new Event();
         event.setName(createEventReq.getName());
         event.setDescriptionHtml(createEventReq.getDescriptionHtml());
@@ -121,19 +122,19 @@ public class EventServiceImpl implements EventService {
         event.setAddress(createEventReq.getAddress());
         event.setStatus(EventStatus.DRAFT);
         event.setUser(user);
-        //Tìm thời gian nhỏ nhất giữa các show
+        // Tìm thời gian nhỏ nhất giữa các show
         LocalDateTime startTime = createEventReq.getShows()
                 .stream()
                 .map((show) -> show.getStartTime())
                 .min((t1, t2) -> t1.isBefore(t2) ? -1 : 1)
                 .orElse(null);
-        //Tìm thời gian kết thúc giữa các show
+        // Tìm thời gian kết thúc giữa các show
         LocalDateTime endTime = createEventReq.getShows()
                 .stream()
                 .map((show) -> show.getEndTime())
                 .max((t1, t2) -> t1.isBefore(t2) ? -1 : 1)
                 .orElse(null);
-        //Tìm min price
+        // Tìm min price
         Long minPrice = createEventReq.getShows().stream()
                 .flatMap((show) -> show.getTicketTypes().stream())
                 .flatMap((type) -> type.getTicketTiers().stream())
@@ -158,7 +159,7 @@ public class EventServiceImpl implements EventService {
         event.setUpdatedBy(creatorId);
         eventRepository.save(event);
         eventRepository.flush();
-        //Logic sử lý file
+        // Logic sử lý file
         fileIdsForUpdate.add(banner.getId());
         fileIdsForUpdate.add(poster.getId());
         fileIdsForUpdate.add(organizerLogo.getId());
@@ -168,9 +169,14 @@ public class EventServiceImpl implements EventService {
             });
         }
         // Lưu file chuyển từ pending sang active
-        if (fileIdsForUpdate.size() > 0) fileRepository.activateFiles(fileIdsForUpdate, event.getId());
-        //Logic lưu shows
+        if (fileIdsForUpdate.size() > 0)
+            fileRepository.activateFiles(fileIdsForUpdate, event.getId());
+        // Logic lưu shows
         showService.createShows(createEventReq.getShows(), event, creatorId);
+
+        log.info("[EVENT] Tạo sự kiện thành công: eventId={}, name={}, creatorId={}, totalShows={}",
+                event.getId(), event.getName(), creatorId,
+                createEventReq.getShows() != null ? createEventReq.getShows().size() : 0);
     }
 
     @Override
@@ -184,16 +190,20 @@ public class EventServiceImpl implements EventService {
         }
         EventStatus oldStatus = event.getStatus();
         EventStatus newStatus = req.getStatus();
-        if (oldStatus == newStatus) return;
+        if (oldStatus == newStatus)
+            return;
         List<EventStatus> validNextStatuses = STATUS_TRANSITIONS.get(oldStatus);
 
         if (validNextStatuses == null || !validNextStatuses.contains(newStatus)) {
+            log.warn("[EVENT] Chuyển đổi trạng thái sự kiện không hợp lệ: eventId={}, currentStatus={}, newStatus={}",
+                    id, oldStatus, newStatus);
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
 
         if (newStatus == EventStatus.DRAFT) {
             boolean hasReservations = reservationRepository.existsByEventIdAndDeletedAtIsNull(id);
             if (hasReservations) {
+                log.warn("[EVENT] Không thể chuyển sự kiện về DRAFT vì đã có đơn đặt vé: eventId={}", id);
                 throw new AppException(ErrorCode.EVENT_HAS_RESERVATIONS_CANNOT_CHANGE_TO_DRAFT);
             }
         }
@@ -202,6 +212,8 @@ public class EventServiceImpl implements EventService {
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(updatorId);
         eventRepository.save(event);
+        log.info("[EVENT] Cập nhật trạng thái sự kiện: eventId={}, oldStatus={}, newStatus={}, updatorId={}",
+                id, oldStatus, newStatus, updatorId);
     }
 
     @Override
@@ -211,6 +223,8 @@ public class EventServiceImpl implements EventService {
                 .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
 
         if (event.getStatus() != EventStatus.PENDING) {
+            log.warn("[EVENT] Từ chối duyệt sự kiện: eventId={} không ở trạng thái PENDING (hiện tại={})", id,
+                    event.getStatus());
             throw new AppException(ErrorCode.EVENT_NOT_PENDING);
         }
 
@@ -219,6 +233,7 @@ public class EventServiceImpl implements EventService {
         event.setReviewedAt(LocalDateTime.now());
         event.setReviewedBy(updatorId);
         eventRepository.save(event);
+        log.info("[EVENT] Phê duyệt sự kiện thành công: eventId={}, reviewerId={}", id, updatorId);
     }
 
     @Override
@@ -227,6 +242,8 @@ public class EventServiceImpl implements EventService {
         Event event = Optional.ofNullable(eventRepository.findEventById(eventId))
                 .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         if (event.getStatus() != EventStatus.PENDING) {
+            log.warn("[EVENT] Từ chối từ chối sự kiện: eventId={} không ở trạng thái PENDING (hiện tại={})", eventId,
+                    event.getStatus());
             throw new AppException(ErrorCode.EVENT_NOT_PENDING);
         }
 
@@ -235,6 +252,8 @@ public class EventServiceImpl implements EventService {
         event.setReviewedAt(LocalDateTime.now());
         event.setReviewedBy(updatorId);
         eventRepository.save(event);
+        log.info("[EVENT] Từ chối sự kiện: eventId={}, reason={}, reviewerId={}",
+                eventId, request.getRejectionReason(), updatorId);
     }
 
     @Override
@@ -244,6 +263,8 @@ public class EventServiceImpl implements EventService {
         Event event = Optional.ofNullable(eventRepository.findEventById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.EVENT_NOT_FOUND));
         if (event.getStatus() != EventStatus.DRAFT && event.getStatus() != EventStatus.REJECTED) {
+            log.warn("[EVENT] Không thể gửi duyệt sự kiện: eventId={} đang ở trạng thái không hợp lệ ({})", id,
+                    event.getStatus());
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
 
@@ -251,6 +272,7 @@ public class EventServiceImpl implements EventService {
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(updatorId);
         eventRepository.save(event);
+        log.info("[EVENT] Gửi yêu cầu duyệt sự kiện thành công: eventId={}, userId={}", id, updatorId);
     }
 
     @Override
@@ -266,10 +288,12 @@ public class EventServiceImpl implements EventService {
         }
 
         if (updateEventReq.getVersion() != null && !updateEventReq.getVersion().equals(event.getVersion())) {
+            log.warn("[EVENT] Xung đột phiên bản khi cập nhật sự kiện: eventId={}, expectedVersion={}, actualVersion={}",
+                    id, updateEventReq.getVersion(), event.getVersion());
             throw new AppException(ErrorCode.CONCURRENT_UPDATE);
         }
 
-        //Check event có hợp lệ không
+        // Check event có hợp lệ không
         Province province = provinceRepository.findProvinceById(updateEventReq.getProvinceId());
         if (province == null) {
             errorDetails.put("provinceId", "Không tìm thấy tỉnh thành.");
@@ -300,7 +324,7 @@ public class EventServiceImpl implements EventService {
         } else if (organizerLogo.getType() != FileType.IMAGE) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức phải là ảnh, vui lòng tải lại.");
         }
-        //Kiểm tra xem các media gửi lên có tồn tại không
+        // Kiểm tra xem các media gửi lên có tồn tại không
         if (updateEventReq.getMediaIds() != null && !updateEventReq.getMediaIds().isEmpty()) {
             if (updateEventReq.getMediaIds().size() != fileRepository.countFileByIdIn(updateEventReq.getMediaIds())) {
                 errorDetails.put("mediaIds", "Một số file đính kèm không tồn tại.");
@@ -308,10 +332,12 @@ public class EventServiceImpl implements EventService {
         }
 
         if (!errorDetails.isEmpty()) {
+            log.warn("[EVENT] Xác thực cập nhật sự kiện thất bại: eventId={}, errors={}", id, errorDetails);
             throw new AppException(ErrorCode.EVENT_VALIDATION_ERROR, errorDetails);
         }
 
-        List<String> oldFileIds = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, id).stream().map(File::getId).collect(Collectors.toList());
+        List<String> oldFileIds = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, id).stream()
+                .map(File::getId).collect(Collectors.toList());
         List<String> newFileIds = new ArrayList<>();
         if (updateEventReq.getMediaIds() != null) {
             newFileIds.addAll(updateEventReq.getMediaIds());
@@ -322,8 +348,10 @@ public class EventServiceImpl implements EventService {
         List<String> fileIdsForUpdate = extractIdsToUpdate(oldFileIds, newFileIds);
         List<String> fileIdsForDelete = extractIdsToDelete(oldFileIds, newFileIds);
 
-        if (fileIdsForUpdate.size() > 0) fileRepository.activateFiles(fileIdsForUpdate, id);
-        if (fileIdsForDelete.size() > 0) fileRepository.deleteFile(fileIdsForDelete, LocalDateTime.now());
+        if (fileIdsForUpdate.size() > 0)
+            fileRepository.activateFiles(fileIdsForUpdate, id);
+        if (fileIdsForDelete.size() > 0)
+            fileRepository.deleteFile(fileIdsForDelete, LocalDateTime.now());
 
         event.setName(updateEventReq.getName());
         event.setBanner(banner);
@@ -341,6 +369,8 @@ public class EventServiceImpl implements EventService {
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(updatorId);
         Event savedEvent = eventRepository.saveAndFlush(event);
+        log.info("[EVENT] Cập nhật thông tin sự kiện thành công: eventId={}, name={}, updatorId={}",
+                savedEvent.getId(), savedEvent.getName(), updatorId);
         return eventMapper.toDTO(savedEvent);
     }
 
@@ -369,7 +399,8 @@ public class EventServiceImpl implements EventService {
             });
         });
         event.setShows(shows);
-        if (userId != null && !userId.isEmpty()) eventInteractionService.addInteraction(id, userId, InteractionType.VIEW);
+        if (userId != null && !userId.isEmpty())
+            eventInteractionService.addInteraction(id, userId, InteractionType.VIEW);
         return eventMapper.toInfoDTO(event);
     }
 
@@ -523,8 +554,6 @@ public class EventServiceImpl implements EventService {
                 eventSlice.hasNext());
     }
 
-
-
     @Override
     public EventSummaryDTO getEventSummaryById(String eventId) {
         Event event = Optional.ofNullable(eventRepository.findEventByIdForDetails(eventId))
@@ -536,7 +565,7 @@ public class EventServiceImpl implements EventService {
         if (event.getUser() != null) {
             securityUtils.canAccessThisResource(event.getUser().getId());
         } else {
-            securityUtils.canAccessThisResource(""); 
+            securityUtils.canAccessThisResource("");
         }
 
         List<TicketStatProjection> rows = ticketRepository.getStatByEvent(eventId);
@@ -563,7 +592,6 @@ public class EventServiceImpl implements EventService {
         // Lấy thông tin event từ row đầu (mọi row đều có cùng event info)
         TicketStatProjection firstRow = rows.get(0);
 
-
         Map<String, Map<String, List<TicketStatProjection>>> showMap = rows.stream()
                 .collect(Collectors.groupingBy(
                         TicketStatProjection::getShowId,
@@ -571,9 +599,7 @@ public class EventServiceImpl implements EventService {
                         Collectors.groupingBy(
                                 TicketStatProjection::getTicketTypeId,
                                 LinkedHashMap::new,
-                                Collectors.toList()
-                        )
-                ));
+                                Collectors.toList())));
 
         // ── Build ShowSummaryDTO list ──────────────────────
         List<ShowSummaryDTO> shows = showMap.entrySet().stream()
@@ -606,9 +632,13 @@ public class EventServiceImpl implements EventService {
                                         .collect(Collectors.toList());
 
                                 // Tổng hợp tiền TicketType = sum các tier
-                                Long ttTotalPrice  = tiers.stream().mapToLong(t -> t.getTotalPrice() != null ? t.getTotalPrice() : 0L).sum();
-                                Long ttDiscount    = tiers.stream().mapToLong(t -> t.getDiscountAmount() != null ? t.getDiscountAmount() : 0L).sum();
-                                Long ttFinalPrice  = tiers.stream().mapToLong(t -> t.getFinalPrice() != null ? t.getFinalPrice() : 0L).sum();
+                                Long ttTotalPrice = tiers.stream()
+                                        .mapToLong(t -> t.getTotalPrice() != null ? t.getTotalPrice() : 0L).sum();
+                                Long ttDiscount = tiers.stream()
+                                        .mapToLong(t -> t.getDiscountAmount() != null ? t.getDiscountAmount() : 0L)
+                                        .sum();
+                                Long ttFinalPrice = tiers.stream()
+                                        .mapToLong(t -> t.getFinalPrice() != null ? t.getFinalPrice() : 0L).sum();
 
                                 return TicketTypeSummaryDTO.builder()
                                         .id(typeRow.getTicketTypeId())
@@ -628,11 +658,16 @@ public class EventServiceImpl implements EventService {
                             .collect(Collectors.toList());
 
                     // Tổng hợp Show = sum các ticketType
-                    Integer showTotalQty = ticketTypes.stream().mapToInt(t -> t.getTotalQuantity() != null ? t.getTotalQuantity() : 0).sum();
-                    Integer showSoldQty  = ticketTypes.stream().mapToInt(t -> t.getSoldQuantity() != null ? t.getSoldQuantity() : 0).sum();
-                    Long showTotal       = ticketTypes.stream().mapToLong(t -> t.getTotalPrice() != null ? t.getTotalPrice() : 0L).sum();
-                    Long showDiscount    = ticketTypes.stream().mapToLong(t -> t.getDiscountAmount() != null ? t.getDiscountAmount() : 0L).sum();
-                    Long showFinal       = ticketTypes.stream().mapToLong(t -> t.getFinalPrice() != null ? t.getFinalPrice() : 0L).sum();
+                    Integer showTotalQty = ticketTypes.stream()
+                            .mapToInt(t -> t.getTotalQuantity() != null ? t.getTotalQuantity() : 0).sum();
+                    Integer showSoldQty = ticketTypes.stream()
+                            .mapToInt(t -> t.getSoldQuantity() != null ? t.getSoldQuantity() : 0).sum();
+                    Long showTotal = ticketTypes.stream()
+                            .mapToLong(t -> t.getTotalPrice() != null ? t.getTotalPrice() : 0L).sum();
+                    Long showDiscount = ticketTypes.stream()
+                            .mapToLong(t -> t.getDiscountAmount() != null ? t.getDiscountAmount() : 0L).sum();
+                    Long showFinal = ticketTypes.stream()
+                            .mapToLong(t -> t.getFinalPrice() != null ? t.getFinalPrice() : 0L).sum();
 
                     return ShowSummaryDTO.builder()
                             .id(showRow.getShowId())
@@ -652,11 +687,16 @@ public class EventServiceImpl implements EventService {
                 .collect(Collectors.toList());
 
         // Tổng hợp Event = sum các show
-        Long eventTotalAmount = shows.stream().mapToLong(s -> s.getTotalAmount() != null ? s.getTotalAmount() : 0L).sum();
-        Long eventDiscountAmount = shows.stream().mapToLong(s -> s.getDiscountAmount() != null ? s.getDiscountAmount() : 0L).sum();
-        Long eventFinalAmount = shows.stream().mapToLong(s -> s.getTotalFinalAmount() != null ? s.getTotalFinalAmount() : 0L).sum();
-        Integer eventTotalQty = shows.stream().mapToInt(s -> s.getTotalQuantity() != null ? s.getTotalQuantity() : 0).sum();
-        Integer eventSoldQty  = shows.stream().mapToInt(s -> s.getSoldQuantity() != null ? s.getSoldQuantity() : 0).sum();
+        Long eventTotalAmount = shows.stream().mapToLong(s -> s.getTotalAmount() != null ? s.getTotalAmount() : 0L)
+                .sum();
+        Long eventDiscountAmount = shows.stream()
+                .mapToLong(s -> s.getDiscountAmount() != null ? s.getDiscountAmount() : 0L).sum();
+        Long eventFinalAmount = shows.stream()
+                .mapToLong(s -> s.getTotalFinalAmount() != null ? s.getTotalFinalAmount() : 0L).sum();
+        Integer eventTotalQty = shows.stream().mapToInt(s -> s.getTotalQuantity() != null ? s.getTotalQuantity() : 0)
+                .sum();
+        Integer eventSoldQty = shows.stream().mapToInt(s -> s.getSoldQuantity() != null ? s.getSoldQuantity() : 0)
+                .sum();
 
         return EventSummaryDTO.builder()
                 .id(firstRow.getEventId())
@@ -694,8 +734,7 @@ public class EventServiceImpl implements EventService {
                 userId,
                 req.getNextId(),
                 targetStatuses,
-                pageable
-        );
+                pageable);
 
         // Map sang DTO
         List<EventSearchPublicDTO> dtos = favoriteSlice.getContent().stream()
@@ -762,36 +801,29 @@ public class EventServiceImpl implements EventService {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
         if (event.getDeletedAt() != null) {
+            log.warn("[EVENT] Sự kiện đã bị xóa trước đó: eventId={}", id);
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
         if (event.getStatus() == EventStatus.APPROVED ||
-            event.getStatus() == EventStatus.PUBLISHED ||
-            event.getStatus() == EventStatus.CANCELLED) {
+                event.getStatus() == EventStatus.PUBLISHED ||
+                event.getStatus() == EventStatus.CANCELLED) {
+            log.warn("[EVENT] Không thể xóa sự kiện đã duyệt/xuất bản/hủy: eventId={}, status={}", id, event.getStatus());
             throw new AppException(ErrorCode.CANNOT_DELETE_APPROVED_OR_PUBLISHED_EVENT);
         }
 
         // Kiểm tra xem event đã có giao dịch reservation nào chưa
         boolean hasReservations = reservationRepository.existsByEventIdAndDeletedAtIsNull(id);
         if (hasReservations) {
+            log.warn("[EVENT] Không thể xóa sự kiện vì đã có đơn đặt vé: eventId={}", id);
             throw new AppException(ErrorCode.EVENT_HAS_RESERVATIONS);
         }
 
         String userId = securityUtils.getCurrentUserId();
-        log.info("Soft deleting event {} (Name: {}) by user {}", id, event.getName(), userId);
-        
+        log.info("[EVENT] Xóa mềm sự kiện: id={}, name={}, userId={}", id, event.getName(), userId);
+
         event.setDeletedAt(LocalDateTime.now());
         event.setDeletedBy(userId);
         eventRepository.save(event);
-
-        // Fetch and soft-delete associated shows (and their ticket types & tiers)
-        // List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
-        //         .map(Show::getId)
-        //         .collect(Collectors.toList());
-        //         
-        // if (!showIds.isEmpty()) {
-        //     log.info("Cascading soft-delete to {} shows under event {}", showIds.size(), id);
-        //     showService.softDeleteShows(showIds, userId);
-        // }
     }
 
     @Override
@@ -802,25 +834,17 @@ public class EventServiceImpl implements EventService {
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
         if (event.getDeletedAt() == null) {
+            log.warn("[EVENT] Không thể khôi phục sự kiện chưa bị xóa: eventId={}", id);
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
         String userId = securityUtils.getCurrentUserId();
-        log.info("Restoring event {} (Name: {}) by user {}", id, event.getName(), userId);
+        log.info("[EVENT] Khôi phục sự kiện: id={}, name={}, userId={}", id, event.getName(), userId);
 
         event.setDeletedAt(null);
         event.setDeletedBy(null);
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(userId);
         eventRepository.save(event);
-
-        // Fetch and restore associated shows (and their ticket types & tiers)
-        // List<String> showIds = showRepository.findShowsByEvent_Id(id).stream()
-        //         .map(Show::getId)
-        //         .collect(Collectors.toList());
-        // if (!showIds.isEmpty()) {
-        //     log.info("Cascading restore to {} shows under event {}", showIds.size(), id);
-        //     showService.restoreShows(showIds, userId);
-        // }
     }
 }

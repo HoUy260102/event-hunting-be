@@ -23,19 +23,19 @@ public class ShowValidator {
             CreateShowReq currentShow = shows.get(i);
             String showPath = "shows[" + i + "]";
 
-            //Check logic maxOrder >= minOrder
+            // Kiểm tra ràng buộc maxOrder >= minOrder
             if (currentShow.getMinOrder() > currentShow.getMaxOrder()) {
                 details.put(showPath + ".maxOrder", "Số lượng tối đa không được nhỏ hơn tối thiểu");
             }
 
-            // Check Logic thời gian Show (Start < End)
+            // Kiểm tra ràng buộc thời gian Show (Start < End)
             if (currentShow.getStartTime() != null && currentShow.getEndTime() != null) {
                 if (!currentShow.getEndTime().isAfter(currentShow.getStartTime())) {
                     details.put(showPath + ".endTime", "Thời gian kết thúc phải sau thời gian bắt đầu");
                 }
             }
 
-            // Check Logic SeatMap & SVG
+            // Kiểm tra ràng buộc SeatMap & SVG
             List<SeatMapType> typesRequireSvg = Arrays.asList(SeatMapType.SECTION_ONLY, SeatMapType.SECTION_WITH_SEATS);
             if (typesRequireSvg.contains(currentShow.getSeatMapType())) {
                 if (currentShow.getSeatMapSvg() == null || currentShow.getSeatMapSvg().trim().equals("")) {
@@ -43,10 +43,10 @@ public class ShowValidator {
                 }
             }
 
-            //Validate các TicketTypes bên trong Show
+            // Kiểm tra hợp lệ các TicketTypes bên trong Show
             validateTicketTypes(currentShow, i, details);
 
-            //Gom dữ liệu để check trùng lặp Show
+            // Gom dữ liệu để kiểm tra trùng lặp thời gian các Show
             for (int j = i + 1; j < shows.size(); j++) {
                 CreateShowReq otherShow = shows.get(j);
                 if (isTimeOverlap(currentShow.getStartTime(), currentShow.getEndTime(),
@@ -106,21 +106,21 @@ public class ShowValidator {
             for (int k = 0; k < tiers.size(); k++) {
                 var currentTier = tiers.get(k);
                 String tierPath = ticketPath + ".ticketTiers[" + k + "]";
-                //Check logic thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
+                // Kiểm tra ràng buộc thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
                 if (currentTier.getSaleStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (!currentTier.getSaleEndTime().isAfter(currentTier.getSaleStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Thời gian kết thúc bán phải sau thời gian bắt đầu");
                     }
                 }
 
-                //Tier End < Show Start
+                // Thời gian kết thúc bán vé phải trước khi Suất diễn bắt đầu (Tier End < Show Start)
                 if (show.getStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (currentTier.getSaleEndTime().isAfter(show.getStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Vé phải kết thúc bán trước khi suất diễn bắt đầu");
                     }
                 }
 
-                // Check trùng lặp giữa các Tier trong cùng 1 TicketType
+                // Kiểm tra trùng lặp thời gian giữa các Tier trong cùng 1 TicketType
                 for (int m = k + 1; m < tiers.size(); m++) {
                     var otherTier = tiers.get(m);
                     if (isTimeOverlap(currentTier.getSaleStartTime(), currentTier.getSaleEndTime(),
@@ -149,19 +149,19 @@ public class ShowValidator {
             UpdateShowReq currentShow = shows.get(i);
             String showPath = "shows[" + i + "]";
 
-            //Check logic maxOrder >= minOrder
+            // Kiểm tra ràng buộc maxOrder >= minOrder
             if (currentShow.getMinOrder() > currentShow.getMaxOrder()) {
                 details.put(showPath + ".maxOrder", "Số lượng tối đa không được nhỏ hơn tối thiểu");
             }
 
-            // Check Logic thời gian Show (Start < End)
+            // Kiểm tra ràng buộc thời gian Show (Start < End)
             if (currentShow.getStartTime() != null && currentShow.getEndTime() != null) {
                 if (!currentShow.getEndTime().isAfter(currentShow.getStartTime())) {
                     details.put(showPath + ".endTime", "Thời gian kết thúc phải sau thời gian bắt đầu");
                 }
             }
 
-            // Check Logic SeatMap & SVG
+            // Kiểm tra ràng buộc SeatMap & SVG
             List<SeatMapType> typesRequireSvg = Arrays.asList(SeatMapType.SECTION_ONLY, SeatMapType.SECTION_WITH_SEATS);
             if (typesRequireSvg.contains(currentShow.getSeatMapType())) {
                 if (currentShow.getSeatMapSvg() == null || currentShow.getSeatMapSvg().trim().equals("")) {
@@ -169,10 +169,10 @@ public class ShowValidator {
                 }
             }
 
-            //Validate các TicketTypes bên trong Show
+            // Kiểm tra hợp lệ các TicketTypes bên trong Show
             validateTicketTypesUpdate(currentShow, i, details);
 
-            //Gom dữ liệu để check trùng lặp Show
+            // Gom dữ liệu để kiểm tra trùng lặp thời gian các Show
             for (int j = i + 1; j < shows.size(); j++) {
                 UpdateShowReq otherShow = shows.get(j);
                 if (isTimeOverlap(currentShow.getStartTime(), currentShow.getEndTime(),
@@ -232,21 +232,21 @@ public class ShowValidator {
             for (int k = 0; k < tiers.size(); k++) {
                 var currentTier = tiers.get(k);
                 String tierPath = ticketPath + ".ticketTiers[" + k + "]";
-                //Check logic thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
+                // Kiểm tra ràng buộc thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
                 if (currentTier.getSaleStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (!currentTier.getSaleEndTime().isAfter(currentTier.getSaleStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Thời gian kết thúc bán phải sau thời gian bắt đầu");
                     }
                 }
 
-                //Tier End < Show Start
+                // Thời gian kết thúc bán vé phải trước khi Suất diễn bắt đầu (Tier End < Show Start)
                 if (show.getStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (currentTier.getSaleEndTime().isAfter(show.getStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Vé phải kết thúc bán trước khi suất diễn bắt đầu");
                     }
                 }
 
-                // Check trùng lặp giữa các Tier trong cùng 1 TicketType
+                // Kiểm tra trùng lặp thời gian giữa các Tier trong cùng 1 TicketType
                 for (int m = k + 1; m < tiers.size(); m++) {
                     var otherTier = tiers.get(m);
                     if (isTimeOverlap(currentTier.getSaleStartTime(), currentTier.getSaleEndTime(),
@@ -270,19 +270,19 @@ public class ShowValidator {
         Map<String, String> details = new HashMap<>();
         UpdateShowReq currentShow = show;
 
-        //Check logic maxOrder >= minOrder
+        // Kiểm tra ràng buộc maxOrder >= minOrder
         if (currentShow.getMinOrder() > currentShow.getMaxOrder()) {
             details.put("maxOrder", "Số lượng tối đa không được nhỏ hơn tối thiểu");
         }
 
-        // Check Logic thời gian Show (Start < End)
+        // Kiểm tra ràng buộc thời gian Show (Start < End)
         if (currentShow.getStartTime() != null && currentShow.getEndTime() != null) {
             if (!currentShow.getEndTime().isAfter(currentShow.getStartTime())) {
                 details.put("endTime", "Thời gian kết thúc phải sau thời gian bắt đầu");
             }
         }
 
-        // Check Logic SeatMap & SVG
+        // Kiểm tra ràng buộc SeatMap & SVG
         List<SeatMapType> typesRequireSvg = Arrays.asList(SeatMapType.SECTION_ONLY, SeatMapType.SECTION_WITH_SEATS);
         if (typesRequireSvg.contains(currentShow.getSeatMapType())) {
             if (currentShow.getSeatMapSvg() == null || currentShow.getSeatMapSvg().trim().equals("")) {
@@ -290,7 +290,7 @@ public class ShowValidator {
             }
         }
 
-        //Validate các TicketTypes bên trong Show
+        // Kiểm tra hợp lệ các TicketTypes bên trong Show
         validateTicketTypesForUpdateOneShow(currentShow, details);
         return details;
     }
@@ -303,7 +303,7 @@ public class ShowValidator {
             UpdateTicketTypeReq ticketType = show.getTicketTypes().get(tIdx);
             String ticketPath = String.format("ticketTypes[%d]", tIdx);
 
-            //Logic kiểm tra tên có trùng không
+            // Kiểm tra tên loại vé có bị trùng không
             if (ticketType.getName() != null) {
                 if (ticketTypeNames.contains(ticketType.getName().trim())) {
                     details.put(ticketPath + ".name", "Tên loại vé đã tồn tại trong suất diễn này");
@@ -319,7 +319,7 @@ public class ShowValidator {
                 }
             }
 
-            //Kiểm tra section id phải duy nhất
+            // Kiểm tra section id phải duy nhất
             if (ticketType.getSectionId() != null && !ticketType.getSectionId().trim().equals("")) {
                 if (ticketTypeSectionIds.contains(ticketType.getSectionId().trim())) {
                     details.put(ticketPath + ".sectionId", "sectionId này bị trùng");
@@ -336,20 +336,20 @@ public class ShowValidator {
             for (int k = 0; k < tiers.size(); k++) {
                 var currentTier = tiers.get(k);
                 String tierPath = ticketPath + ".ticketTiers[" + k + "]";
-                //Check logic thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
+                // Kiểm tra ràng buộc thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
                 if (currentTier.getSaleStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (!currentTier.getSaleEndTime().isAfter(currentTier.getSaleStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Thời gian kết thúc bán phải sau thời gian bắt đầu");
                     }
                 }
-                //Tier End < Show Start
+                // Thời gian kết thúc bán vé phải trước khi Suất diễn bắt đầu (Tier End < Show Start)
                 if (show.getStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (currentTier.getSaleEndTime().isAfter(show.getStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Vé phải kết thúc bán trước khi suất diễn bắt đầu");
                     }
                 }
                 if (currentTier.getStatus() == TicketTierStatus.INACTIVE) continue;
-                // Check trùng lặp giữa các Tier trong cùng 1 TicketType
+                // Kiểm tra trùng lặp thời gian giữa các Tier trong cùng 1 TicketType
                 for (int m = k + 1; m < tiers.size(); m++) {
                     var otherTier = tiers.get(m);
                     if (otherTier.getStatus() == TicketTierStatus.INACTIVE) continue;
@@ -374,19 +374,19 @@ public class ShowValidator {
         Map<String, String> details = new HashMap<>();
         CreateShowReq currentShow = show;
 
-        //Check logic maxOrder >= minOrder
+        // Kiểm tra ràng buộc maxOrder >= minOrder
         if (currentShow.getMinOrder() > currentShow.getMaxOrder()) {
             details.put("maxOrder", "Số lượng tối đa không được nhỏ hơn tối thiểu");
         }
 
-        // Check Logic thời gian Show (Start < End)
+        // Kiểm tra ràng buộc thời gian Show (Start < End)
         if (currentShow.getStartTime() != null && currentShow.getEndTime() != null) {
             if (!currentShow.getEndTime().isAfter(currentShow.getStartTime())) {
                 details.put("endTime", "Thời gian kết thúc phải sau thời gian bắt đầu");
             }
         }
 
-        // Check Logic SeatMap & SVG
+        // Kiểm tra ràng buộc SeatMap & SVG
         List<SeatMapType> typesRequireSvg = Arrays.asList(SeatMapType.SECTION_ONLY, SeatMapType.SECTION_WITH_SEATS);
         if (typesRequireSvg.contains(currentShow.getSeatMapType())) {
             if (currentShow.getSeatMapSvg() == null || currentShow.getSeatMapSvg().trim().equals("")) {
@@ -394,7 +394,7 @@ public class ShowValidator {
             }
         }
 
-        //Validate các TicketTypes bên trong Show
+        // Kiểm tra hợp lệ các TicketTypes bên trong Show
         validateTicketTypesForCreateOneShow(currentShow, details);
         return details;
     }
@@ -407,7 +407,7 @@ public class ShowValidator {
             CreateTicketTypeReq ticketType = show.getTicketTypes().get(tIdx);
             String ticketPath = String.format("ticketTypes[%d]", tIdx);
 
-            //Logic kiểm tra tên có trùng không
+            // Kiểm tra tên loại vé có bị trùng không
             if (ticketType.getName() != null) {
                 if (ticketTypeNames.contains(ticketType.getName().trim())) {
                     details.put(ticketPath + ".name", "Tên loại vé đã tồn tại trong suất diễn này");
@@ -423,7 +423,7 @@ public class ShowValidator {
                 }
             }
 
-            //Kiểm tra section id phải duy nhất
+            // Kiểm tra section id phải duy nhất
             if (ticketType.getSectionId() != null && !ticketType.getSectionId().trim().equals("")) {
                 if (ticketTypeSectionIds.contains(ticketType.getSectionId().trim())) {
                     details.put(ticketPath + ".sectionId", "sectionId này bị trùng");
@@ -440,21 +440,21 @@ public class ShowValidator {
             for (int k = 0; k < tiers.size(); k++) {
                 var currentTier = tiers.get(k);
                 String tierPath = ticketPath + ".ticketTiers[" + k + "]";
-                //Check logic thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
+                // Kiểm tra ràng buộc thời gian bắt đầu bán vé nhỏ hơn thời gian kết thúc bán vé
                 if (currentTier.getSaleStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (!currentTier.getSaleEndTime().isAfter(currentTier.getSaleStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Thời gian kết thúc bán phải sau thời gian bắt đầu");
                     }
                 }
 
-                //Tier End < Show Start
+                // Thời gian kết thúc bán vé phải trước khi Suất diễn bắt đầu (Tier End < Show Start)
                 if (show.getStartTime() != null && currentTier.getSaleEndTime() != null) {
                     if (currentTier.getSaleEndTime().isAfter(show.getStartTime())) {
                         details.put(tierPath + ".saleEndTime", "Vé phải kết thúc bán trước khi suất diễn bắt đầu");
                     }
                 }
 
-                // Check trùng lặp giữa các Tier trong cùng 1 TicketType
+                // Kiểm tra trùng lặp thời gian giữa các Tier trong cùng 1 TicketType
                 for (int m = k + 1; m < tiers.size(); m++) {
                     var otherTier = tiers.get(m);
                     if (isTimeOverlap(currentTier.getSaleStartTime(), currentTier.getSaleEndTime(),

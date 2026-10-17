@@ -10,6 +10,7 @@ import com.example.event.exception.AppException;
 import com.example.event.repository.TicketTierRepository;
 import com.example.event.service.TicketTierService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TicketTierServiceImpl implements TicketTierService {
     private final TicketTierRepository ticketTierRepository;
 
@@ -62,6 +64,7 @@ public class TicketTierServiceImpl implements TicketTierService {
                 .collect(Collectors.toList());
 
         if (!deletedTierIds.isEmpty()) {
+            log.info("[TICKET-TIER] Xóa mềm {} hạng vé không còn trong danh sách | ticketTypeId={}", deletedTierIds.size(), ticketType.getId());
             softDeleteTicketTiers(deletedTierIds, updatorId);
         }
 
@@ -89,12 +92,16 @@ public class TicketTierServiceImpl implements TicketTierService {
                         .orElseThrow(() -> new AppException(ErrorCode.TICKET_TIER_NOT_FOUND));
                 
                 if (ticketTierReq.getVersion() != null && !ticketTierReq.getVersion().equals(ticketTier.getVersion())) {
+                    log.warn("[TICKET-TIER] Xung đột phiên bản khi cập nhật hạng vé: tierId={}, expectedVersion={}, actualVersion={}",
+                            ticketTier.getId(), ticketTierReq.getVersion(), ticketTier.getVersion());
                     throw new AppException(ErrorCode.CONCURRENT_UPDATE);
                 }
                 
                 ticketTier.setName(ticketTierReq.getName());
                 ticketTier.setPrice(ticketTierReq.getPrice());
                 if (ticketTierReq.getLimitQuantity() < ticketTier.getSoldQuantity()) {
+                    log.warn("[TICKET-TIER] Số lượng giới hạn nhỏ hơn số vé đã bán: tierId={}, limitQuantity={}, soldQuantity={}",
+                            ticketTier.getId(), ticketTierReq.getLimitQuantity(), ticketTier.getSoldQuantity());
                     throw new AppException(ErrorCode.LIMIT_QUANTITY_LESS_THAN_SOLD);
                 }
                 ticketTier.setLimitQuantity(ticketTierReq.getLimitQuantity());

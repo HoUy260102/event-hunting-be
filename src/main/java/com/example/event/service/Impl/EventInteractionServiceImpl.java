@@ -77,14 +77,14 @@ public class EventInteractionServiceImpl implements EventInteractionService {
         try {
             String cachedJson = redisService.get(TRENDING_EVENTS_KEY, String.class);
             if (cachedJson != null) {
-                log.info("Fetching trending events from Redis cache.");
+                log.info("[INTERACTION] Lấy danh sách sự kiện xu hướng từ cache Redis.");
                 return objectMapper.readValue(cachedJson, new TypeReference<List<EventTrendingResponse>>() {});
             }
         } catch (Exception e) {
-            log.error("Failed to read trending events from Redis cache: {}", e.getMessage());
+            log.error("[INTERACTION] Lỗi đọc danh sách sự kiện xu hướng từ cache Redis: {}", e.getMessage());
         }
 
-        log.info("Trending events cache miss. Fetching from database.");
+        log.info("[INTERACTION] Cache miss sự kiện xu hướng. Đang truy vấn từ cơ sở dữ liệu.");
         LocalDateTime since = LocalDateTime.now().minusDays(30);
         List<EventTrendingProjection> projections = interactionRepository.findTrendingEvents(since, 10);
 
@@ -95,9 +95,9 @@ public class EventInteractionServiceImpl implements EventInteractionService {
         try {
             String jsonToCache = objectMapper.writeValueAsString(responses);
             redisService.set(TRENDING_EVENTS_KEY, jsonToCache, TRENDING_EVENTS_TTL);
-            log.info("Successfully cached trending events in Redis with 1 day TTL.");
+            log.info("[INTERACTION] Đã lưu cache sự kiện xu hướng vào Redis (TTL 1 ngày).");
         } catch (Exception e) {
-            log.error("Failed to cache trending events in Redis: {}", e.getMessage());
+            log.error("[INTERACTION] Lỗi lưu sự kiện xu hướng vào Redis cache: {}", e.getMessage());
         }
 
         return responses;

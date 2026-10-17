@@ -20,14 +20,14 @@ public class AuthForgotPasswordConsumer implements StreamListener<String, MapRec
     @Override
     public void onMessage(MapRecord<String, String, String> record) {
         String recordId = record.getId().getValue();
-        log.info("[AUTH-FORGOT-CONSUMER] Processing OTP email record={}", recordId);
+        log.info("[AUTH-FORGOT-CONSUMER] Bắt đầu xử lý gửi email OTP record={}", recordId);
 
         try {
             String email = record.getValue().get("email");
             String otp = record.getValue().get("otp");
 
             if (email == null || otp == null) {
-                log.warn("[AUTH-FORGOT-CONSUMER] Missing fields in record {}, ACKing.", recordId);
+                log.warn("[AUTH-FORGOT-CONSUMER] Thiếu trường dữ liệu trong record {}, tiến hành ACK.", recordId);
                 ack(record);
                 return;
             }
@@ -37,10 +37,10 @@ public class AuthForgotPasswordConsumer implements StreamListener<String, MapRec
 
             // ACK sau khi gửi thành công
             ack(record);
-            log.info("[AUTH-FORGOT-CONSUMER] Done record={} email={}", recordId, email);
+            log.info("[AUTH-FORGOT-CONSUMER] Gửi OTP thành công record={} cho email={}", recordId, email);
 
         } catch (Exception e) {
-            log.error("[AUTH-FORGOT-CONSUMER] FAILED record={}: {}", recordId, e.getMessage(), e);
+            log.error("[AUTH-FORGOT-CONSUMER] Gửi OTP thất bại record={}: {}", recordId, e.getMessage(), e);
         }
     }
 

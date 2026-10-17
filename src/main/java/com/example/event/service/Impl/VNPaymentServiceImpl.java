@@ -242,7 +242,7 @@ public class VNPaymentServiceImpl implements PaymentService {
             try {
                 payment.setPaidAt(LocalDateTime.parse(payDateStr, DateTimeFormatter.ofPattern("yyyyMMddHHmmss")));
             } catch (Exception e) {
-                log.error("Lỗi parse ngày thanh toán: {}", payDateStr);
+                log.error("[PAYMENT] Lỗi parse ngày thanh toán VNPay: {}", payDateStr, e);
             }
         }
         

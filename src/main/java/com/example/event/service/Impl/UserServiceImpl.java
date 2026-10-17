@@ -24,6 +24,7 @@ import com.example.event.service.UserService;
 import com.example.event.specification.UserSpecification;
 import jakarta.persistence.criteria.JoinType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +40,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -134,6 +136,7 @@ public class UserServiceImpl implements UserService {
         }
         
         if (!errors.isEmpty()) {
+            log.warn("[USER] Tạo người dùng thất bại do dữ liệu không hợp lệ: creatorId={}, errors={}", creatorId, errors);
             throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
         }
         
@@ -153,6 +156,8 @@ public class UserServiceImpl implements UserService {
         createUser.setUpdatedAt(LocalDateTime.now());
         createUser.setUpdatedBy(creatorId);
         userRepository.save(createUser);
+        log.info("[USER] Tạo người dùng mới thành công: userId={}, email={}, role={}, creatorId={}",
+                createUser.getId(), createUser.getEmail(), role.getName(), creatorId);
         return userMapper.toDTO(createUser);
     }
 
@@ -172,6 +177,8 @@ public class UserServiceImpl implements UserService {
         if (req.getStatus() != null && req.getStatus() != updateUser.getStatus()) {
             List<UserStatus> allowedTransitions = STATUS_TRANSITIONS.get(updateUser.getStatus());
             if (allowedTransitions == null || !allowedTransitions.contains(req.getStatus())) {
+                log.warn("[USER] Chuyển đổi trạng thái không hợp lệ: userId={}, currentStatus={}, newStatus={}",
+                        updateUser.getId(), updateUser.getStatus(), req.getStatus());
                 throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
             }
             updateUser.setStatus(req.getStatus());
@@ -185,6 +192,8 @@ public class UserServiceImpl implements UserService {
                 File newAvatar = Optional.ofNullable(fileRepository.findFileById(newAvatarId))
                         .orElseThrow(() -> new AppException(ErrorCode.FILE_NOT_FOUND));
                 if (newAvatar.getType() != FileType.IMAGE) {
+                    log.warn("[USER] File đại diện không phải là hình ảnh: userId={}, fileId={}, fileType={}",
+                            updateUser.getId(), newAvatarId, newAvatar.getType());
                     throw new AppException(ErrorCode.INVALID_FILE_TYPE);
                 }
                 newAvatar.setStatus(FileStatus.ACTIVE);
@@ -202,6 +211,8 @@ public class UserServiceImpl implements UserService {
         updateUser.setUpdatedAt(LocalDateTime.now());
         updateUser.setUpdatedBy(updatorId);
         userRepository.save(updateUser);
+        log.info("[USER] Cập nhật thông tin người dùng bởi admin: targetUserId={}, updatorId={}, status={}",
+                updateUser.getId(), updatorId, updateUser.getStatus());
         return userMapper.toDTO(updateUser);
     }
 
@@ -223,6 +234,8 @@ public class UserServiceImpl implements UserService {
                 File newAvatar = Optional.ofNullable(fileRepository.findFileById(newAvatarId))
                         .orElseThrow(() -> new AppException(ErrorCode.FILE_NOT_FOUND));
                 if (newAvatar.getType() != FileType.IMAGE) {
+                    log.warn("[USER] File đại diện cập nhật hồ sơ không phải hình ảnh: userId={}, fileId={}, fileType={}",
+                            updateUser.getId(), newAvatarId, newAvatar.getType());
                     throw new AppException(ErrorCode.INVALID_FILE_TYPE);
                 }
                 newAvatar.setStatus(FileStatus.ACTIVE);
@@ -240,6 +253,8 @@ public class UserServiceImpl implements UserService {
         updateUser.setUpdatedAt(LocalDateTime.now());
         updateUser.setUpdatedBy(updatorId);
         userRepository.save(updateUser);
+        log.info("[USER] Người dùng tự cập nhật hồ sơ cá nhân: userId={}, name={}",
+                updateUser.getId(), updateUser.getName());
         return userMapper.toDTO(updateUser);
     }
 
@@ -260,10 +275,12 @@ public class UserServiceImpl implements UserService {
                 () -> new AppException(ErrorCode.USER_NOT_FOUND)
         );
         if (user.getDeletedAt() == null) {
+            log.warn("[USER] Khôi phục tài khoản thất bại do tài khoản chưa bị xóa: userId={}", id);
             throw new AppException(ErrorCode.USER_NOT_IN_TRASH);
         }
         String email = user.getEmail().replaceAll("-deleted-\\d+$", "");
         if (userRepository.existsUserByEmailAndIdNot(email, id)) {
+            log.warn("[USER] Khôi phục tài khoản thất bại do email đã tồn tại: userId={}, email={}", id, email);
             throw new AppException(ErrorCode.USER_EXISTS);
         }
         user.setEmail(email);
@@ -272,6 +289,8 @@ public class UserServiceImpl implements UserService {
         user.setDeletedAt(null);
         user.setDeletedBy(null);
         userRepository.save(user);
+        log.info("[USER] Khôi phục tài khoản người dùng: userId={}, email={}, restoredBy={}",
+                user.getId(), user.getEmail(), restorId);
         return userMapper.toDTO(user);
     }
 
@@ -283,9 +302,11 @@ public class UserServiceImpl implements UserService {
                 () -> new AppException(ErrorCode.USER_NOT_FOUND)
         );
         if (user.getDeletedAt() != null) {
+            log.warn("[USER] Xóa mềm thất bại do tài khoản đã bị xóa trước đó: userId={}", id);
             throw new AppException(ErrorCode.USER_ALREADY_DELETED);
         }
         if (reservationRepository.existsByUserIdAndDeletedAtIsNull(id)) {
+            log.warn("[USER] Xóa mềm thất bại do người dùng đang có đơn đặt vé: userId={}", id);
             throw new AppException(ErrorCode.USER_HAS_RESERVATIONS);
         }
         user.setEmail(user.getEmail() + "-deleted-" + System.currentTimeMillis());
@@ -294,6 +315,8 @@ public class UserServiceImpl implements UserService {
         user.setDeletedAt(LocalDateTime.now());
         user.setDeletedBy(deletorId);
         userRepository.save(user);
+        log.info("[USER] Xóa mềm tài khoản người dùng: userId={}, deletedBy={}",
+                id, deletorId);
         return userMapper.toDTO(user);
     }
     
@@ -319,6 +342,7 @@ public class UserServiceImpl implements UserService {
 
         // Throw all validation errors at once if any
         if (!errors.isEmpty()) {
+            log.warn("[USER] Đổi mật khẩu thất bại do xác thực không hợp lệ: userId={}, errors={}", currentUserId, errors);
             throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
         }
 
@@ -351,6 +375,9 @@ public class UserServiceImpl implements UserService {
         sessionRepository.save(session);
 
         String accessToken = jwtUtils.generateToken(user.getEmail(), session.getId(), "access");
+
+        log.info("[USER] Đổi mật khẩu thành công: userId={}, email={}",
+                user.getId(), user.getEmail());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)

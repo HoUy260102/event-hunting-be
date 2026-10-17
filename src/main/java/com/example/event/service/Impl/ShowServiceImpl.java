@@ -121,6 +121,7 @@ public class ShowServiceImpl implements ShowService {
             if (!tiersToSave.isEmpty()) ticketTierRepository.saveAll(tiersToSave);
             if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
         }
+        log.info("[SHOW] Tạo thành công {} suất diễn cho sự kiện: eventId={}", showsReq.size(), event.getId());
     }
 
     @Override
@@ -147,6 +148,7 @@ public class ShowServiceImpl implements ShowService {
         }
 
         if (!errorDetails.isEmpty()) {
+            log.warn("[SHOW] Xác thực cập nhật suất diễn thất bại: showId={}, eventId={}, errorDetails={}", showId, eventId, errorDetails);
             throw new AppException(ErrorCode.SHOWS_VALIDATION_ERROR, errorDetails);
         }
 
@@ -159,14 +161,19 @@ public class ShowServiceImpl implements ShowService {
                 .orElseThrow(() -> new AppException(ErrorCode.SHOW_NOT_FOUND));
 
         if (showReq.getVersion() != null && !showReq.getVersion().equals(show.getVersion())) {
+            log.warn("[SHOW] Xung đột phiên bản khi cập nhật suất diễn: showId={}, expectedVersion={}, actualVersion={}",
+                    showId, showReq.getVersion(), show.getVersion());
             throw new AppException(ErrorCode.CONCURRENT_UPDATE);
         }
 
         if (!show.getEvent().getId().equals(eventId)) {
+            log.warn("[SHOW] Suất diễn không thuộc sự kiện được chỉ định: showId={}, eventId={}, actualEventId={}",
+                    showId, eventId, show.getEvent().getId());
             throw new AppException(ErrorCode.INVALID_EVENT_SHOW_RELATION);
         }
 
         if (show.getStatus() == ShowStatus.CANCELLED) {
+            log.warn("[SHOW] Không thể cập nhật suất diễn đã bị hủy: showId={}", showId);
             throw new AppException(ErrorCode.SHOW_ALREADY_CANCELLED);
         }
 
@@ -176,11 +183,13 @@ public class ShowServiceImpl implements ShowService {
 
         if (show.getStatus() != ShowStatus.DRAFT &&
                 !Objects.equals(show.getSeatMapSvg(), showReq.getSeatMapSvg())) {
+            log.warn("[SHOW] Không được phép cập nhật sơ đồ SVG khi suất diễn không ở trạng thái DRAFT: showId={}, status={}", showId, show.getStatus());
             throw new AppException(ErrorCode.SEATMAP_UPDATE_FORBIDDEN);
         }
 
         if (show.getStatus() != ShowStatus.DRAFT &&
                 !Objects.equals(show.getSeatMapType(), showReq.getSeatMapType())) {
+            log.warn("[SHOW] Không được phép cập nhật loại sơ đồ ghế khi suất diễn không ở trạng thái DRAFT: showId={}, status={}", showId, show.getStatus());
             throw new AppException(ErrorCode.SEATMAP_TYPE_UPDATE_FORBIDDEN);
         }
 
@@ -250,6 +259,9 @@ public class ShowServiceImpl implements ShowService {
         if (savedShow.getStatus() == ShowStatus.ACTIVE) {
             syncShowStockToRedis(savedShow);
         }
+
+        log.info("[SHOW] Cập nhật thông tin suất diễn thành công: showId={}, eventId={}, status={}, updatorId={}",
+                savedShow.getId(), event.getId(), savedShow.getStatus(), updatorId);
         
         return showMapper.toDTO(savedShow);
     }
@@ -303,12 +315,15 @@ public class ShowServiceImpl implements ShowService {
         if (eventStatus == EventStatus.DRAFT ||
                 eventStatus == EventStatus.REJECTED ||
                 eventStatus == EventStatus.CANCELLED) {
+            log.warn("[SHOW] Không thể đổi trạng thái suất diễn do trạng thái sự kiện không hợp lệ: showId={}, eventStatus={}", showId, eventStatus);
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
         if (oldStatus == ShowStatus.ACTIVE && newStatus == ShowStatus.DRAFT) {
+            log.warn("[SHOW] Không thể chuyển trạng thái suất diễn từ ACTIVE về DRAFT: showId={}", showId);
             throw new AppException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
         if (oldStatus == ShowStatus.CANCELLED) {
+            log.warn("[SHOW] Suất diễn đã bị hủy, không thể cập nhật trạng thái: showId={}", showId);
             throw new AppException(ErrorCode.SHOW_ALREADY_CANCELLED);
         }
         if (newStatus == ShowStatus.ACTIVE) {
@@ -320,6 +335,8 @@ public class ShowServiceImpl implements ShowService {
         show.setUpdatedBy(updatorId);
         updateEventTime(show.getEvent());
         showRepository.save(show);
+        log.info("[SHOW] Cập nhật trạng thái suất diễn thành công: showId={}, oldStatus={}, newStatus={}, updatorId={}",
+                showId, oldStatus, newStatus, updatorId);
     }
 
     @Override
@@ -345,6 +362,7 @@ public class ShowServiceImpl implements ShowService {
         }
 
         if (!errorDetails.isEmpty()) {
+            log.warn("[SHOW] Xác thực tạo suất diễn thất bại: eventId={}, errorDetails={}", eventId, errorDetails);
             throw new AppException(ErrorCode.SHOWS_VALIDATION_ERROR, errorDetails);
         }
 
@@ -418,6 +436,8 @@ public class ShowServiceImpl implements ShowService {
         if (!seatsToSave.isEmpty()) seatRepository.saveAll(seatsToSave);
         savedShow.setTicketTypes(createdTypes);
         updateEventTime(event);
+        log.info("[SHOW] Tạo đơn lẻ suất diễn thành công: showId={}, eventId={}, creatorId={}",
+                savedShow.getId(), event.getId(), creatorId);
         return showMapper.toDTO(show);
     }
 
@@ -549,7 +569,7 @@ public class ShowServiceImpl implements ShowService {
                 );
             }
         }
-        log.info("Đã đồng bộ dữ liệu Show {} lên Redis an toàn.", showId);
+        log.info("[SHOW] Đã đồng bộ dữ liệu Show {} lên Redis an toàn.", showId);
     }
 
     @Override
@@ -559,7 +579,7 @@ public class ShowServiceImpl implements ShowService {
                 .orElse(null);
 
         if (show == null) {
-            log.warn("Không tìm thấy Show {} để warm-up Redis stock.", showId);
+            log.warn("[SHOW] Không tìm thấy Show {} để warm-up Redis stock.", showId);
             return;
         }
 
@@ -572,14 +592,14 @@ public class ShowServiceImpl implements ShowService {
             String typeTotalKey = String.format(KEY_TYPE_TOTAL, showId, typeId);
             if (!Boolean.TRUE.equals(redisTemplate.hasKey(typeTotalKey))) {
                 redisTemplate.opsForValue().set(typeTotalKey, String.valueOf(type.getTotalQuantity()));
-                log.info("Warm-up missing Redis key: {}", typeTotalKey);
+                log.info("[SHOW] Warm-up missing Redis key: {}", typeTotalKey);
             }
 
             String typeReservedKey = String.format(KEY_TYPE_RESERVED, showId, typeId);
             if (!Boolean.TRUE.equals(redisTemplate.hasKey(typeReservedKey))) {
                 boolean setOk = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(typeReservedKey, "0"));
                 if (setOk) {
-                    log.info("Warm-up missing Redis key: {}", typeReservedKey);
+                    log.info("[SHOW] Warm-up missing Redis key: {}", typeReservedKey);
                 }
             }
 
@@ -588,19 +608,19 @@ public class ShowServiceImpl implements ShowService {
                 String tierLimitKey = String.format(KEY_TIER_LIMIT, showId, tierId);
                 if (!Boolean.TRUE.equals(redisTemplate.hasKey(tierLimitKey))) {
                     redisTemplate.opsForValue().set(tierLimitKey, String.valueOf(tier.getLimitQuantity()));
-                    log.info("Warm-up missing Redis key: {}", tierLimitKey);
+                    log.info("[SHOW] Warm-up missing Redis key: {}", tierLimitKey);
                 }
 
                 String tierReservedKey = String.format(KEY_TIER_RESERVED, showId, tierId);
                 if (!Boolean.TRUE.equals(redisTemplate.hasKey(tierReservedKey))) {
                     boolean setOk = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(tierReservedKey, "0"));
                     if (setOk) {
-                        log.info("Warm-up missing Redis key: {}", tierReservedKey);
+                        log.info("[SHOW] Warm-up missing Redis key: {}", tierReservedKey);
                     }
                 }
             }
         }
-        log.info("Đã warm-up missing keys cho Show {} trên Redis.", showId);
+        log.info("[SHOW] Đã warm-up missing keys cho Show {} trên Redis.", showId);
     }
 
     @Override
@@ -611,20 +631,24 @@ public class ShowServiceImpl implements ShowService {
             throw new AppException(ErrorCode.SHOW_NOT_FOUND);
         }
         if (show.getDeletedAt() != null) {
+            log.warn("[SHOW] Suất diễn đã bị xóa trước đó: showId={}", id);
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
         if (show.getStatus() != ShowStatus.DRAFT) {
+            log.warn("[SHOW] Chỉ được phép xóa suất diễn ở trạng thái DRAFT: showId={}, status={}", id, show.getStatus());
             throw new AppException(ErrorCode.ONLY_DRAFT_SHOW_CAN_BE_DELETED);
         }
 
         boolean hasReservations = reservationRepository.existsByShowIdAndDeletedAtIsNull(id);
         if (hasReservations) {
+            log.warn("[SHOW] Không thể xóa suất diễn vì đã có đơn đặt vé: showId={}", id);
             throw new AppException(ErrorCode.SHOW_HAS_RESERVATIONS);
         }
 
         String userId = securityUtils.getCurrentUserId();
         softDeleteShows(Arrays.asList(id), userId);
+        log.info("[SHOW] Xóa mềm suất diễn thành công: showId={}, userId={}", id, userId);
     }
 
     @Override
@@ -635,15 +659,18 @@ public class ShowServiceImpl implements ShowService {
             throw new AppException(ErrorCode.SHOW_NOT_FOUND);
         }
         if (show.getDeletedAt() == null) {
+            log.warn("[SHOW] Không thể khôi phục suất diễn chưa bị xóa: showId={}", id);
             throw new AppException(ErrorCode.VALIDATION_ERROR);
         }
 
         Event event = show.getEvent();
         if (event.getDeletedAt() != null) {
+            log.warn("[SHOW] Không thể khôi phục suất diễn vì sự kiện cha đã bị xóa: showId={}, eventId={}", id, event.getId());
             throw new AppException(ErrorCode.EVENT_NOT_FOUND);
         }
 
         String userId = securityUtils.getCurrentUserId();
         restoreShows(Arrays.asList(id), userId);
+        log.info("[SHOW] Khôi phục suất diễn thành công: showId={}, userId={}", id, userId);
     }
 }

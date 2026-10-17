@@ -20,14 +20,14 @@ public class AuthVerifyEmailConsumer implements StreamListener<String, MapRecord
     @Override
     public void onMessage(MapRecord<String, String, String> record) {
         String recordId = record.getId().getValue();
-        log.info("[AUTH-CONSUMER] Processing verify email record={}", recordId);
+        log.info("[AUTH-CONSUMER] Bắt đầu xử lý gửi email xác thực record={}", recordId);
 
         try {
             String email = record.getValue().get("email");
             String verifyToken = record.getValue().get("verifyToken");
 
             if (email == null || verifyToken == null) {
-                log.warn("[AUTH-CONSUMER] Missing email or verifyToken in record {}, ACKing.", recordId);
+                log.warn("[AUTH-CONSUMER] Thiếu email hoặc verifyToken trong record {}, tiến hành ACK.", recordId);
                 ack(record);
                 return;
             }
@@ -37,10 +37,10 @@ public class AuthVerifyEmailConsumer implements StreamListener<String, MapRecord
 
             // ACK sau khi gửi thành công
             ack(record);
-            log.info("[AUTH-CONSUMER] Done record={} email={}", recordId, email);
+            log.info("[AUTH-CONSUMER] Gửi email xác thực thành công record={} cho email={}", recordId, email);
 
         } catch (Exception e) {
-            log.error("[AUTH-CONSUMER] FAILED record={}: {}", recordId, e.getMessage(), e);
+            log.error("[AUTH-CONSUMER] Gửi email xác thực thất bại record={}: {}", recordId, e.getMessage(), e);
         }
     }
 

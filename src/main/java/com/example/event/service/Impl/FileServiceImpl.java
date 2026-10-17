@@ -13,6 +13,7 @@ import com.example.event.repository.FileRepository;
 import com.example.event.service.FileService;
 import com.example.event.util.FileUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,6 +25,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FileServiceImpl implements FileService {
     private final Cloudinary cloudinary;
     private final FileRepository fileRepository;
@@ -41,9 +43,13 @@ public class FileServiceImpl implements FileService {
     public FileDTO uploadFile(MultipartFile file, FileType fileType, FileFolder fileFolder) {
         String fileExtension = FileUtil.getFileExtension(file.getOriginalFilename());
         if (!FileUtil.isAllowedExtension(fileExtension, fileType)) {
+            log.warn("[FILE] Đuôi file không hợp lệ: filename={}, extension={}, expectedType={}",
+                    file.getOriginalFilename(), fileExtension, fileType);
             throw new AppException(ErrorCode.INVALID_FILE_EXTENSION);
         }
         if (!FileUtil.isValidMimeType(file, fileType)) {
+            log.warn("[FILE] MIME type không hợp lệ: filename={}, contentType={}, expectedType={}",
+                    file.getOriginalFilename(), file.getContentType(), fileType);
             throw new AppException(ErrorCode.INVALID_FILE_MIME_TYPE);
         }
         Map<String, Object> options = new HashMap<>();
@@ -64,8 +70,12 @@ public class FileServiceImpl implements FileService {
             Object formatObj = response.get("format");
             savedFile.setFormat(formatObj != null ? formatObj.toString() : fileExtension);
             fileRepository.save(savedFile);
+            log.info("[FILE] Tải file lên Cloudinary và lưu DB thành công: fileId={}, publicId={}, folder={}",
+                    savedFile.getId(), savedFile.getPublicId(), fileFolder);
             return fileMapper.toDTO(savedFile);
         } catch (IOException e) {
+            log.error("[FILE] Lỗi khi upload file lên Cloudinary: filename={}, error={}",
+                    file.getOriginalFilename(), e.getMessage(), e);
             throw new AppException(ErrorCode.UPLOAD_FAILED);
         }
     }
@@ -86,6 +96,7 @@ public class FileServiceImpl implements FileService {
         response.put("folder", folder);
         response.put("api_key", cloudinary.config.apiKey);
         response.put("cloud_name", cloudinary.config.cloudName);
+        log.info("[FILE] Tạo chữ ký upload trực tiếp lên Cloudinary thành công | folder={}, timestamp={}", folder, timestamp);
         return response;
     }
 }

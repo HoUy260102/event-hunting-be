@@ -55,7 +55,7 @@ public class TicketQueue {
                 ticketQueueService.drainQueue(showId);
                 redis.opsForZSet().add(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
             } catch (Exception e) {
-                log.error("Lỗi khi drain queue cho show {}: {}", showId, e.getMessage());
+                log.error("[QUEUE] Lỗi khi drain hàng đợi cho show {}: {}", showId, e.getMessage());
             }
         }
     }
@@ -77,7 +77,7 @@ public class TicketQueue {
                     redis.opsForZSet().add(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
                 }
             } catch (Exception e) {
-                log.error("Lỗi khi cleanup cho show {}: {}", showId, e.getMessage());
+                log.error("[QUEUE] Lỗi khi cleanup ghost users cho show {}: {}", showId, e.getMessage());
             }
         }
     }

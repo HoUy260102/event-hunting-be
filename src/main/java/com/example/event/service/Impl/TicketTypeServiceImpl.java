@@ -17,6 +17,7 @@ import com.example.event.repository.TicketTierRepository;
 import com.example.event.repository.TicketTypeRepository;
 import com.example.event.service.TicketTypeService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TicketTypeServiceImpl implements TicketTypeService {
     private final TicketTypeRepository ticketTypeRepository;
     private final TicketTierRepository ticketTierRepository;
@@ -79,6 +81,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                 .collect(Collectors.toList());
 
         if (!deletedTypeIds.isEmpty()) {
+            log.info("[TICKET-TYPE] Xóa mềm {} loại vé không còn trong danh sách | showId={}", deletedTypeIds.size(), show.getId());
             softDeleteTicketTypes(deletedTypeIds, updatorId);
         }
 
@@ -106,14 +109,20 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                         .orElseThrow(() -> new AppException(ErrorCode.TICKET_TYPE_NOT_FOUND));
                 
                 if (ticketTypeReq.getVersion() != null && !ticketTypeReq.getVersion().equals(ticketType.getVersion())) {
+                    log.warn("[TICKET-TYPE] Xung đột phiên bản khi cập nhật loại vé: typeId={}, expectedVersion={}, actualVersion={}",
+                            ticketType.getId(), ticketTypeReq.getVersion(), ticketType.getVersion());
                     throw new AppException(ErrorCode.CONCURRENT_UPDATE);
                 }
                 
                 ticketType.setName(ticketTypeReq.getName());
                 if (ticketTypeReq.getTotalQuantity() < ticketType.getReservedQuantity()) {
+                    log.warn("[TICKET-TYPE] Tổng số lượng vé nhỏ hơn số lượng đã đặt trước: typeId={}, totalQuantity={}, reservedQuantity={}",
+                            ticketType.getId(), ticketTypeReq.getTotalQuantity(), ticketType.getReservedQuantity());
                     throw new AppException(ErrorCode.TOTAL_QUANTITY_LESS_THAN_SOLD);
                 }
                 if (show.getStatus() != ShowStatus.DRAFT && !ticketType.getSeatingType().equals(ticketTypeReq.getSeatingType())) {
+                    log.warn("[TICKET-TYPE] Không được phép đổi kiểu ghế khi suất diễn không ở trạng thái DRAFT: typeId={}, showStatus={}",
+                            ticketType.getId(), show.getStatus());
                     throw new AppException(ErrorCode.SEATING_TYPE_UPDATE_FORBIDDEN);
                 }
                 ticketType.setTotalQuantity(ticketTypeReq.getTotalQuantity());
@@ -155,6 +164,8 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         List<TicketType> types = ticketTypeRepository.findAllById(typeIds);
         for (TicketType type : types) {
             if (type.getReservedQuantity() > 0) {
+                log.warn("[TICKET-TYPE] Không thể xóa loại vé vì đã có vé được giữ chỗ: typeId={}, reservedQuantity={}",
+                        type.getId(), type.getReservedQuantity());
                 throw new AppException(ErrorCode.TOTAL_QUANTITY_LESS_THAN_SOLD);
             }
         }
@@ -162,6 +173,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         ticketTierRepository.softDeleteTiersByTypeIds(typeIds, now, deletorId);
         seatRepository.softDeleteSeatsByTicketTypeIds(typeIds, now, deletorId);
         ticketTypeRepository.softDeleteTypesByIds(typeIds, now, deletorId);
+        log.info("[TICKET-TYPE] Xóa mềm {} loại vé thành công: deletorId={}", typeIds.size(), deletorId);
     }
 
     @Override

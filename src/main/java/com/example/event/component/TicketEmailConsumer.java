@@ -36,18 +36,18 @@ public class TicketEmailConsumer
     @Override
     public void onMessage(MapRecord<String, String, String> record) {
         String recordId = record.getId().getValue();
-        log.info("[TICKET-CONSUMER] Processing batch record={}", recordId);
+        log.info("[TICKET-CONSUMER] Bắt đầu xử lý batch record={}", recordId);
 
         try {
             // 1. Parse batch tickets from Map
             List<TicketEmailMessage> tickets = TicketEmailMessage.fromBatchMap(record.getValue());
             if (tickets.isEmpty()) {
-                log.warn("[TICKET-CONSUMER] Batch record {} is empty, ACKing.", recordId);
+                log.warn("[TICKET-CONSUMER] Batch record {} rỗng, tiến hành ACK.", recordId);
                 ack(record);
                 return;
             }
 
-            log.info("[TICKET-CONSUMER] Processing {} tickets for reservation {}",
+            log.info("[TICKET-CONSUMER] Đang xử lý {} vé cho đơn hàng {}",
                     tickets.size(), tickets.get(0).getReservationId());
 
             // 2. Generate PDF for each ticket
@@ -61,11 +61,11 @@ public class TicketEmailConsumer
 
             // 4. ACK on success
             ack(record);
-            log.info("[TICKET-CONSUMER] Done record={} reservation={}",
+            log.info("[TICKET-CONSUMER] Xử lý thành công record={} cho đơn hàng {}",
                     recordId, tickets.get(0).getReservationId());
 
         } catch (Exception e) {
-            log.error("[TICKET-CONSUMER] FAILED batch record={}: {}",
+            log.error("[TICKET-CONSUMER] Xử lý thất bại batch record={}: {}",
                     recordId, e.getMessage(), e);
         }
     }

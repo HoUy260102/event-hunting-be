@@ -32,6 +32,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     public void addFavorite(String eventId) {
         String userId = securityUtils.getCurrentUserId();
         if (favoriteRepository.existsByUser_IdAndEvent_Id(userId, eventId)) {
+            log.warn("[FAVORITE] Sự kiện đã nằm trong danh sách yêu thích: userId={}, eventId={}", userId, eventId);
             throw new AppException(ErrorCode.FAVORITE_ALREADY_EXISTS);
         }
 
@@ -47,6 +48,7 @@ public class FavoriteServiceImpl implements FavoriteService {
         favoriteRepository.save(favorite);
 
         eventInteractionService.addInteraction(eventId, userId, InteractionType.FAVORITE);
+        log.info("[FAVORITE] Thêm sự kiện vào danh sách yêu thích thành công: userId={}, eventId={}", userId, eventId);
     }
 
     @Override
@@ -54,11 +56,13 @@ public class FavoriteServiceImpl implements FavoriteService {
     public void removeFavorite(String eventId) {
         String userId = securityUtils.getCurrentUserId();
         if (!favoriteRepository.existsByUser_IdAndEvent_Id(userId, eventId)) {
+            log.warn("[FAVORITE] Không tìm thấy sự kiện trong danh sách yêu thích để xóa: userId={}, eventId={}", userId, eventId);
             throw new AppException(ErrorCode.FAVORITE_NOT_FOUND);
         }
         Favorite favorite = favoriteRepository.findFavoriteByUser_IdAndEvent_Id(userId, eventId);
         favoriteRepository.delete(favorite);
 
         eventInteractionService.addInteraction(eventId, userId, InteractionType.FAVORITE);
+        log.info("[FAVORITE] Xóa sự kiện khỏi danh sách yêu thích thành công: userId={}, eventId={}", userId, eventId);
     }
 }

@@ -13,6 +13,7 @@ import com.example.event.repository.PermissionRepository;
 import com.example.event.repository.RoleRepository;
 import com.example.event.service.RoleService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RoleServiceImpl implements RoleService {
     private final RoleRepository roleRepository;
     private final RoleMapper roleMapper;
@@ -40,11 +42,14 @@ public class RoleServiceImpl implements RoleService {
         role.setUpdatedAt(LocalDateTime.now());
         role.setUpdatedBy(updatorId);
         roleRepository.save(role);
+        log.info("[ROLE] Cập nhật danh sách quyền cho vai trò thành công: roleId={}, totalPermissions={}, updatorId={}",
+                roleId, newPermissions.size(), updatorId);
     }
 
     @Override
     public RoleDTO createRole(CreateRoleReq req) {
         if (roleRepository.existsRoleByName(req.getName().toUpperCase())) {
+            log.warn("[ROLE] Tạo vai trò thất bại do tên vai trò đã tồn tại: name={}", req.getName().toUpperCase());
             throw new AppException(ErrorCode.ROLE_EXISTS);
         }
         String creatorId = securityUtils.getCurrentUserId();
@@ -59,6 +64,8 @@ public class RoleServiceImpl implements RoleService {
         role.setUpdatedBy(creatorId);
         role.setPermissions(permissions);
         roleRepository.save(role);
+        log.info("[ROLE] Tạo vai trò mới thành công: roleId={}, name={}, totalPermissions={}, creatorId={}",
+                role.getId(), role.getName(), permissions.size(), creatorId);
         return roleMapper.toDTO(role);
     }
 

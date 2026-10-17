@@ -16,6 +16,7 @@ import com.example.event.service.CategoryService;
 import com.example.event.specification.CategorySpecifiation;
 import com.example.event.util.StringUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CategoryServiceImpl implements CategoryService {
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
@@ -55,6 +57,7 @@ public class CategoryServiceImpl implements CategoryService {
             errors.put("name", "Tên chủ đề này đã tồn tại trên hệ thống!");
         }
         if (!errors.isEmpty()) {
+            log.warn("[CATEGORY] Tạo thể loại thất bại do dữ liệu không hợp lệ: name={}, errors={}", req.getName(), errors);
             throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
         }
 
@@ -68,6 +71,8 @@ public class CategoryServiceImpl implements CategoryService {
         category.setUpdatedAt(LocalDateTime.now());
         category.setUpdatedBy(creatorId);
         categoryRepository.save(category);
+        log.info("[CATEGORY] Tạo thể loại mới thành công: categoryId={}, name={}, slug={}, creatorId={}",
+                category.getId(), category.getName(), category.getSlug(), creatorId);
         return categoryMapper.toDTO(category);
     }
 
@@ -75,6 +80,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional
     public CategoryDTO updateCategory(String id, UpdateCategoryReq req) {
         if (req.getStatus() == CategoryStatus.DELETED) {
+            log.warn("[CATEGORY] Không được phép cập nhật trạng thái thể loại sang DELETED: categoryId={}", id);
             throw new AppException(ErrorCode.CATEGORY_STATUS_INVALID);
         }
         String updatorId = securityUtils.getCurrentUserId();
@@ -91,6 +97,7 @@ public class CategoryServiceImpl implements CategoryService {
                 errors.put("name", "Tên chủ đề này đã tồn tại trên hệ thống!");
             }
             if (!errors.isEmpty()) {
+                log.warn("[CATEGORY] Cập nhật thể loại thất bại do dữ liệu không hợp lệ: categoryId={}, errors={}", id, errors);
                 throw new AppException(ErrorCode.VALIDATION_ERROR, errors);
             }
             category.setName(req.getName());
@@ -101,6 +108,8 @@ public class CategoryServiceImpl implements CategoryService {
         category.setUpdatedAt(LocalDateTime.now());
         category.setUpdatedBy(updatorId);
         categoryRepository.save(category);
+        log.info("[CATEGORY] Cập nhật thể loại thành công: categoryId={}, name={}, updatorId={}",
+                category.getId(), category.getName(), updatorId);
         return categoryMapper.toDTO(category);
     }
 
@@ -119,9 +128,11 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = Optional.ofNullable(categoryRepository.findCategoryById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
         if (category.getDeletedAt() != null) {
+            log.warn("[CATEGORY] Thể loại đã bị xóa trước đó: categoryId={}", id);
             throw new AppException(ErrorCode.CATEGORY_ALREADY_DELETED);
         }
         if (eventRepository.existsByCategoryIdAndDeletedAtIsNull(id)) {
+            log.warn("[CATEGORY] Không thể xóa thể loại vì đang có sự kiện thuộc thể loại này: categoryId={}", id);
             throw new AppException(ErrorCode.CATEGORY_HAS_EVENTS);
         }
         category.setName(category.getName() + "-deleted-" + System.currentTimeMillis());
@@ -131,6 +142,7 @@ public class CategoryServiceImpl implements CategoryService {
         category.setDeletedAt(LocalDateTime.now());
         category.setDeletedBy(deletorId);
         categoryRepository.save(category);
+        log.info("[CATEGORY] Xóa thể loại thành công: categoryId={}, deletorId={}", id, deletorId);
     }
 
     @Override
@@ -140,12 +152,14 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = Optional.ofNullable(categoryRepository.findCategoryById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
         if (category.getDeletedAt() == null) {
+            log.warn("[CATEGORY] Thể loại chưa bị xóa, không thể khôi phục: categoryId={}", id);
             throw new AppException(ErrorCode.CATEGORY_NOT_IN_TRASH);
         }
         String name = category.getName().replaceAll("-deleted-\\d+$", "");
         String slug = category.getSlug().replaceAll("-deleted-\\d+$", "");
         if (categoryRepository.existsCategoryByNameAndIdNot(name, id) ||
                 categoryRepository.existsCategoryBySlugAndIdNot(slug, id)) {
+            log.warn("[CATEGORY] Khôi phục thể loại thất bại do tên hoặc slug đã tồn tại: categoryId={}, name={}, slug={}", id, name, slug);
             throw new AppException(ErrorCode.CATEGORY_EXISTS);
         }
         category.setName(name);
@@ -155,6 +169,7 @@ public class CategoryServiceImpl implements CategoryService {
         category.setDeletedAt(null);
         category.setDeletedBy(null);
         categoryRepository.save(category);
+        log.info("[CATEGORY] Khôi phục thể loại thành công: categoryId={}, name={}, restorerId={}", id, name, restorId);
     }
 
     @Override

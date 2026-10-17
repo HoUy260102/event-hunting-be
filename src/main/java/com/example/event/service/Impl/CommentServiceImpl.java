@@ -43,30 +43,30 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public CommentDTO createComment(CreateCommentReq req) {
         String userId = securityUtils.getCurrentUserId();
-        log.info("createComment - Start: userId={}, req={}", userId, req);
+        log.info("[COMMENT] Bắt đầu tạo bình luận: userId={}, req={}", userId, req);
 
         try {
             if (userId == null) {
-                log.warn("createComment - Unauthenticated request");
+                log.warn("[COMMENT] Từ chối tạo bình luận: Người dùng chưa xác thực");
                 throw new AppException(ErrorCode.UNAUTHENTICATED);
             }
 
             User user = userRepository.findUserByIdWithAvatar(userId);
             if (user == null) {
-                log.warn("createComment - User not found: userId={}", userId);
+                log.warn("[COMMENT] Không tìm thấy người dùng: userId={}", userId);
                 throw new AppException(ErrorCode.USER_NOT_FOUND);
             }
 
             Event event = eventRepository.findById(req.getEventId())
                     .orElseThrow(() -> {
-                        log.warn("createComment - Event not found: eventId={}", req.getEventId());
+                        log.warn("[COMMENT] Không tìm thấy sự kiện: eventId={}", req.getEventId());
                         return new AppException(ErrorCode.EVENT_NOT_FOUND);
                     });
 
             // 1. Kiểm tra giới hạn số lượng ảnh đính kèm (Tối đa 4 ảnh)
             final int MAX_IMAGES = 4;
             if (req.getFileIds() != null && req.getFileIds().size() > MAX_IMAGES) {
-                log.warn("createComment - Image limit exceeded: size={}", req.getFileIds().size());
+                log.warn("[COMMENT] Vượt quá giới hạn ảnh đính kèm: size={}", req.getFileIds().size());
                 throw new AppException(ErrorCode.IMAGE_LIMIT_EXCEEDED);
             }
 
@@ -74,7 +74,7 @@ public class CommentServiceImpl implements CommentService {
             boolean hasText = req.getContent() != null && !req.getContent().trim().isEmpty();
             boolean hasImages = req.getFileIds() != null && !req.getFileIds().isEmpty();
             if (!hasText && !hasImages) {
-                log.warn("createComment - Comment has neither text nor images");
+                log.warn("[COMMENT] Bình luận không có nội dung chữ hoặc ảnh");
                 throw new AppException(ErrorCode.COMMENT_EMPTY);
             }
 
@@ -87,12 +87,12 @@ public class CommentServiceImpl implements CommentService {
             if (req.getParentId() != null) {
                 Comment parentComment = commentRepository.findById(req.getParentId())
                         .orElseThrow(() -> {
-                            log.warn("createComment - Parent comment not found: parentId={}", req.getParentId());
+                            log.warn("[COMMENT] Không tìm thấy bình luận cha: parentId={}", req.getParentId());
                             return new AppException(ErrorCode.COMMENT_NOT_FOUND);
                         });
 
                 if (parentComment.getParent() != null) {
-                    log.warn("createComment - Comment level exceeded for parentId={}", req.getParentId());
+                    log.warn("[COMMENT] Vượt quá cấp độ bình luận cho parentId={}", req.getParentId());
                     throw new AppException(ErrorCode.COMMENT_LEVEL_EXCEEDED);
                 }
                 comment.setParent(parentComment);
@@ -100,23 +100,23 @@ public class CommentServiceImpl implements CommentService {
 
             // 3. Lưu bình luận
             Comment savedComment = commentRepository.save(comment);
-            log.info("createComment - Comment entity saved: commentId={}", savedComment.getId());
+            log.info("[COMMENT] Đã lưu entity bình luận: commentId={}", savedComment.getId());
 
             // Ghi nhận tương tác Event Interaction (Tăng điểm gợi ý/xu hướng)
             eventInteractionService.addInteraction(event.getId(), userId, InteractionType.COMMENT);
 
             // 4. Kích hoạt và liên kết file ảnh đính kèm (chuyển PENDING sang ACTIVE)
             if (req.getFileIds() != null && !req.getFileIds().isEmpty()) {
-                log.info("createComment - Activating files: fileIds={}", req.getFileIds());
+                log.info("[COMMENT] Kích hoạt các file đính kèm: fileIds={}", req.getFileIds());
                 fileRepository.activateFiles(req.getFileIds(), savedComment.getId());
             }
 
             List<File> activeFiles = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, savedComment.getId());
             CommentDTO result = commentMapper.toDTO(savedComment, activeFiles, 0L, null, 0L);
-            log.info("createComment - Success! Result DTO built: commentId={}", result.getId());
+            log.info("[COMMENT] Tạo bình luận thành công: commentId={}", result.getId());
             return result;
         } catch (Exception e) {
-            log.error("createComment - Unexpected exception occurred during comment creation: ", e);
+            log.error("[COMMENT] Lỗi không xác định khi tạo bình luận: ", e);
             throw e;
         }
     }
@@ -206,17 +206,17 @@ public class CommentServiceImpl implements CommentService {
     @Transactional
     public void deleteComment(String commentId) {
         String userId = securityUtils.getCurrentUserId();
-        log.info("deleteComment - Start: userId={}, commentId={}", userId, commentId);
+        log.info("[COMMENT] Bắt đầu xóa bình luận: userId={}, commentId={}", userId, commentId);
 
         try {
             if (userId == null) {
-                log.warn("deleteComment - Unauthenticated request");
+                log.warn("[COMMENT] Từ chối xóa bình luận: Người dùng chưa xác thực");
                 throw new AppException(ErrorCode.UNAUTHENTICATED);
             }
 
             Comment comment = commentRepository.findById(commentId)
                     .orElseThrow(() -> {
-                        log.warn("deleteComment - Comment not found: commentId={}", commentId);
+                        log.warn("[COMMENT] Không tìm thấy bình luận cần xóa: commentId={}", commentId);
                         return new AppException(ErrorCode.COMMENT_NOT_FOUND);
                     });
 
@@ -226,19 +226,19 @@ public class CommentServiceImpl implements CommentService {
             // 1. Thực hiện xóa mềm bình luận (Soft Delete)
             comment.setDeletedAt(LocalDateTime.now());
             commentRepository.save(comment);
-            log.info("deleteComment - Comment soft-deleted successfully: commentId={}", commentId);
+            log.info("[COMMENT] Đã xóa mềm bình luận: commentId={}", commentId);
 
             // 2. Thực hiện xóa mềm toàn bộ ảnh đính kèm của bình luận đó (nếu có)
             List<File> commentFiles = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, commentId);
             if (commentFiles != null && !commentFiles.isEmpty()) {
-                log.info("deleteComment - Soft-deleting {} attached files for commentId={}", commentFiles.size(), commentId);
+                log.info("[COMMENT] Xóa mềm {} file ảnh đính kèm của commentId={}", commentFiles.size(), commentId);
                 List<String> fileIds = commentFiles.stream().map(File::getId).toList();
                 fileRepository.deleteFile(fileIds, LocalDateTime.now());
             }
 
-            log.info("deleteComment - Success: commentId={}", commentId);
+            log.info("[COMMENT] Xóa bình luận thành công: commentId={}", commentId);
         } catch (Exception e) {
-            log.error("deleteComment - Unexpected exception during comment deletion: ", e);
+            log.error("[COMMENT] Lỗi không xác định khi xóa bình luận: ", e);
             throw e;
         }
     }

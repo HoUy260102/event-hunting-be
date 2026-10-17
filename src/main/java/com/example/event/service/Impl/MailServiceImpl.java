@@ -3,6 +3,7 @@ package com.example.event.service.Impl;
 import com.example.event.service.MailService;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -10,10 +11,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MailServiceImpl implements MailService {
     private final JavaMailSender mailSender;
 
@@ -36,7 +39,9 @@ public class MailServiceImpl implements MailService {
             }
 
             mailSender.send(message);
+            log.info("[MAIL] Gửi email thành công: to={}, subject={}", Arrays.toString(to), subject);
         } catch (Exception e) {
+            log.error("[MAIL] Lỗi khi gửi email: to={}, subject={}, error={}", Arrays.toString(to), subject, e.getMessage(), e);
             throw new RuntimeException("Lỗi gửi mail: " + e.getMessage());
         }
     }

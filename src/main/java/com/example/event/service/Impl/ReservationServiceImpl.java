@@ -273,7 +273,7 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setCode(orderCode);
 
             reservationRepository.saveAndFlush(reservation);
-            log.info("[RESERVATION]User {} | Show {} - Đã lưu Reservation. ID: {}", creatorId, show.getId(),
+            log.info("[RESERVATION] User {} | Show {} - Đã lưu Reservation. ID: {}", creatorId, show.getId(),
                     reservation.getId());
 
             List<ReservationItem> itemsToSave = new ArrayList<>();
@@ -429,7 +429,7 @@ public class ReservationServiceImpl implements ReservationService {
             if (e instanceof AppException) {
                 throw (AppException) e;
             }
-            log.error("Lỗi không xác định khi tạo đơn hàng cho show {} của User {}: ", show.getId(), creatorId, e);
+            log.error("[RESERVATION] Lỗi không xác định khi tạo đơn hàng cho show {} của User {}: ", show.getId(), creatorId, e);
             throw new AppException(ErrorCode.SYSTEM_ERROR);
         }
     }
@@ -512,9 +512,9 @@ public class ReservationServiceImpl implements ReservationService {
             reservation.setUpdatedBy(updatedBy);
             reservation.setUpdatedAt(now);
             reservationRepository.save(reservation);
-            log.info("Đã dọn dẹp xong đơn hàng: {}", reservation.getId());
+            log.info("[RESERVATION] Đã giải phóng xong đơn hàng: id={}, status={}", reservation.getId(), status);
         } catch (Exception e) {
-            log.error("Lỗi nghiêm trọng khi xử lý đơn hàng {}: {}", reservation.getId(), e.getMessage());
+            log.error("[RESERVATION] Lỗi nghiêm trọng khi giải phóng tài nguyên đơn hàng {}: {}", reservation.getId(), e.getMessage());
             throw e;
         }
     }
@@ -591,31 +591,31 @@ public class ReservationServiceImpl implements ReservationService {
 
         // 1. Reservation còn hạn không
         if (LocalDateTime.now().isAfter(reservation.getExpiresAt())) {
-            log.warn("Payment validation failed: Reservation {} has expired at {}", resId, reservation.getExpiresAt());
+            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} đã hết hạn lúc {}", resId, reservation.getExpiresAt());
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
         }
 
         // 2. Trạng thái có hợp lệ để thanh toán không
         if (reservation.getStatus() != ReservationStatus.PENDING) {
-            log.warn("Payment validation failed: Reservation {} is in status {}, expected PENDING", resId,
+            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} có trạng thái {}, kỳ vọng PENDING", resId,
                     reservation.getStatus());
             throw new AppException(ErrorCode.RESERVATION_NOT_PAYABLE);
         }
 
         // 3. Có items không
         if (reservation.getItems() == null || reservation.getItems().isEmpty()) {
-            log.warn("Payment validation failed: Reservation {} has no items (empty/null)", resId);
+            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} không có sản phẩm vé (empty/null)", resId);
             throw new AppException(ErrorCode.RESERVATION_HAS_NO_ITEMS);
         }
 
         // 4. Số tiền hợp lệ không
         if (reservation.getFinalAmount() <= 0) {
-            log.warn("Payment validation failed: Reservation {} has invalid final amount: {}", resId,
+            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} có số tiền cuối không hợp lệ: {}", resId,
                     reservation.getFinalAmount());
             throw new AppException(ErrorCode.INVALID_AMOUNT);
         }
 
-        log.info("Payment validation successful for Reservation: {}", resId);
+        log.info("[RESERVATION] Xác thực thanh toán thành công cho đơn hàng: {}", resId);
     }
 
     @Override
@@ -793,7 +793,7 @@ public class ReservationServiceImpl implements ReservationService {
         dto.setDiscountAmount(totalDiscount);
         dto.setFinalAmount(totalAmount - totalDiscount);
 
-        log.info("Voucher {} applied to Res {}: Discount={}, Final={}",
+        log.info("[RESERVATION] Áp dụng voucher {} cho đơn hàng {}: Chiết khấu={}, Tổng cuối={}",
                 voucher.getId(), reservation.getId(), totalDiscount, dto.getFinalAmount());
 
         return dto;

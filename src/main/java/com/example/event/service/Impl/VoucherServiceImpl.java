@@ -85,7 +85,7 @@ public class VoucherServiceImpl implements VoucherService {
 
             Show show = showRepository.findById(req.getShowId())
                     .orElseThrow(() -> {
-                        log.warn("🟡 [CREATE VOUCHER] Show not found: {}", req.getShowId());
+                        log.warn("[CREATE VOUCHER] Không tìm thấy suất diễn: {}", req.getShowId());
                         return new AppException(ErrorCode.SHOW_NOT_FOUND);
                     });
 
@@ -94,7 +94,7 @@ public class VoucherServiceImpl implements VoucherService {
             List<TicketType> tickets = ticketTypeRepository.findAllById(req.getTicketTypeIds());
 
             if (tickets.size() != req.getTicketTypeIds().size()) {
-                log.warn("[CREATE VOUCHER] Some ticket types not found: {}", req.getTicketTypeIds());
+                log.warn("[CREATE VOUCHER] Một số loại vé không tồn tại: {}", req.getTicketTypeIds());
                 throw new AppException(ErrorCode.TICKET_TYPE_NOT_FOUND);
             }
             voucher.setTicketTypes(tickets);
@@ -136,13 +136,13 @@ public class VoucherServiceImpl implements VoucherService {
 
         // Kiểm tra code có tồn tại không
         if (req.getCode() != null && voucherRepository.existsByCodeAndIdNot(req.getCode().trim().toUpperCase(), id)) {
-            log.warn("[UPDATE VOUCHER] Duplicate code detected: code={}, id={}",
+            log.warn("[UPDATE VOUCHER] Phát hiện mã voucher trùng lặp: code={}, id={}",
                     req.getCode(), id);
             errors.put("code", "Mã voucher đã tồn tại trên hệ thống, vui lòng dùng mã khác");
         }
 
         if (!errors.isEmpty()) {
-            log.warn("[UPDATE VOUCHER] Validation failed: {}", errors);
+            log.warn("[UPDATE VOUCHER] Kiểm tra dữ liệu cập nhật thất bại: {}", errors);
             throw new AppException(ErrorCode.VOUCHER_VALIDATION_ERROR, errors);
         }
 
@@ -167,7 +167,7 @@ public class VoucherServiceImpl implements VoucherService {
             List<TicketType> tickets = ticketTypeRepository.findAllById(req.getTicketTypeIds());
 
             if (tickets.size() != req.getTicketTypeIds().size()) {
-                log.warn("[UPDATE VOUCHER] Some ticket types not found: {}", req.getTicketTypeIds());
+                log.warn("[UPDATE VOUCHER] Một số loại vé không tồn tại: {}", req.getTicketTypeIds());
                 throw new AppException(ErrorCode.TICKET_TYPE_NOT_FOUND);
             }
 

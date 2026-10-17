@@ -12,6 +12,7 @@ import com.example.event.entity.TicketType;
 import com.example.event.repository.SeatRepository;
 import com.example.event.service.SeatService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SeatServiceImpl implements SeatService {
 
     private final SeatRepository seatRepository;
@@ -48,6 +50,7 @@ public class SeatServiceImpl implements SeatService {
             seat.setUpdatedBy(creatorId);
             seatsToSave.add(seat);
         }
+        log.info("[SEAT] Khởi tạo {} ghế định danh (assigned) cho ticketTypeId={}", seatsToSave.size(), ticketType.getId());
         return seatsToSave;
     }
 
@@ -69,6 +72,7 @@ public class SeatServiceImpl implements SeatService {
             seat.setUpdatedBy(creatorId);
             seatsToSave.add(seat);
         }
+        log.info("[SEAT] Khởi tạo {} ghế không định danh (unassigned) cho ticketTypeId={}", seatsToSave.size(), ticketType.getId());
         return seatsToSave;
     }
 
@@ -90,6 +94,8 @@ public class SeatServiceImpl implements SeatService {
                 requestMap.remove(seat.getSeatCode());
             } else {
                 if (seat.getStatus() != SeatStatus.AVAILABLE) {
+                    log.warn("[SEAT] Không thể sửa hoặc xóa ghế đã được đặt chỗ: seatId={}, seatCode={}, status={}",
+                            seat.getId(), seat.getSeatCode(), seat.getStatus());
                     throw new AppException(ErrorCode.SEAT_ALREADY_RESERVED);
                 }
                 idsToDelete.add(seat.getId());

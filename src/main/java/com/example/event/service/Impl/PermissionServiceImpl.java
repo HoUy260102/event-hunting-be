@@ -12,6 +12,7 @@ import com.example.event.repository.PermissionRepository;
 import com.example.event.service.PermissionService;
 import com.example.event.specification.PermissionSpecification;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final PermissionMapper permissionMapper;
@@ -33,6 +35,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     public PermissionDTO createPermission(CreatePermissionReq req) {
         if (permissionRepository.existsByCode(req.getCode())) {
+            log.warn("[PERMISSION] Tạo quyền thất bại do mã quyền đã tồn tại: code={}", req.getCode());
             throw new AppException(ErrorCode.PERMISSION_EXISTS);
         }
         String creatorId = securityUtils.getCurrentUserId();
@@ -46,6 +49,8 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setCreatedBy(creatorId);
         permission.setUpdatedBy(creatorId);
         permissionRepository.save(permission);
+        log.info("[PERMISSION] Tạo quyền mới thành công: permissionId={}, code={}, module={}, creatorId={}",
+                permission.getId(), permission.getCode(), permission.getModule(), creatorId);
         return permissionMapper.toDTO(permission);
     }
 

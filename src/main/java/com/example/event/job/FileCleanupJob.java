@@ -63,26 +63,26 @@ public class FileCleanupJob {
                 break;
             }
 
-            log.info("Tìm thấy {} file hết hạn trong batch, đang xử lý xóa Cloudinary...", filesToClean.size());
+            log.info("[FILE-CLEANUP] Tìm thấy {} file hết hạn trong batch, đang xử lý xóa Cloudinary...", filesToClean.size());
 
             for (File file : filesToClean) {
                 if (file.getPublicId() != null && !file.getPublicId().isEmpty()) {
                     try {
-                        log.info("Xóa file trên Cloudinary: fileId={}, publicId={}", file.getId(), file.getPublicId());
+                        log.info("[FILE-CLEANUP] Xóa file trên Cloudinary: fileId={}, publicId={}", file.getId(), file.getPublicId());
                         Map destroyResult = cloudinary.uploader().destroy(file.getPublicId(), new HashMap<>());
-                        log.debug("Kết quả xóa Cloudinary cho {}: {}", file.getPublicId(), destroyResult);
+                        log.debug("[FILE-CLEANUP] Kết quả xóa Cloudinary cho {}: {}", file.getPublicId(), destroyResult);
                         if (sleepMs > 0) {
                             Thread.sleep(sleepMs);
                         }
                     } catch (IOException e) {
-                        log.error("Không xóa được file trên Cloudinary (publicId={}): {}. Tiếp tục xóa khỏi DB để tránh loop.", 
+                        log.error("[FILE-CLEANUP] Không xóa được file trên Cloudinary (publicId={}): {}. Tiếp tục xóa khỏi DB để tránh loop.", 
                                 file.getPublicId(), e.getMessage());
                     } catch (InterruptedException e) {
-                        log.warn("Cleanup bị gián đoạn khi chờ: {}", e.getMessage());
+                        log.warn("[FILE-CLEANUP] Cleanup bị gián đoạn khi chờ: {}", e.getMessage());
                         Thread.currentThread().interrupt();
                         break;
                     } catch (Exception e) {
-                        log.error("Lỗi khi xóa trên Cloudinary (publicId={}): {}", 
+                        log.error("[FILE-CLEANUP] Lỗi khi xóa trên Cloudinary (publicId={}): {}", 
                                 file.getPublicId(), e.getMessage());
                     }
                 }
@@ -91,21 +91,21 @@ public class FileCleanupJob {
             try {
                 fileRepository.deleteAll(filesToClean);
                 totalDeleted += filesToClean.size();
-                log.info("Đã xóa {} file khỏi DB trong batch này.", filesToClean.size());
+                log.info("[FILE-CLEANUP] Đã xóa {} file khỏi DB trong batch này.", filesToClean.size());
             } catch (Exception e) {
-                log.error("Lỗi khi xóa hàng loạt file khỏi DB: {}", e.getMessage());
+                log.error("[FILE-CLEANUP] Lỗi khi xóa hàng loạt file khỏi DB: {}", e.getMessage());
                 for (File file : filesToClean) {
                     try {
                         fileRepository.delete(file);
                         totalDeleted++;
                     } catch (Exception ex) {
-                        log.error("Không xóa được file khỏi DB (id={}): {}", file.getId(), ex.getMessage());
+                        log.error("[FILE-CLEANUP] Không xóa được file khỏi DB (id={}): {}", file.getId(), ex.getMessage());
                     }
                 }
                 break;
             }
         }
 
-        log.info("Cleanup file hết hạn hoàn tất. Tổng file đã xử lý: {}", totalDeleted);
+        log.info("[FILE-CLEANUP] Cleanup file hết hạn hoàn tất. Tổng file đã xử lý: {}", totalDeleted);
     }
 }

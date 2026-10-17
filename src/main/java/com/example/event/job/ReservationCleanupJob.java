@@ -42,13 +42,13 @@ public class ReservationCleanupJob {
             return;
         }
 
-        log.info("Phát hiện {} đơn hàng hết hạn trong batch", reservations.size());
+        log.info("[RESERVATION-CLEANUP] Phát hiện {} đơn hàng hết hạn trong batch", reservations.size());
         for (Reservation reservation : reservations) {
             try {
                 reservationService.releaseReservationResources(
                         reservation, now, ReservationStatus.EXPIRED, "cleanup");
             } catch (Exception e) {
-                log.error("Lỗi khi giải phóng đơn hàng: {}", reservation.getId(), e);
+                log.error("[RESERVATION-CLEANUP] Lỗi khi giải phóng đơn hàng {}: {}", reservation.getId(), e.getMessage(), e);
             }
         }
     }

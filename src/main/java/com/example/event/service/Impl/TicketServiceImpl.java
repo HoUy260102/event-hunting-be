@@ -92,6 +92,8 @@ public class TicketServiceImpl implements TicketService {
             TicketTier tier = unassignedItem.getTicketTier();
             List<Seat> selectedSeats = seatRepository.findBestAvailableUnassignedSeats(type.getId(), unassignedItem.getQuantity());
             if (selectedSeats.isEmpty() || selectedSeats.size() < unassignedItem.getQuantity()) {
+                log.warn("[TICKET] Không đủ ghế unassigned cho ticketType={}: requested={}, available={}",
+                        type.getId(), unassignedItem.getQuantity(), selectedSeats.size());
                 throw new AppException(ErrorCode.NOT_ENOUGH_SEATS);
             }
 
@@ -174,6 +176,7 @@ public class TicketServiceImpl implements TicketService {
             }
         });
 
+        log.info("[TICKET] Tạo thành công {} vé cho reservationId={}", savedTickets.size(), reservationId);
         return savedTickets.stream()
                 .map(ticketMapper::toSummaryDTO)
                 .collect(Collectors.toList());
@@ -264,13 +267,17 @@ public class TicketServiceImpl implements TicketService {
                 throw new AppException(ErrorCode.TICKET_NOT_AVAILABLE);
         }
         if (ticket.getDeletedAt() != null) {
+            log.warn("[TICKET] Vé đã bị xóa, không thể check-in: ticketId={}", ticket.getId());
             throw new AppException(ErrorCode.TICKET_NOT_AVAILABLE);
         }
         Show show = ticket.getShow();
         if (!show.getId().equals(req.getShowId())) {
+            log.warn("[TICKET] Vé không thuộc suất diễn yêu cầu: ticketId={}, ticketShowId={}, reqShowId={}",
+                    ticket.getId(), show.getId(), req.getShowId());
             throw new AppException(ErrorCode.TICKET_NOT_AVAILABLE);
         }
         if (ticket.getCheckInAt() != null || ticket.getStatus() == TicketStatus.USED) {
+            log.warn("[TICKET] Vé đã được check-in trước đó: ticketId={}, checkInAt={}", ticket.getId(), ticket.getCheckInAt());
             throw new AppException(ErrorCode.TICKET_ALREADY_CHECKED_IN);
         }
 
@@ -283,10 +290,13 @@ public class TicketServiceImpl implements TicketService {
                 userId
         );
         if (updated == 0) {
+            log.warn("[TICKET] Check-in đồng thời thất bại hoặc vé đã được sử dụng: ticketId={}", ticket.getId());
             throw new AppException(ErrorCode.TICKET_ALREADY_CHECKED_IN);
         }
 
         Ticket checkedInTicket = ticketRepository.findTicketById(ticket.getId());
+        log.info("[TICKET] Check-in vé thành công: ticketId={}, showId={}, checkInMethod={}, staffId={}",
+                ticket.getId(), req.getShowId(), method, userId);
         return ticketMapper.toDTO(checkedInTicket);
     }
 
