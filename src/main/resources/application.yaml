@@ -26,3 +26,10 @@ spring:
 app:
   api-base-url: ${APP_API_BASE_URL:http://localhost:8080/api/v1}
 
+logging:
+  charset:
+    console: UTF-8
+  pattern:
+    correlation: "[%X{requestId:-}] "
+
+

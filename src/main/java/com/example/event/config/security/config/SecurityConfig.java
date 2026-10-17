@@ -116,6 +116,9 @@ public class SecurityConfig {
         // Cho phép gửi credentials (cookie, authorization header)
         configuration.setAllowCredentials(true);
 
+        // Expose headers cho phía client (FE) đọc được requestId
+        configuration.setExposedHeaders(Arrays.asList("X-Request-Id"));
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
