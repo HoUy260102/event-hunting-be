@@ -14,6 +14,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import io.lettuce.core.ClientOptions;
+import io.lettuce.core.SocketOptions;
+import java.time.Duration;
+
 @Configuration
 public class RedisConfig {
     @Value("${redis.port}")
@@ -32,7 +36,21 @@ public class RedisConfig {
             config.setPassword(RedisPassword.of(password.trim()));
         }
 
-        LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder();
+        SocketOptions socketOptions = SocketOptions.builder()
+                .keepAlive(true)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        ClientOptions clientOptions = ClientOptions.builder()
+                .socketOptions(socketOptions)
+                .autoReconnect(true)
+                .pingBeforeActivateConnection(true)
+                .build();
+
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder()
+                .clientOptions(clientOptions)
+                .commandTimeout(Duration.ofSeconds(15));
+
         if (!"localhost".equalsIgnoreCase(host) && !"127.0.0.1".equals(host)) {
             builder.useSsl();
         }

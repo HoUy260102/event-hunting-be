@@ -45,7 +45,7 @@ public class TicketQueue {
         }
     }
 
-    @Scheduled(fixedDelay = 1000)
+    @Scheduled(fixedDelay = 5000)
     public void processQueueDrain() {
         Set<String> activeShows = redis.opsForZSet().range(ACTIVE_SHOWS_KEY, 0, 9);
         if (activeShows == null || activeShows.isEmpty()) return;
@@ -60,7 +60,7 @@ public class TicketQueue {
         }
     }
 
-    @Scheduled(fixedDelay = 5000)
+    @Scheduled(fixedDelay = 15000)
     public void processQueueCleanup() {
         Set<String> activeShows = redis.opsForZSet().range(ACTIVE_SHOWS_KEY, 0, 9);
         if (activeShows == null || activeShows.isEmpty()) return;
