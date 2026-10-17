@@ -49,7 +49,7 @@ public class RedisConfig {
 
         LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder()
                 .clientOptions(clientOptions)
-                .commandTimeout(Duration.ofSeconds(15));
+                .commandTimeout(Duration.ofSeconds(60));
 
         if (!"localhost".equalsIgnoreCase(host) && !"127.0.0.1".equals(host)) {
             builder.useSsl();

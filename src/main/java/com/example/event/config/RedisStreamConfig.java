@@ -45,7 +45,7 @@ public class RedisStreamConfig {
 
         StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
                 .<String, MapRecord<String, String, String>>builder()
-                .pollTimeout(Duration.ofSeconds(15))
+                .pollTimeout(Duration.ofSeconds(5))
                 .serializer(new StringRedisSerializer())
                 .errorHandler(t -> log.warn("[TICKET-STREAM] Kết nối Redis gián đoạn, đang tự động kết nối lại: {}", t.getMessage()))
                 .build();
@@ -97,7 +97,7 @@ public class RedisStreamConfig {
 
         StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
                 .<String, MapRecord<String, String, String>>builder()
-                .pollTimeout(Duration.ofSeconds(15))
+                .pollTimeout(Duration.ofSeconds(5))
                 .serializer(new StringRedisSerializer())
                 .errorHandler(t -> log.warn("[AUTH-STREAM] Kết nối Redis gián đoạn, đang tự động kết nối lại: {}", t.getMessage()))
                 .build();
@@ -149,7 +149,7 @@ public class RedisStreamConfig {
 
         StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
                 .<String, MapRecord<String, String, String>>builder()
-                .pollTimeout(Duration.ofSeconds(15))
+                .pollTimeout(Duration.ofSeconds(5))
                 .serializer(new StringRedisSerializer())
                 .errorHandler(t -> log.warn("[FORGOT-PASSWORD-STREAM] Kết nối Redis gián đoạn, đang tự động kết nối lại: {}", t.getMessage()))
                 .build();

@@ -1,5 +1,6 @@
 package com.example.event.job;
 
+import com.example.event.component.AuthForgotPasswordConsumer;
 import com.example.event.component.AuthVerifyEmailConsumer;
 import com.example.event.component.TicketEmailConsumer;
 import com.example.event.config.RedisStreamConfig;
@@ -28,6 +29,7 @@ public class RedisStreamRecoveryJob {
     private final StringRedisTemplate stringRedisTemplate;
     private final TicketEmailConsumer ticketEmailConsumer;
     private final AuthVerifyEmailConsumer authVerifyEmailConsumer;
+    private final AuthForgotPasswordConsumer authForgotPasswordConsumer;
 
     private static final int MAX_DELIVERY_COUNT = 3;
     private static final long MIN_IDLE_MINUTES = 2;
@@ -60,6 +62,21 @@ public class RedisStreamRecoveryJob {
                 RedisStreamConfig.AUTH_CONSUMER_NAME,
                 "[AUTH-STREAM-RECOVERY]",
                 authVerifyEmailConsumer::onMessage);
+    }
+
+    /**
+     * Định kỳ quét PEL cho Auth Forgot Password Stream mỗi 1 phút.
+     * Tách riêng độc lập để không bị chặn lẫn nhau.
+     */
+    @Scheduled(fixedDelay = 60_000)
+    @SchedulerLock(name = "recoverForgotPasswordStreamJob", lockAtMostFor = "PT50S", lockAtLeastFor = "PT5S")
+    public void recoverForgotPasswordPendingMessages() {
+        recoverStream(
+                RedisStreamConfig.FORGOT_PASSWORD_STREAM_KEY,
+                RedisStreamConfig.FORGOT_PASSWORD_GROUP_NAME,
+                RedisStreamConfig.FORGOT_PASSWORD_CONSUMER_NAME,
+                "[FORGOT-PASSWORD-STREAM-RECOVERY]",
+                authForgotPasswordConsumer::onMessage);
     }
 
     private void recoverStream(
