@@ -5,7 +5,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,13 +20,25 @@ public class RedisConfig {
     private int port;
     @Value("${redis.host}")
     private String host;
+    @Value("${redis.password:}")
+    private String password;
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
         RedisStandaloneConfiguration config = new RedisStandaloneConfiguration();
         config.setHostName(host);
         config.setPort(port);
-        return new LettuceConnectionFactory(config);
+        if (password != null && !password.trim().isEmpty()) {
+            config.setPassword(RedisPassword.of(password.trim()));
+        }
+
+        LettuceClientConfiguration.LettuceClientConfigurationBuilder builder = LettuceClientConfiguration.builder();
+        if (!"localhost".equalsIgnoreCase(host) && !"127.0.0.1".equals(host)) {
+            builder.useSsl();
+        }
+        LettuceClientConfiguration clientConfig = builder.build();
+
+        return new LettuceConnectionFactory(config, clientConfig);
     }
 
     @Bean

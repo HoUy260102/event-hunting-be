@@ -12,6 +12,9 @@ RUN mvn clean package -DskipTests
 # Giai đoạn 2: Runtime bằng Java 21 JRE Alpine
 FROM eclipse-temurin:21-jre-alpine
 
+# Cài đặt thư viện font để hỗ trợ sinh vé PDF tiếng Việt trên Alpine Linux
+RUN apk add --no-cache fontconfig freetype
+
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 

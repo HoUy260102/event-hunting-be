@@ -55,3 +55,11 @@ jobs:
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/event-hunting-be:latest
             ${{ secrets.DOCKER_USERNAME }}/event-hunting-be:${{ github.sha }}
+
+      - name: Trigger Render Deploy Hook
+        if: env.RENDER_DEPLOY_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          echo "Kích hoạt Render deploy phiên bản mới..."
+          curl -f -X POST "$RENDER_DEPLOY_HOOK"
