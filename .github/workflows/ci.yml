@@ -57,9 +57,6 @@ jobs:
             ${{ secrets.DOCKER_USERNAME }}/event-hunting-be:${{ github.sha }}
 
       - name: Trigger Render Deploy Hook
-        if: env.RENDER_DEPLOY_HOOK != ''
-        env:
-          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
         run: |
           echo "Kích hoạt Render deploy phiên bản mới..."
-          curl -f -X POST "$RENDER_DEPLOY_HOOK"
+          curl -f -X POST "https://api.render.com/deploy/srv-db9mt1vavr4c73elu8fg?key=JtOTQ6HtS0c"
