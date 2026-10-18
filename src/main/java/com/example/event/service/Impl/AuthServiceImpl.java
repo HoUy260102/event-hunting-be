@@ -113,6 +113,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${spring.security.oauth2.client.registration.google.redirect-uri}")
     private String redirectUri;
 
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
+
     private final ObjectMapper objectMapper;
 
     @Transactional
@@ -510,6 +513,10 @@ public class AuthServiceImpl implements AuthService {
             payload = String.format("{ error: '%s' }", error);
         }
 
+        String targetOrigin = (frontendUrl != null && !frontendUrl.isBlank())
+                ? frontendUrl.replaceAll("/+$", "")
+                : "http://localhost:5173";
+
         // Template HTML dùng String.format
         String htmlTemplate = """
                 <!DOCTYPE html>
@@ -521,7 +528,7 @@ public class AuthServiceImpl implements AuthService {
                     if (window.opener) {
                         window.opener.postMessage(
                             { type: '%s', payload: %s },
-                            'http://localhost:5173'
+                            '%s'
                         );
                     }
                     setTimeout(() => {
@@ -532,7 +539,7 @@ public class AuthServiceImpl implements AuthService {
                 </html>
                 """;
 
-        return String.format(htmlTemplate, type, payload);
+        return String.format(htmlTemplate, type, payload, targetOrigin);
     }
 
     private void recordLoginFail(String username, String deviceId, String ipAddress) {

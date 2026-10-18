@@ -26,7 +26,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.beans.factory.annotation.Value;
+
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
@@ -38,6 +42,9 @@ public class SecurityConfig {
     private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
     private final JwtTokenFilter jwtTokenFilter;
     private final UserRateLimit userRateLimit;
+
+    @Value("${app.frontend-url:http://localhost:5173}")
+    private String frontendUrl;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -105,7 +112,14 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // Cho phép các domain nào được gọi
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:5173"));
+        List<String> origins = new ArrayList<>(Arrays.asList("http://localhost:5173", "http://localhost:3000"));
+        if (frontendUrl != null && !frontendUrl.isBlank()) {
+            String sanitized = frontendUrl.replaceAll("/+$", "");
+            if (!origins.contains(sanitized)) {
+                origins.add(sanitized);
+            }
+        }
+        configuration.setAllowedOriginPatterns(origins);
 
         // Cho phép các method nào
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

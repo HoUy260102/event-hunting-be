@@ -39,6 +39,7 @@ services:
       - VNPAY_HASH_SECRET=${VNPAY_HASH_SECRET}
       - VNPAY_URL=${VNPAY_URL}
       - VNPAY_RETURN_URL=${VNPAY_RETURN_URL}
+      - FRONTEND_URL=${FRONTEND_URL}
     depends_on:
       - mysql-container
       - my-redis

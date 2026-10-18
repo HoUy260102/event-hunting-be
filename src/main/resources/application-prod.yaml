@@ -60,3 +60,4 @@ vnpay:
 
 app:
   api-base-url: ${APP_API_BASE_URL}
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
