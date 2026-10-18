@@ -57,7 +57,7 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
                             ELSE 0
                         END
                         /
-                        POW(TIMESTAMPDIFF(HOUR, i.created_at, NOW()) + 2, 1.5)
+                        POW(GREATEST(TIMESTAMPDIFF(HOUR, i.created_at, NOW()), 0) + 2, 1.5)
                     ) AS trendingScore
                 FROM event_interaction i
                 JOIN event e ON e.id = i.event_id
