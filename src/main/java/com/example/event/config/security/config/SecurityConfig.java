@@ -52,7 +52,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration)
+            throws Exception {
         return authenticationConfiguration.getAuthenticationManager();
     }
 
@@ -68,8 +69,8 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .headers(headers -> headers
-                        .addHeaderWriter(new StaticHeadersWriter("Cross-Origin-Opener-Policy", "same-origin-allow-popups"))
-                )
+                        .addHeaderWriter(
+                                new StaticHeadersWriter("Cross-Origin-Opener-Policy", "same-origin-allow-popups")))
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .exceptionHandling(
@@ -98,7 +99,8 @@ public class SecurityConfig {
                                     "/auth/verify",
                                     "/ws/**",
                                     "/topic/**",
-                                    "/app/**").permitAll()
+                                    "/app/**")
+                            .permitAll()
                             .anyRequest().authenticated();
                 });
         http.authenticationProvider(daoAuthenticationProvider());
