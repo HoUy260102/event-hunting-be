@@ -20,6 +20,9 @@ import java.util.Map;
 public class MailServiceImpl implements MailService {
     private final JavaMailSender mailSender;
 
+    @Value("${spring.mail.from:${spring.mail.username}}")
+    private String fromEmail;
+
     @Value("${app.api-base-url:http://localhost:8080/api/v1}")
     private String apiBaseUrl;
     public void sendMail(String[] to, String subject, String htmlContent, Map<String, File> attachments) {
@@ -27,6 +30,7 @@ public class MailServiceImpl implements MailService {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
+            helper.setFrom(fromEmail, "Event Hunting");
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlContent, true);

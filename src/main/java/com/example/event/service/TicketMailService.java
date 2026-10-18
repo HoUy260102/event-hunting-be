@@ -26,7 +26,7 @@ public class TicketMailService {
 
     private final JavaMailSender mailSender;
 
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.from:${spring.mail.username}}")
     private String fromEmail;
 
     private static final DateTimeFormatter DT =

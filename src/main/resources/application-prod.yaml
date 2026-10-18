@@ -17,12 +17,14 @@ spring:
     port: ${MAIL_PORT}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
+    from: ${MAIL_FROM:${MAIL_USERNAME}}
     properties:
       mail:
         smtp:
           auth: true
           starttls:
             enable: true
+            required: true
 
   security:
     oauth2:
