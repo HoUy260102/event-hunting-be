@@ -3,6 +3,7 @@ package com.example.event.controller;
 import com.example.event.dto.CommentDTO;
 import com.example.event.dto.request.CommentReactionReq;
 import com.example.event.dto.request.CreateCommentReq;
+import com.example.event.dto.request.UpdateCommentReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.service.CommentService;
@@ -84,6 +85,20 @@ public class CommentController {
         ApiResponse apiResponse = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Xóa bình luận thành công.")
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
+    // 6. Chỉnh sửa bình luận (Update Comment)
+    @PutMapping("/{commentId}")
+    public ResponseEntity<?> updateComment(
+            @PathVariable String commentId,
+            @Valid @RequestBody UpdateCommentReq req) {
+        CommentDTO commentDTO = commentService.updateComment(commentId, req);
+        ApiResponse apiResponse = ApiResponse.builder()
+                .status(HttpStatus.OK.value())
+                .message("Chỉnh sửa bình luận thành công.")
+                .data(commentDTO)
                 .build();
         return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }

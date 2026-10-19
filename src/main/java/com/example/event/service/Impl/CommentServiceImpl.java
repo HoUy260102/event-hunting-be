@@ -7,6 +7,7 @@ import com.example.event.constant.FileFolder;
 import com.example.event.dto.CommentDTO;
 import com.example.event.dto.request.CommentReactionReq;
 import com.example.event.dto.request.CreateCommentReq;
+import com.example.event.dto.request.UpdateCommentReq;
 import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.entity.*;
 import com.example.event.exception.AppException;
@@ -241,6 +242,117 @@ public class CommentServiceImpl implements CommentService {
             log.error("[COMMENT] Lỗi không xác định khi xóa bình luận: ", e);
             throw e;
         }
+    }
+
+    @Override
+    @Transactional
+    public CommentDTO updateComment(String commentId, UpdateCommentReq req) {
+        String userId = securityUtils.getCurrentUserId();
+        log.info("[COMMENT] Bắt đầu chỉnh sửa bình luận: commentId={}, userId={}, req={}", commentId, userId, req);
+
+        try {
+            if (userId == null) {
+                log.warn("[COMMENT] Từ chối chỉnh sửa: Người dùng chưa xác thực");
+                throw new AppException(ErrorCode.UNAUTHENTICATED);
+            }
+
+            Comment comment = commentRepository.findById(commentId)
+                    .orElseThrow(() -> {
+                        log.warn("[COMMENT] Không tìm thấy bình luận: commentId={}", commentId);
+                        return new AppException(ErrorCode.COMMENT_NOT_FOUND);
+                    });
+
+            if (comment.getDeletedAt() != null) {
+                log.warn("[COMMENT] Bình luận đã bị xóa: commentId={}", commentId);
+                throw new AppException(ErrorCode.COMMENT_NOT_FOUND);
+            }
+
+            // Quyền truy cập: Chỉ chính chủ nhân được sửa bình luận
+            securityUtils.canAccessThisResource(comment.getUser().getId());
+
+            // 1. Kiểm tra giới hạn số lượng ảnh đính kèm (Tối đa 4 ảnh)
+            final int MAX_IMAGES = 4;
+            List<String> newFileIds = req.getFileIds() != null ? req.getFileIds() : new java.util.ArrayList<>();
+            if (newFileIds.size() > MAX_IMAGES) {
+                log.warn("[COMMENT] Vượt quá giới hạn ảnh đính kèm: size={}", newFileIds.size());
+                throw new AppException(ErrorCode.IMAGE_LIMIT_EXCEEDED);
+            }
+
+            // 2. Kiểm tra không được để trống cả chữ lẫn ảnh
+            boolean hasText = req.getContent() != null && !req.getContent().trim().isEmpty();
+            boolean hasImages = !newFileIds.isEmpty();
+            if (!hasText && !hasImages) {
+                log.warn("[COMMENT] Bình luận chỉnh sửa không có nội dung chữ hoặc ảnh");
+                throw new AppException(ErrorCode.COMMENT_EMPTY);
+            }
+
+            // 3. Diff ảnh: Lấy danh sách ảnh ACTIVE hiện tại của comment
+            List<File> currentFiles = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, commentId);
+            List<String> oldFileIds = currentFiles != null
+                    ? currentFiles.stream().map(File::getId).collect(java.util.stream.Collectors.toList())
+                    : new java.util.ArrayList<>();
+
+            List<String> fileIdsToActivate = extractIdsToUpdate(oldFileIds, newFileIds);
+            List<String> fileIdsToDelete = extractIdsToDelete(oldFileIds, newFileIds);
+
+            // Kích hoạt các ảnh mới được thêm vào (từ PENDING sang ACTIVE)
+            if (!fileIdsToActivate.isEmpty()) {
+                log.info("[COMMENT] Kích hoạt file ảnh mới: fileIds={}", fileIdsToActivate);
+                fileRepository.activateFiles(fileIdsToActivate, comment.getId());
+            }
+
+            // Xóa mềm các ảnh bị gỡ bỏ (từ ACTIVE sang DELETED)
+            if (!fileIdsToDelete.isEmpty()) {
+                log.info("[COMMENT] Xóa mềm file ảnh bị gỡ: fileIds={}", fileIdsToDelete);
+                fileRepository.deleteFile(fileIdsToDelete, LocalDateTime.now());
+            }
+
+            // 4. Cập nhật nội dung và thời gian sửa
+            comment.setContent(hasText ? req.getContent().trim() : "");
+            comment.setUpdatedAt(LocalDateTime.now());
+            Comment savedComment = commentRepository.save(comment);
+
+            // 5. Lấy danh sách file active mới nhất sau diff
+            List<File> updatedFiles = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, comment.getId());
+
+            // Lấy thông tin reaction và replies hiện tại để map DTO đầy đủ
+            long likesCount = commentReactionRepository.countByCommentId(commentId);
+            CommentReaction userReaction = commentReactionRepository
+                    .findByCommentIdAndUserId(commentId, userId)
+                    .orElse(null);
+            long repliesCount = comment.getParent() == null
+                    ? commentRepository.countByParentIdAndDeletedAtIsNull(commentId)
+                    : 0L;
+
+            CommentDTO result = commentMapper.toDTO(savedComment, updatedFiles, likesCount, userReaction, repliesCount);
+            log.info("[COMMENT] Chỉnh sửa bình luận thành công: commentId={}", result.getId());
+            return result;
+        } catch (Exception e) {
+            log.error("[COMMENT] Lỗi không xác định khi chỉnh sửa bình luận: ", e);
+            throw e;
+        }
+    }
+
+    private List<String> extractIdsToUpdate(List<String> oldIds, List<String> newIds) {
+        List<String> idsForUpdate = new java.util.ArrayList<>();
+        java.util.Set<String> markedIds = new java.util.HashSet<>(oldIds);
+        for (String id : newIds) {
+            if (!markedIds.contains(id)) {
+                idsForUpdate.add(id);
+            }
+        }
+        return idsForUpdate;
+    }
+
+    private List<String> extractIdsToDelete(List<String> oldIds, List<String> newIds) {
+        List<String> idsForDelete = new java.util.ArrayList<>();
+        java.util.Set<String> markedIds = new java.util.HashSet<>(newIds);
+        for (String id : oldIds) {
+            if (!markedIds.contains(id)) {
+                idsForDelete.add(id);
+            }
+        }
+        return idsForDelete;
     }
 
     private List<CommentDTO> mapCommentsToDTOs(List<Comment> comments, String currentUserId) {
