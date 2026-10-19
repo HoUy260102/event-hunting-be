@@ -588,6 +588,9 @@ public class AuthServiceImpl implements AuthService {
         if (!user.isVerified() || user.getStatus() == UserStatus.UNVERIFIED) {
             throw new AppException(ErrorCode.USER_NOT_VERIFIED);
         }
+        if ("GOOGLE".equalsIgnoreCase(user.getProvider()) || user.getPassword() == null) {
+            throw new AppException(ErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
+        }
 
         // Kiểm tra Rate Limit: giãn cách tối thiểu 60s giữa các lần yêu cầu gửi OTP cho cùng 1 email
         String cooldownKey = FORGOT_COOLDOWN_PREFIX + email;
@@ -708,9 +711,12 @@ public class AuthServiceImpl implements AuthService {
         if (!user.isVerified() || user.getStatus() == UserStatus.UNVERIFIED) {
             throw new AppException(ErrorCode.USER_NOT_VERIFIED);
         }
+        if ("GOOGLE".equalsIgnoreCase(user.getProvider()) || user.getPassword() == null) {
+            throw new AppException(ErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
+        }
 
         // Kiểm tra mật khẩu mới không được trùng với mật khẩu hiện tại
-        if (passwordEncoder.matches(req.getNewPassword(), user.getPassword())) {
+        if (user.getPassword() != null && passwordEncoder.matches(req.getNewPassword(), user.getPassword())) {
             throw new AppException(ErrorCode.NEW_PASSWORD_SAME_AS_OLD);
         }
 

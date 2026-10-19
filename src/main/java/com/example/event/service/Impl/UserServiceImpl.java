@@ -328,6 +328,10 @@ public class UserServiceImpl implements UserService {
                 () -> new AppException(ErrorCode.USER_NOT_FOUND)
         );
 
+        if ("GOOGLE".equalsIgnoreCase(user.getProvider()) || user.getPassword() == null) {
+            throw new AppException(ErrorCode.GOOGLE_ACCOUNT_CANNOT_CHANGE_PASSWORD);
+        }
+
         Map<String, String> errors = new HashMap<>();
 
         // 1. Verify current password

@@ -44,6 +44,7 @@ public enum ErrorCode {
     NEW_PASSWORD_SAME_AS_OLD(HttpStatus.BAD_REQUEST, "Mật khẩu mới không được trùng với mật khẩu cũ."),
     OTP_RESEND_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "Vui lòng đợi 60 giây trước khi yêu cầu gửi lại mã OTP."),
     RESEND_VERIFY_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "Vui lòng đợi 60 giây trước khi yêu cầu gửi lại email xác thực."),
+    GOOGLE_ACCOUNT_CANNOT_CHANGE_PASSWORD(HttpStatus.BAD_REQUEST, "Tài khoản đăng nhập bằng Google không thể đổi mật khẩu."),
 
     INVALID_FILE_EXTENSION(HttpStatus.BAD_REQUEST, "Đuôi file không được hỗ trợ."),
     INVALID_FILE_MIME_TYPE(HttpStatus.BAD_REQUEST, "Nội dung file không hợp lệ."),
