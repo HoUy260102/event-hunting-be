@@ -26,6 +26,8 @@ public class RedisConfig {
     private String host;
     @Value("${redis.password:}")
     private String password;
+    @Value("${redis.ssl:false}")
+    private boolean ssl;
 
     @Bean
     public RedisConnectionFactory redisConnectionFactory() {
@@ -51,7 +53,7 @@ public class RedisConfig {
                 .clientOptions(clientOptions)
                 .commandTimeout(Duration.ofSeconds(60));
 
-        if (!"localhost".equalsIgnoreCase(host) && !"127.0.0.1".equals(host)) {
+        if (ssl || (host != null && host.contains("upstash"))) {
             builder.useSsl();
         }
         LettuceClientConfiguration clientConfig = builder.build();
