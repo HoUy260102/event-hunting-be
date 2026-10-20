@@ -56,6 +56,16 @@ public class VNPaymentServiceImpl implements PaymentService {
         tempMap.put("06", "VNPAY đã gửi yêu cầu hoàn tiền sang Ngân hàng");
         tempMap.put("07", "Giao dịch bị nghi ngờ gian lận");
         tempMap.put("09", "Giao dịch hoàn trả bị từ chối");
+        tempMap.put("10", "Khách hàng xác thực thông tin thẻ/tài khoản không đúng quá 3 lần");
+        tempMap.put("11", "Đã hết hạn chờ thanh toán");
+        tempMap.put("12", "Thẻ/Tài khoản bị khóa");
+        tempMap.put("13", "Quý khách nhập sai mật khẩu xác thực giao dịch (OTP)");
+        tempMap.put("24", "Khách hàng hủy giao dịch");
+        tempMap.put("51", "Tài khoản của quý khách không đủ số dư để thực hiện giao dịch");
+        tempMap.put("65", "Tài khoản đã vượt quá hạn mức giao dịch trong ngày");
+        tempMap.put("75", "Ngân hàng thanh toán đang bảo trì");
+        tempMap.put("79", "Nhập sai mật khẩu thanh toán quá số lần quy định");
+        tempMap.put("99", "Các lỗi khác");
         VNPAY_MESSAGES = Collections.unmodifiableMap(tempMap);
     }
 
@@ -187,7 +197,11 @@ public class VNPaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public void processPayment(Map<String, String> result) {
-        
+        if (!"OK".equals(result.get("status"))) {
+            log.warn("[PAYMENT] Chữ ký VNPay không hợp lệ: {}", result.get("message"));
+            throw new AppException(ErrorCode.PAYMENT_NOT_AVAILABLE, "Chữ ký giao dịch VNPay không hợp lệ.");
+        }
+
         String txnRef = result.get("txnRef");
         String responseCode = result.get("responseCode");
         String paymentId = extractIdFromTxnRef(txnRef);
@@ -229,13 +243,28 @@ public class VNPaymentServiceImpl implements PaymentService {
         ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
         LocalDateTime now = LocalDateTime.now(vnZone);
 
-        payment.setStatus("00".equals(responseCode) ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
+        Reservation reservation = payment.getReservation();
+        boolean isReservationInvalidForFulfillment = reservation != null &&
+                (reservation.getStatus() == ReservationStatus.EXPIRED || reservation.getStatus() == ReservationStatus.CANCELLED);
+
+        if ("00".equals(responseCode)) {
+            if (isReservationInvalidForFulfillment) {
+                payment.setStatus(PaymentStatus.REFUND_PENDING);
+                log.warn("[PAYMENT] Đơn hàng {} đã ở trạng thái {} nhưng nhận được thanh toán thành công từ VNPay (TxnNo: {}). Chuyển Payment sang REFUND_PENDING.",
+                        reservation.getId(), reservation.getStatus(), result.get("transactionNo"));
+            } else {
+                payment.setStatus(PaymentStatus.SUCCESS);
+            }
+        } else {
+            payment.setStatus(PaymentStatus.FAILED);
+        }
+
         payment.setTransactionNo(result.get("transactionNo"));
         payment.setBankCode(result.get("bankCode"));
         payment.setMethod(PaymentMethod.VNPAY);
         payment.setResponseCode(responseCode);
         payment.setUpdatedAt(now);
-        payment.setUpdatedBy(payment.getUser().getId());
+        payment.setUpdatedBy(payment.getUser() != null ? payment.getUser().getId() : "vnpay-callback");
 
         String payDateStr = result.get("payDate");
         if (payDateStr != null && !payDateStr.isEmpty()) {
@@ -256,23 +285,35 @@ public class VNPaymentServiceImpl implements PaymentService {
         Reservation reservation = payment.getReservation();
         User user = reservation.getUser();
         Show show = reservation.getShow();
-        Event event = show.getEvent();
-        if (user != null && event != null) eventInteractionService.addInteraction(event.getId(), user.getId(), InteractionType.REGISTER);
+        Event event = show != null ? show.getEvent() : null;
         String resId = reservation.getId();
+        ZoneId vnZone = ZoneId.of("Asia/Ho_Chi_Minh");
+        LocalDateTime now = LocalDateTime.now(vnZone);
+
         Map<String, String> socketData = new HashMap<>();
         socketData.put("reservationId", resId);
 
         if ("00".equals(responseCode)) {
-            reservation.setStatus(ReservationStatus.PAID);
-            reservation.setUpdatedAt(LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
-            reservationRepository.save(reservation);
+            if (reservation.getStatus() == ReservationStatus.EXPIRED || reservation.getStatus() == ReservationStatus.CANCELLED) {
+                // Đơn giữ chỗ đã hết hạn hoặc bị hủy trước khi nhận được callback thanh toán thành công
+                socketData.put("status", "FAILED");
+                socketData.put("message", "Đơn hàng đã hết thời gian giữ vé trước khi thanh toán hoàn tất. Hệ thống đã ghi nhận và sẽ tiến hành hoàn tiền cho quý khách.");
+                log.warn("[PAYMENT] Giao dịch thành công nhưng đơn hàng {} đã ở trạng thái {}. Không tiến hành xuất vé.", resId, reservation.getStatus());
+            } else {
+                if (user != null && event != null) {
+                    eventInteractionService.addInteraction(event.getId(), user.getId(), InteractionType.REGISTER);
+                }
+                reservation.setStatus(ReservationStatus.PAID);
+                reservation.setUpdatedAt(now);
+                reservationRepository.save(reservation);
 
-            // Tạo vé và gửi toàn bộ theo đợt (batch) vào Redis stream để xử lý gửi email
-            List<TicketSummaryDTO> tickets = ticketService.generateTickets(resId);
-            ticketEmailProducer.sendReservationTickets(user, tickets);
+                // Tạo vé và gửi toàn bộ theo đợt (batch) vào Redis stream để xử lý gửi email
+                List<TicketSummaryDTO> tickets = ticketService.generateTickets(resId);
+                ticketEmailProducer.sendReservationTickets(user, tickets);
 
-            socketData.put("status", "SUCCESS");
-            socketData.put("message", "Thanh toán thành công");
+                socketData.put("status", "SUCCESS");
+                socketData.put("message", "Thanh toán thành công");
+            }
         } else {
             socketData.put("status", "FAILED");
             socketData.put("message", VNPAY_MESSAGES.getOrDefault(responseCode, "Giao dịch thất bại"));

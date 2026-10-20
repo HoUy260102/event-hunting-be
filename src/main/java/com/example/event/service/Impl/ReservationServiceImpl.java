@@ -457,6 +457,12 @@ public class ReservationServiceImpl implements ReservationService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void releaseReservationResources(Reservation reservation, LocalDateTime now, ReservationStatus status,
             String updatedBy) {
+        Reservation freshRes = reservationRepository.findReservationById(reservation.getId());
+        if (freshRes != null && (freshRes.getStatus() == ReservationStatus.PAID || freshRes.getStatus() == status)) {
+            log.warn("[RESERVATION] Đơn hàng {} đã ở trạng thái {}, bỏ qua giải phóng tài nguyên.", reservation.getId(), freshRes.getStatus());
+            return;
+        }
+
         try {
             String showId = reservation.getShow().getId();
             Voucher voucher = reservation.getVoucher();
