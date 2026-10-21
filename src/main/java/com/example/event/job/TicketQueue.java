@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Component
@@ -48,38 +49,56 @@ public class TicketQueue {
     @Scheduled(fixedDelay = 5000)
     public void processQueueDrain() {
         Set<String> activeShows = redis.opsForZSet().range(ACTIVE_SHOWS_KEY, 0, 9);
-        if (activeShows == null || activeShows.isEmpty()) return;
+        if (activeShows == null || activeShows.isEmpty())
+            return;
 
-        for (String showId : activeShows) {
-            try {
-                ticketQueueService.drainQueue(showId);
-                redis.opsForZSet().add(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
-            } catch (Exception e) {
-                log.error("[QUEUE] Lỗi khi drain hàng đợi cho show {}: {}", showId, e.getMessage());
-            }
-        }
+        long startTime = System.currentTimeMillis();
+        log.info("[QUEUE-DRAIN] Bắt đầu xả hàng đợi song song cho {} show: {}", activeShows.size(), activeShows);
+
+        List<CompletableFuture<Void>> futures = activeShows.stream()
+                .map(showId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        ticketQueueService.drainQueue(showId);
+                        redis.opsForZSet().add(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
+                    } catch (Exception e) {
+                        log.error("[QUEUE-DRAIN] Lỗi khi drain hàng đợi cho show {}: {}", showId, e.getMessage());
+                    }
+                }))
+                .toList();
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        long duration = System.currentTimeMillis() - startTime;
+        log.info("[QUEUE-DRAIN] Hoàn tất đợt xả hàng đợi cho {} show trong {}ms", activeShows.size(), duration);
     }
 
     @Scheduled(fixedDelay = 15000)
     public void processQueueCleanup() {
         Set<String> activeShows = redis.opsForZSet().range(ACTIVE_SHOWS_KEY, 0, 9);
-        if (activeShows == null || activeShows.isEmpty()) return;
+        if (activeShows == null || activeShows.isEmpty())
+            return;
 
-        for (String showId : activeShows) {
-            try {
-                ticketQueueService.cleanupGhostUsers(showId);
+        List<CompletableFuture<Void>> futures = activeShows.stream()
+                .map(showId -> CompletableFuture.runAsync(() -> {
+                    try {
+                        ticketQueueService.cleanupGhostUsers(showId);
 
-                Long waitingCount = redis.opsForZSet().zCard(String.format(WAITING, showId));
-                Long buyingCount = redis.opsForZSet().zCard(String.format(BUYING, showId));
-                if ((waitingCount == null || waitingCount == 0) && (buyingCount == null || buyingCount == 0)) {
-                    redis.opsForZSet().remove(ACTIVE_SHOWS_KEY, showId);
-                } else {
-                    redis.opsForZSet().add(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
-                }
-            } catch (Exception e) {
-                log.error("[QUEUE] Lỗi khi cleanup ghost users cho show {}: {}", showId, e.getMessage());
-            }
-        }
+                        Long waitingCount = redis.opsForZSet().zCard(String.format(WAITING, showId));
+                        Long buyingCount = redis.opsForZSet().zCard(String.format(BUYING, showId));
+                        if ((waitingCount == null || waitingCount == 0) && (buyingCount == null || buyingCount == 0)) {
+                            redis.opsForZSet().remove(ACTIVE_SHOWS_KEY, showId);
+                            log.info("[QUEUE-CLEANUP] Show {} rỗng (waiting=0, buying=0) -> Đã gỡ khỏi active_shows",
+                                    showId);
+                        } else {
+                            redis.opsForZSet().add(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
+                        }
+                    } catch (Exception e) {
+                        log.error("[QUEUE-CLEANUP] Lỗi khi cleanup ghost users cho show {}: {}", showId,
+                                e.getMessage());
+                    }
+                }))
+                .toList();
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
     }
 
 }
