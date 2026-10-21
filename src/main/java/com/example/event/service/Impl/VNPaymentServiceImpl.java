@@ -45,6 +45,7 @@ public class VNPaymentServiceImpl implements PaymentService {
     private static final Map<String, String> VNPAY_MESSAGES;
     private static final String PAYMENT_IDEMPOTENCY_KEY_FORMAT = "PAYMENT_CREATE:%s";
     private static final long LOCK_TIMEOUT_SECONDS = 10; // 10s
+    private static final long PAYMENT_EXPIRY_BUFFER_SECONDS = 90; // Hết hạn thanh toán sớm hơn Reservation 90s để chống race condition
 
     static {
         Map<String, String> tempMap = new HashMap<>();
@@ -92,15 +93,17 @@ public class VNPaymentServiceImpl implements PaymentService {
         // validate dữ liệu reservation;
         reservationService.validateReservationForPayment(reservation);
 
-        // Tính thời gian còn lại của reservation
-        long remainingSeconds = java.time.Duration.between(now, reservation.getExpiresAt()).getSeconds();
-        if (remainingSeconds <= 0) {
-            log.warn("[PAYMENT] Reservation {} đã hết hạn | expiresAt={}", reservationId, reservation.getExpiresAt());
+        // Tính thời gian hết hạn thanh toán (sớm hơn reservation 90s để có buffer xử lý callback an toàn)
+        LocalDateTime paymentExpiresAt = reservation.getExpiresAt().minusSeconds(PAYMENT_EXPIRY_BUFFER_SECONDS);
+        long remainingPaymentSeconds = java.time.Duration.between(now, paymentExpiresAt).getSeconds();
+        if (remainingPaymentSeconds <= 0) {
+            log.warn("[PAYMENT] Reservation {} đã hết hạn thanh toán (buffer {}s) | expiresAt={} | paymentExpiresAt={}",
+                    reservationId, PAYMENT_EXPIRY_BUFFER_SECONDS, reservation.getExpiresAt(), paymentExpiresAt);
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
         }
 
-        // VNPay URL thường có hạn tối đa 15 phút, lấy min giữa thời gian giữ vé còn lại và 15 phút
-        long effectiveTtl = Math.min(remainingSeconds, 15 * 60L);
+        // VNPay URL có hạn tối đa 15 phút, lấy min giữa thời gian thanh toán còn lại và 15 phút
+        long effectiveTtl = Math.min(remainingPaymentSeconds, 15 * 60L);
 
         // Kiểm tra cache idempotency
         boolean acquired = redisService.setIfAbsent(paymentIdempotencyKey, "PROCESSING", LOCK_TIMEOUT_SECONDS);
@@ -333,7 +336,8 @@ public class VNPaymentServiceImpl implements PaymentService {
      * Kiểm tra tính hợp lệ của đơn đặt chỗ (thời hạn, số tiền).
      */
     private void validateReservation(Reservation res, ReservationDTO dto) {
-        if (LocalDateTime.now().isAfter(res.getExpiresAt()))
+        LocalDateTime paymentExpiresAt = res.getExpiresAt().minusSeconds(PAYMENT_EXPIRY_BUFFER_SECONDS);
+        if (LocalDateTime.now().isAfter(paymentExpiresAt))
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
         if (!res.getTotalAmount().equals(dto.getTotalAmount()))
             throw new AppException(ErrorCode.INVALID_AMOUNT);
@@ -344,12 +348,13 @@ public class VNPaymentServiceImpl implements PaymentService {
      */
     private Payment createNewPayment(Reservation reservation, LocalDateTime now) {
         User user = reservation.getUser();
+        LocalDateTime paymentExpiresAt = reservation.getExpiresAt().minusSeconds(PAYMENT_EXPIRY_BUFFER_SECONDS);
         Payment newPayment = new Payment();
         newPayment.setTotalAmount(reservation.getTotalAmount());
         newPayment.setDiscountAmount(reservation.getDiscountAmount());
         newPayment.setFinalAmount(reservation.getFinalAmount());
         newPayment.setStatus(PaymentStatus.PENDING);
-        newPayment.setExpiresAt(reservation.getExpiresAt());
+        newPayment.setExpiresAt(paymentExpiresAt);
         newPayment.setReservation(reservation);
         newPayment.setUser(reservation.getUser());
 
@@ -444,6 +449,7 @@ public class VNPaymentServiceImpl implements PaymentService {
         payment.setTotalAmount(reservation.getTotalAmount());
         payment.setDiscountAmount(reservation.getDiscountAmount());
         payment.setFinalAmount(reservation.getFinalAmount());
+        payment.setExpiresAt(reservation.getExpiresAt().minusSeconds(PAYMENT_EXPIRY_BUFFER_SECONDS));
         paymentRepository.save(payment);
         return payment;
     }
