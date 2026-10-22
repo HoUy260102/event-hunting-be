@@ -5,6 +5,7 @@ import com.example.event.mapper.ProvinceMapper;
 import com.example.event.repository.ProvinceRepository;
 import com.example.event.service.ProvinceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ public class ProvinceServiceImpl implements ProvinceService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "provinces", key = "'all'")
     public List<ProvinceDTO> findAllProvinces() {
         List<ProvinceDTO> provinceDTOS = provinceRepository.findAll().stream().map(provinceMapper::toDTO).collect(Collectors.toList());
         return provinceDTOS;

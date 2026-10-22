@@ -17,6 +17,9 @@ import com.example.event.specification.CategorySpecifiation;
 import com.example.event.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,6 +42,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final EventRepository eventRepository;
 
     @Override
+    @Cacheable(value = "categories", key = "'all'")
     public List<CategoryDTO> findAllCategories() {
         return categoryRepository.findAll().stream()
                 .filter(category -> category.getStatus() == CategoryStatus.ACTIVE && category.getDeletedAt() == null)
@@ -48,6 +52,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "categories", allEntries = true)
     public CategoryDTO createCategory(CreateCategoryReq req) {
         String creatorId = securityUtils.getCurrentUserId();
         String slug = StringUtil.makeSlug(req.getName());
@@ -78,6 +83,10 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "categories", allEntries = true),
+            @CacheEvict(value = "category", key = "#id")
+    })
     public CategoryDTO updateCategory(String id, UpdateCategoryReq req) {
         if (req.getStatus() == CategoryStatus.DELETED) {
             log.warn("[CATEGORY] Không được phép cập nhật trạng thái thể loại sang DELETED: categoryId={}", id);
@@ -115,6 +124,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "category", key = "#id")
     public CategoryDTO findCategoryById(String id) {
         Category category = Optional.ofNullable(categoryRepository.findCategoryById(id))
                 .orElseThrow(() -> new AppException(ErrorCode.CATEGORY_NOT_FOUND));
@@ -123,6 +133,10 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "categories", allEntries = true),
+            @CacheEvict(value = "category", key = "#id")
+    })
     public void deleteCategory(String id) {
         String deletorId = securityUtils.getCurrentUserId();
         Category category = Optional.ofNullable(categoryRepository.findCategoryById(id))
@@ -147,6 +161,10 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "categories", allEntries = true),
+            @CacheEvict(value = "category", key = "#id")
+    })
     public void restoreCategory(String id) {
         String restorId = securityUtils.getCurrentUserId();
         Category category = Optional.ofNullable(categoryRepository.findCategoryById(id))
