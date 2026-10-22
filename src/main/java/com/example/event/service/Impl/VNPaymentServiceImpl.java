@@ -42,6 +42,7 @@ public class VNPaymentServiceImpl implements PaymentService {
     private final SimpMessagingTemplate messagingTemplate;
     private final TicketEmailProducer ticketEmailProducer;
     private final RedisService redisService;
+    private final TicketQueueService ticketQueueService;
     private static final Map<String, String> VNPAY_MESSAGES;
     private static final String PAYMENT_IDEMPOTENCY_KEY_FORMAT = "PAYMENT_CREATE:%s";
     private static final long LOCK_TIMEOUT_SECONDS = 10; // 10s
@@ -313,6 +314,11 @@ public class VNPaymentServiceImpl implements PaymentService {
                 // Tạo vé và gửi toàn bộ theo đợt (batch) vào Redis stream để xử lý gửi email
                 List<TicketSummaryDTO> tickets = ticketService.generateTickets(resId);
                 ticketEmailProducer.sendReservationTickets(user, tickets);
+
+                // Rời khỏi hàng đợi sau khi thanh toán thành công
+                if (show != null && user != null) {
+                    ticketQueueService.leaveQueue(show.getId(), user.getId());
+                }
 
                 socketData.put("status", "SUCCESS");
                 socketData.put("message", "Thanh toán thành công");

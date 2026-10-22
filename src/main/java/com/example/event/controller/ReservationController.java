@@ -22,10 +22,7 @@ public class ReservationController {
     private final ReservationService reservationService;
 
     @PostMapping
-    public ResponseEntity<?> createReservation(
-            @Valid @RequestBody ReservationReq req,
-            @RequestHeader(value = "X-Queue-Token", required = false) String queueToken) {
-        req.setQueueToken(queueToken);
+    public ResponseEntity<?> createReservation(@Valid @RequestBody ReservationReq req) {
         ReservationDTO reservationDTO = reservationService.createReservation(req);
         ApiResponse response = ApiResponse.builder()
                 .data(reservationDTO)
@@ -36,7 +33,8 @@ public class ReservationController {
     }
 
     @GetMapping("/{id}/vouchers")
-    public ResponseEntity<?> findReservationAfterDiscount(@PathVariable String id, @RequestParam(required = false) String voucherId) {
+    public ResponseEntity<?> findReservationAfterDiscount(@PathVariable String id,
+            @RequestParam(required = false) String voucherId) {
         ReservationDTO reservationDTO = reservationService.findReservationAfterDiscount(id, voucherId);
         ApiResponse response = ApiResponse.builder()
                 .data(reservationDTO)

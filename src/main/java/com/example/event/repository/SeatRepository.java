@@ -12,7 +12,7 @@ import java.util.List;
 public interface SeatRepository extends JpaRepository<Seat, String> {
     @Modifying(clearAutomatically = true)
     @Query("""
-                UPDATE Seat s 
+                UPDATE Seat s
                 SET s.deletedAt = :now,
                     s.deletedBy = :deletorId
                 WHERE s.id IN :seatIds
@@ -21,8 +21,7 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     void softDeleteSeatsByIds(
             @Param("seatIds") List<String> seatIds,
             @Param("now") LocalDateTime now,
-            @Param("deletorId") String deletorId
-    );
+            @Param("deletorId") String deletorId);
 
     @Modifying(clearAutomatically = true)
     @Query("""
@@ -35,8 +34,7 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     void softDeleteSeatsByTicketTypeIds(
             @Param("ticketTypeIds") List<String> ticketTypeIds,
             @Param("now") LocalDateTime now,
-            @Param("deletorId") String deletorId
-    );
+            @Param("deletorId") String deletorId);
 
     @Modifying(clearAutomatically = true)
     @Query("""
@@ -49,8 +47,7 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     void softDeleteSeatsByShowIds(
             @Param("showIds") List<String> showIds,
             @Param("now") LocalDateTime now,
-            @Param("deletorId") String deletorId
-    );
+            @Param("deletorId") String deletorId);
 
     @Modifying(clearAutomatically = true)
     @Query("""
@@ -65,14 +62,14 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     void restoreSeatsByShowIds(
             @Param("showIds") List<String> showIds,
             @Param("now") LocalDateTime now,
-            @Param("restorerId") String restorerId
-    );
+            @Param("restorerId") String restorerId);
 
     @Modifying(clearAutomatically = true)
     @Query("""
-                UPDATE Seat s 
+                UPDATE Seat s
                 SET s.status = 'HOLD',
-                    s.reservedBy.id = :userId,  
+                    s.reservedBy.id = :userId,
+                    s.holdExpiresAt = :expiresAt,
                     s.updatedBy = :userId,
                     s.updatedAt = :now
                 WHERE s.id = :seatId
@@ -80,14 +77,16 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
                   AND s.deletedAt IS NULL
             """)
     int holdSeat(@Param("seatId") String seatId,
-                 @Param("userId") String userId,
-                 @Param("now") LocalDateTime now);
+            @Param("userId") String userId,
+            @Param("expiresAt") LocalDateTime expiresAt,
+            @Param("now") LocalDateTime now);
 
     @Modifying(clearAutomatically = true)
     @Query("""
-                UPDATE Seat s 
+                UPDATE Seat s
                 SET s.status = 'AVAILABLE',
                     s.reservedBy = null,
+                    s.holdExpiresAt = null,
                     s.updatedAt = :now
                 WHERE s.id IN (
                     SELECT ri.seat.id FROM ReservationItem ri WHERE ri.reservation.id = :reservationId
@@ -95,7 +94,7 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
                 AND s.status = 'HOLD'
             """)
     int releaseAllSeatsByReservation(@Param("reservationId") String reservationId,
-                                     @Param("now") LocalDateTime now);
+            @Param("now") LocalDateTime now);
 
     @Query(value = "SELECT * FROM seat " +
             "WHERE status = 'AVAILABLE' AND ticket_type_id = :typeId " +
@@ -107,14 +106,17 @@ public interface SeatRepository extends JpaRepository<Seat, String> {
     @Modifying
     @Query("UPDATE Seat s " +
             "SET s.status = 'BOOKED', " +
+            "s.holdExpiresAt = null, " +
             "s.updatedBy = :updatedBy, " +
             "s.updatedAt = :now " +
             "WHERE s.id IN :ids AND (s.status = 'AVAILABLE' or s.status = 'HOLD')")
     void markSeatsAsBooked(@Param("ids") List<String> ids,
-                           @Param("updatedBy") String updatedBy,
-                           @Param("now") LocalDateTime now);
+            @Param("updatedBy") String updatedBy,
+            @Param("now") LocalDateTime now);
 
     List<Seat> findSeatsByTicketType_IdAndDeletedAtIsNull(String ticketTypeId);
+
     List<Seat> findSeatsByIdIn(List<String> ids);
+
     Seat findSeatById(String id);
 }

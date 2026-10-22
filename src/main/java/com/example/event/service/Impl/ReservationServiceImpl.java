@@ -128,7 +128,7 @@ public class ReservationServiceImpl implements ReservationService {
                 });
 
         // Kiểm tra quyền mua vé của user trong hàng đợi (Fail-fast)
-        ticketQueueService.validateQueueToken(show.getId(), req.getQueueToken());
+        ticketQueueService.validateQueueAccess(show.getId());
         long reservationTTLSeconds = ticketQueueService.getRemainingTimeSeconds(show.getId(), user.getId());
 
         Event event = show.getEvent();
@@ -356,7 +356,7 @@ public class ReservationServiceImpl implements ReservationService {
                     Seat seat = Optional.ofNullable(seatRepository.findSeatById(seatId))
                             .orElseThrow(() -> new AppException(ErrorCode.SEAT_NOT_FOUND));
                     // Kiểm tra ghế có người giữ chưa
-                    int holdResult = seatRepository.holdSeat(seatId, creatorId, now);
+                    int holdResult = seatRepository.holdSeat(seatId, creatorId, reservation.getExpiresAt(), now);
                     if (holdResult == 0) {
                         log.error("[RESERVATION] User{} | Show {} - Ghế {} đã bị chiếm bởi người khác ngay trước đó!",
                                 creatorId, show.getId(), seatId);
@@ -429,7 +429,8 @@ public class ReservationServiceImpl implements ReservationService {
             if (e instanceof AppException) {
                 throw (AppException) e;
             }
-            log.error("[RESERVATION] Lỗi không xác định khi tạo đơn hàng cho show {} của User {}: ", show.getId(), creatorId, e);
+            log.error("[RESERVATION] Lỗi không xác định khi tạo đơn hàng cho show {} của User {}: ", show.getId(),
+                    creatorId, e);
             throw new AppException(ErrorCode.SYSTEM_ERROR);
         }
     }
@@ -458,11 +459,20 @@ public class ReservationServiceImpl implements ReservationService {
     public void releaseReservationResources(Reservation reservation, LocalDateTime now, ReservationStatus status,
             String updatedBy) {
         Reservation freshRes = reservationRepository.findReservationById(reservation.getId());
-        if (freshRes != null && (freshRes.getStatus() == ReservationStatus.PAID || freshRes.getStatus() == status)) {
-            log.warn("[RESERVATION] Đơn hàng {} đã ở trạng thái {}, bỏ qua giải phóng tài nguyên.", reservation.getId(), freshRes.getStatus());
+        if (freshRes == null) {
+            log.warn("[RESERVATION] Không tìm thấy đơn hàng {} để giải phóng tài nguyên.", reservation.getId());
             return;
         }
+        if (freshRes.getStatus() != ReservationStatus.PENDING) {
+            log.warn("[RESERVATION] Đơn hàng {} đã ở trạng thái {}, bỏ qua giải phóng tài nguyên.", freshRes.getId(),
+                    freshRes.getStatus());
+            return;
+        }
+        doReleaseResources(freshRes, now, status, updatedBy);
+    }
 
+    private void doReleaseResources(Reservation reservation, LocalDateTime now, ReservationStatus status,
+            String updatedBy) {
         try {
             String showId = reservation.getShow().getId();
             Voucher voucher = reservation.getVoucher();
@@ -494,8 +504,8 @@ public class ReservationServiceImpl implements ReservationService {
             }
 
             // Cập nhật Database
-            typeQtyMap.forEach((id, qty) -> ticketTypeRepository.decrementReservedQuantity(id, qty, now, "cleanup"));
-            tierQtyMap.forEach((id, qty) -> ticketTierRepository.decrementReservedQuantity(id, qty, now, "cleanup"));
+            typeQtyMap.forEach((id, qty) -> ticketTypeRepository.decrementReservedQuantity(id, qty, now, updatedBy));
+            tierQtyMap.forEach((id, qty) -> ticketTierRepository.decrementReservedQuantity(id, qty, now, updatedBy));
 
             if (!seatedItems.isEmpty()) {
                 seatRepository.releaseAllSeatsByReservation(reservation.getId(), now);
@@ -506,9 +516,10 @@ public class ReservationServiceImpl implements ReservationService {
             }
 
             if (!seatCodes.isEmpty()) {
+                String userId = reservation.getUser() != null ? reservation.getUser().getId() : null;
                 SeatSocketDTO seatSocketDTO = SeatSocketDTO.builder()
                         .action("UNLOCK")
-                        .userId(reservation.getUser().getId())
+                        .userId(userId)
                         .seatCodes(seatCodes)
                         .build();
                 messagingTemplate.convertAndSend("/topic/show/" + showId + "/seats", seatSocketDTO);
@@ -520,7 +531,8 @@ public class ReservationServiceImpl implements ReservationService {
             reservationRepository.save(reservation);
             log.info("[RESERVATION] Đã giải phóng xong đơn hàng: id={}, status={}", reservation.getId(), status);
         } catch (Exception e) {
-            log.error("[RESERVATION] Lỗi nghiêm trọng khi giải phóng tài nguyên đơn hàng {}: {}", reservation.getId(), e.getMessage());
+            log.error("[RESERVATION] Lỗi nghiêm trọng khi giải phóng tài nguyên đơn hàng {}: {}", reservation.getId(),
+                    e.getMessage());
             throw e;
         }
     }
@@ -547,14 +559,8 @@ public class ReservationServiceImpl implements ReservationService {
             log.warn("[RESERVATION] User {} | Reservation {} đã hết hạn.", userId, id);
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
         }
-        reservation.setStatus(ReservationStatus.CANCELLED);
-        reservation.setUpdatedAt(now);
-        reservation.setUpdatedBy(userId);
-        reservationRepository.save(reservation);
-        log.info("[RESERVATION] User {} | Reservation {} đã hủy đặt chõ", userId, id);
-
-        // Tiến hành expired
-        releaseReservationResources(reservation, now, ReservationStatus.CANCELLED, userId);
+        log.info("[RESERVATION] User {} | Đang hủy đặt chỗ cho reservation {}", userId, id);
+        doReleaseResources(reservation, now, ReservationStatus.CANCELLED, userId);
     }
 
     private void validateTicketStatusAndTime(TicketType type, TicketTier tier, LocalDateTime now) {
@@ -597,7 +603,8 @@ public class ReservationServiceImpl implements ReservationService {
 
         // 1. Reservation còn hạn không
         if (LocalDateTime.now().isAfter(reservation.getExpiresAt())) {
-            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} đã hết hạn lúc {}", resId, reservation.getExpiresAt());
+            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} đã hết hạn lúc {}", resId,
+                    reservation.getExpiresAt());
             throw new AppException(ErrorCode.RESERVATION_EXPIRED);
         }
 
@@ -610,7 +617,8 @@ public class ReservationServiceImpl implements ReservationService {
 
         // 3. Có items không
         if (reservation.getItems() == null || reservation.getItems().isEmpty()) {
-            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} không có sản phẩm vé (empty/null)", resId);
+            log.warn("[RESERVATION] Xác thực thanh toán thất bại: Đơn hàng {} không có sản phẩm vé (empty/null)",
+                    resId);
             throw new AppException(ErrorCode.RESERVATION_HAS_NO_ITEMS);
         }
 

@@ -129,7 +129,6 @@ class ReservationServiceImplTest {
 
         validRequest = new ReservationReq();
         validRequest.setShowId(show.getId());
-        validRequest.setQueueToken("queue-token");
         validRequest.setCustomerEmail("customer@test.com");
         validRequest.setCustomerName("Nguyen Van A");
         validRequest.setCustomerPhone("0123456789");
@@ -148,7 +147,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -216,7 +215,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
 
         // When
@@ -234,7 +233,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.empty());
 
@@ -253,7 +252,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.empty());
@@ -273,7 +272,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -298,7 +297,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -324,7 +323,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -345,7 +344,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -367,7 +366,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -389,7 +388,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -411,7 +410,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -433,7 +432,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -454,7 +453,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
 
         // When
@@ -473,7 +472,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
 
         // When
@@ -492,7 +491,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -511,7 +510,6 @@ class ReservationServiceImplTest {
         // Given
         ReservationReq assignedRequest = new ReservationReq();
         assignedRequest.setShowId(show.getId());
-        assignedRequest.setQueueToken("queue-token");
         assignedRequest.setCustomerEmail("customer@test.com");
         assignedRequest.setCustomerName("Nguyen Van A");
         assignedRequest.setCustomerPhone("0123456789");
@@ -526,7 +524,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -551,7 +549,6 @@ class ReservationServiceImplTest {
         // Given
         ReservationReq assignedRequest = new ReservationReq();
         assignedRequest.setShowId(show.getId());
-        assignedRequest.setQueueToken("queue-token");
         assignedRequest.setCustomerEmail("customer@test.com");
         assignedRequest.setCustomerName("Nguyen Van A");
         assignedRequest.setCustomerPhone("0123456789");
@@ -572,7 +569,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -581,7 +578,7 @@ class ReservationServiceImplTest {
         when(ticketTypeRepository.incrementReservedQuantity(anyString(), anyInt(), any(), anyString())).thenReturn(1);
         when(ticketTierRepository.incrementReservedQuantity(anyString(), anyInt(), any(), anyString())).thenReturn(1);
         when(seatRepository.findSeatById("seat-1")).thenReturn(seat);
-        when(seatRepository.holdSeat(eq("seat-1"), eq(user.getId()), any())).thenReturn(0);
+        when(seatRepository.holdSeat(eq("seat-1"), eq(user.getId()), any(), any())).thenReturn(0);
 
         // When
         AppException ex = assertThrows(AppException.class, () -> reservationService.createReservation(assignedRequest));
@@ -598,7 +595,6 @@ class ReservationServiceImplTest {
         // Given
         ReservationReq assignedRequest = new ReservationReq();
         assignedRequest.setShowId(show.getId());
-        assignedRequest.setQueueToken("queue-token");
         assignedRequest.setCustomerEmail("customer@test.com");
         assignedRequest.setCustomerName("Nguyen Van A");
         assignedRequest.setCustomerPhone("0123456789");
@@ -619,7 +615,7 @@ class ReservationServiceImplTest {
         when(securityUtils.getCurrentUserId()).thenReturn(user.getId());
         when(showRepository.findShowById(show.getId())).thenReturn(show);
         when(userRepository.findUserById(user.getId())).thenReturn(user);
-        when(ticketQueueService.validateQueueToken(anyString(), anyString())).thenReturn(true);
+        when(ticketQueueService.validateQueueAccess(anyString())).thenReturn(true);
         when(ticketQueueService.getRemainingTimeSeconds(anyString(), anyString())).thenReturn(600L);
         when(ticketTypeRepository.findById(ticketType.getId())).thenReturn(Optional.of(ticketType));
         when(ticketTierRepository.findById(ticketTier.getId())).thenReturn(Optional.of(ticketTier));
@@ -629,7 +625,7 @@ class ReservationServiceImplTest {
         when(ticketTypeRepository.incrementReservedQuantity(anyString(), anyInt(), any(), anyString())).thenReturn(1);
         when(ticketTierRepository.incrementReservedQuantity(anyString(), anyInt(), any(), anyString())).thenReturn(1);
         when(seatRepository.findSeatById("seat-1")).thenReturn(seat);
-        when(seatRepository.holdSeat(eq("seat-1"), eq(user.getId()), any())).thenReturn(1);
+        when(seatRepository.holdSeat(eq("seat-1"), eq(user.getId()), any(), any())).thenReturn(1);
 
         // When
         ReservationDTO result = reservationService.createReservation(assignedRequest);

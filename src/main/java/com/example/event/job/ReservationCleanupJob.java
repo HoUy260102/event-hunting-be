@@ -26,11 +26,7 @@ public class ReservationCleanupJob {
     private final ReservationService reservationService;
 
     @Scheduled(fixedRate = 60000)
-    @SchedulerLock(
-            name = "reservationCleanupJob",
-            lockAtMostFor = "PT5M",
-            lockAtLeastFor = "PT30S"
-    )
+    @SchedulerLock(name = "reservationCleanupJob", lockAtMostFor = "PT5M", lockAtLeastFor = "PT30S")
     @Transactional
     public void cleanupExpiredReservations() {
         LocalDateTime now = LocalDateTime.now();
@@ -48,7 +44,8 @@ public class ReservationCleanupJob {
                 reservationService.releaseReservationResources(
                         reservation, now, ReservationStatus.EXPIRED, "cleanup");
             } catch (Exception e) {
-                log.error("[RESERVATION-CLEANUP] Lỗi khi giải phóng đơn hàng {}: {}", reservation.getId(), e.getMessage(), e);
+                log.error("[RESERVATION-CLEANUP] Lỗi khi giải phóng đơn hàng {}: {}", reservation.getId(),
+                        e.getMessage(), e);
             }
         }
     }

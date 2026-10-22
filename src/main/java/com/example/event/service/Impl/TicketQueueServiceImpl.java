@@ -2,6 +2,7 @@ package com.example.event.service.Impl;
 
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.ErrorCode;
+import com.example.event.dto.response.QueueStatusResponse;
 import com.example.event.exception.AppException;
 import com.example.event.service.TicketQueueService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,6 @@ public class TicketQueueServiceImpl implements TicketQueueService {
     private static final String WAITING = "waiting:show:%s";
     private static final String BUYING = "buying:show:%s";
     private static final String HB = "hb:show:%s";
-    private static final String TOKEN = "ticket:token:show:%s:user:%s";
     private static final String ACTIVE_SHOWS_KEY = "active_shows";
 
     private static final String DRAIN_SCRIPT = """
@@ -42,17 +42,17 @@ public class TicketQueueServiceImpl implements TicketQueueService {
             local maxCheck    = tonumber(ARGV[2])
             local buyExpireAt = tonumber(ARGV[3])
             local now         = tonumber(ARGV[4])
-            
+
             local result  = {}
             local checked = 0
-            
+
             while #result < available and checked < maxCheck do
                 local res = redis.call('ZPOPMIN', waitingKey, 1)
                 if #res == 0 then break end
-            
+
                 local userId  = res[1]
                 checked = checked + 1
-            
+
                 local deadline = redis.call('ZSCORE', hbKey, userId)
                 if deadline and tonumber(deadline) >= now then
                     redis.call('ZADD', buyingKey, buyExpireAt, userId)
@@ -60,14 +60,13 @@ public class TicketQueueServiceImpl implements TicketQueueService {
                     table.insert(result, userId)
                 end
             end
-            
+
             return result
             """;
 
     @Override
-    public Map<String, Object> joinQueue(String showId) {
+    public QueueStatusResponse joinQueue(String showId) {
         String userId = securityUtils.getCurrentUserId();
-        Map<String, Object> result = new HashMap<>();
         String waitingKey = String.format(WAITING, showId);
         String buyingKey = String.format(BUYING, showId);
         String hbKey = String.format(HB, showId);
@@ -81,31 +80,29 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         // Nếu nằm trong hàng đợi buying
         Double buyingScore = redis.opsForZSet().score(buyingKey, userId);
         if (buyingScore != null) {
-            String tokenKey = String.format(TOKEN, showId, userId);
-            String token = redis.opsForValue().get(tokenKey);
-            if (token == null) {
-                log.warn("[QUEUE] Phiên mua vé của người dùng đã hết hạn do không tìm thấy token | showId={}, userId={}", showId, userId);
-                throw new AppException(ErrorCode.BUYING_SESSION_EXPIRED);
-            }
             long expiresIn = (long) ((buyingScore - System.currentTimeMillis()) / 1000);
             if (expiresIn <= 0) {
-                log.warn("[QUEUE] Phiên mua vé của người dùng đã hết hạn | showId={}, userId={}, expiresIn={}", showId, userId, expiresIn);
+                log.warn("[QUEUE] Phiên mua vé của người dùng đã hết hạn | showId={}, userId={}, expiresIn={}", showId,
+                        userId, expiresIn);
                 throw new AppException(ErrorCode.BUYING_SESSION_EXPIRED);
             }
-            log.info("[QUEUE] Người dùng tiếp tục phiên mua vé (BUYING) | showId={}, userId={}, expiresIn={}", showId, userId, expiresIn);
-            result.put("status", "BUYING");
-            result.put("token", token);
-            result.put("expiresIn", expiresIn);
-            return result;
+            log.info("[QUEUE] Người dùng tiếp tục phiên mua vé (BUYING) | showId={}, userId={}, expiresIn={}", showId,
+                    userId, expiresIn);
+            return QueueStatusResponse.builder()
+                    .status("BUYING")
+                    .expiresIn(expiresIn)
+                    .build();
         }
 
         // Nếu nằm trong hàng đợi waiting
         if (position != null) {
-            log.info("[QUEUE] Người dùng đã ở trong hàng đợi WAITING | showId={}, userId={}, position={}", showId, userId, position + 1);
-            result.put("position", position + 1);
-            result.put("peopleAhead", position);
-            result.put("status", "WAITING");
-            return result;
+            log.info("[QUEUE] Người dùng đã ở trong hàng đợi WAITING | showId={}, userId={}, position={}", showId,
+                    userId, position + 1);
+            return QueueStatusResponse.builder()
+                    .position(position + 1)
+                    .peopleAhead(position)
+                    .status("WAITING")
+                    .build();
         }
 
         // Nếu là người dùng mới
@@ -116,13 +113,11 @@ public class TicketQueueServiceImpl implements TicketQueueService {
             conn.zSetCommands().zAdd(
                     waitingKey.getBytes(),
                     System.currentTimeMillis(),
-                    uid
-            );
+                    uid);
             conn.zSetCommands().zAdd(
                     hbKey.getBytes(),
                     deadline,
-                    uid
-            );
+                    uid);
             return null;
         });
 
@@ -130,25 +125,25 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         if (position == null) {
             buyingScore = redis.opsForZSet().score(buyingKey, userId);
             if (buyingScore != null) {
-                String tokenKey = String.format(TOKEN, showId, userId);
-                String token = redis.opsForValue().get(tokenKey);
-                if (token != null) {
-                    long expiresIn = (long) ((buyingScore - System.currentTimeMillis()) / 1000);
-                    log.info("[QUEUE] Người dùng được chuyển thẳng sang BUYING khi join queue | showId={}, userId={}", showId, userId);
-                    result.put("status", "BUYING");
-                    result.put("token", token);
-                    result.put("expiresIn", expiresIn);
-                    return result;
-                }
+                long expiresIn = (long) ((buyingScore - System.currentTimeMillis()) / 1000);
+                log.info("[QUEUE] Người dùng được chuyển thẳng sang BUYING khi join queue | showId={}, userId={}",
+                        showId, userId);
+                return QueueStatusResponse.builder()
+                        .status("BUYING")
+                        .expiresIn(expiresIn)
+                        .build();
             }
             log.error("[QUEUE] Không thể xác định vị trí trong hàng đợi | showId={}, userId={}", showId, userId);
-            throw new AppException(ErrorCode.SYSTEM_ERROR, "Không thể xác định vị trí trong hàng đợi, vui lòng thử lại.");
+            throw new AppException(ErrorCode.SYSTEM_ERROR,
+                    "Không thể xác định vị trí trong hàng đợi, vui lòng thử lại.");
         }
-        log.info("[QUEUE] Người dùng tham gia hàng đợi WAITING thành công | showId={}, userId={}, position={}", showId, userId, position + 1);
-        result.put("position", position + 1);
-        result.put("peopleAhead", position);
-        result.put("status", "WAITING");
-        return result;
+        log.info("[QUEUE] Người dùng tham gia hàng đợi WAITING thành công | showId={}, userId={}, position={}", showId,
+                userId, position + 1);
+        return QueueStatusResponse.builder()
+                .position(position + 1)
+                .peopleAhead(position)
+                .status("WAITING")
+                .build();
     }
 
     private void heartbeat(String showId) {
@@ -168,7 +163,8 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         boolean existsHeartBeat = redis.opsForZSet().score(hbKey, userId) != null;
 
         if (!inWaiting || !existsHeartBeat) {
-            log.warn("[QUEUE] Không thể gia hạn heartbeat do người dùng không ở trong hàng đợi | showId={}, userId={}", showId, userId);
+            log.warn("[QUEUE] Không thể gia hạn heartbeat do người dùng không ở trong hàng đợi | showId={}, userId={}",
+                    showId, userId);
             throw new AppException(ErrorCode.NOT_IN_QUEUE);
         }
 
@@ -180,56 +176,59 @@ public class TicketQueueServiceImpl implements TicketQueueService {
 
     @Override
     @Transactional
-    public Map<String, Object> getStatus(String showId) {
+    public QueueStatusResponse getStatus(String showId) {
         String userId = securityUtils.getCurrentUserId();
-        Map<String, Object> result = new HashMap<>();
         String waitingKey = String.format(WAITING, showId);
         String buyingKey = String.format(BUYING, showId);
         Double buyingScore = redis.opsForZSet().score(buyingKey, userId);
         if (buyingScore != null) {
-            String tokenKey = String.format(TOKEN, showId, userId);
-            String token = redis.opsForValue().get(tokenKey);
-            if (token == null) {
-                log.warn("[QUEUE] Trạng thái mua vé hết hạn (token rỗng) | showId={}, userId={}", showId, userId);
-                throw new AppException(ErrorCode.BUYING_SESSION_EXPIRED);
-            }
             long expiresIn = (long) ((buyingScore - System.currentTimeMillis()) / 1000);
             if (expiresIn <= 0) {
-                log.warn("[QUEUE] Trạng thái mua vé hết hạn | showId={}, userId={}, expiresIn={}", showId, userId, expiresIn);
+                log.warn("[QUEUE] Trạng thái mua vé hết hạn | showId={}, userId={}, expiresIn={}", showId, userId,
+                        expiresIn);
                 throw new AppException(ErrorCode.BUYING_SESSION_EXPIRED);
             }
-            result.put("status", "BUYING");
-            result.put("token", token);
-            result.put("expiresIn", expiresIn);
-            return result;
+            return QueueStatusResponse.builder()
+                    .status("BUYING")
+                    .expiresIn(expiresIn)
+                    .build();
         }
         Long position = redis.opsForZSet().rank(waitingKey, userId);
         if (position == null) {
-            log.warn("[QUEUE] Kiểm tra trạng thái: người dùng không ở trong hàng đợi | showId={}, userId={}", showId, userId);
+            log.warn("[QUEUE] Kiểm tra trạng thái: người dùng không ở trong hàng đợi | showId={}, userId={}", showId,
+                    userId);
             throw new AppException(ErrorCode.NOT_IN_QUEUE);
         }
         heartbeat(showId);
-        result.put("position", position + 1);
-        result.put("peopleAhead", position);
-        result.put("status", "WAITING");
-        return result;
+        return QueueStatusResponse.builder()
+                .position(position + 1)
+                .peopleAhead(position)
+                .status("WAITING")
+                .build();
     }
 
     @Override
     public void leaveQueue(String showId) {
         String userId = securityUtils.getCurrentUserId();
+        if (userId != null) {
+            leaveQueue(showId, userId);
+        }
+    }
+
+    @Override
+    public void leaveQueue(String showId, String userId) {
+        if (userId == null || showId == null)
+            return;
         log.info("[QUEUE] Người dùng rời khỏi hàng đợi | showId={}, userId={}", showId, userId);
         String waitingKey = String.format(WAITING, showId);
         String buyingKey = String.format(BUYING, showId);
         String hbKey = String.format(HB, showId);
 
-        String tokenKey = String.format(TOKEN, showId, userId);
         redis.executePipelined((RedisCallback<Object>) conn -> {
             byte[] rawKey = userId.getBytes();
             conn.zSetCommands().zRem(hbKey.getBytes(), rawKey);
             conn.zSetCommands().zRem(waitingKey.getBytes(), rawKey);
             conn.zSetCommands().zRem(buyingKey.getBytes(), rawKey);
-            conn.keyCommands().del(tokenKey.getBytes());
             return null;
         });
     }
@@ -244,7 +243,8 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         Set<String> expiredUsers = redis.opsForZSet().rangeByScore(hbKey, 0, now, 0, 500);
 
         if (expiredUsers != null && !expiredUsers.isEmpty()) {
-            log.info("[QUEUE] Dọn dẹp {} người dùng mất kết nối (ghost users) | showId={}", expiredUsers.size(), showId);
+            log.info("[QUEUE] Dọn dẹp {} người dùng mất kết nối (ghost users) | showId={}", expiredUsers.size(),
+                    showId);
             redis.executePipelined((RedisCallback<Object>) conn -> {
                 byte[][] rawKeys = expiredUsers.stream().map(String::getBytes).toArray(byte[][]::new);
                 conn.zSetCommands().zRem(hbKey.getBytes(), rawKeys);
@@ -266,7 +266,8 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         // Tính slot trống
         Long buying = redis.opsForZSet().zCard(buyingKey);
         long available = MAX_BUYING - (buying != null ? buying : 0);
-        if (available <= 0) return;
+        if (available <= 0)
+            return;
 
         // Lua script - pop user thật, skip ghost, atomic
         long expireAt = System.currentTimeMillis() + BUYING_TTL_MS;
@@ -279,69 +280,43 @@ public class TicketQueueServiceImpl implements TicketQueueService {
                 String.valueOf(available),
                 String.valueOf(Math.min(BATCH_SIZE, available) * 3),
                 String.valueOf(expireAt),
-                String.valueOf(now)
-        );
+                String.valueOf(now));
 
-        if (chosenUsers == null || chosenUsers.isEmpty()) return;
-
-        Map<String, String> userTokenMap = new HashMap<>();
-        for (String userId : chosenUsers) {
-            userTokenMap.put(userId, UUID.randomUUID().toString());
-        }
-
-        // Thực thi ghi vào Redis hàng loạt (Pipeline)
-        redis.executePipelined((RedisCallback<Object>) conn -> {
-            userTokenMap.forEach((userId, token) -> {
-                String tokenKey = String.format(TOKEN, showId, userId);
-                conn.stringCommands().setEx(
-                        tokenKey.getBytes(),
-                        (BUYING_TTL_MS + 10) / 1000,
-                        token.getBytes()
-                );
-            });
-            return null;
-        });
+        if (chosenUsers == null || chosenUsers.isEmpty())
+            return;
 
         // Bắn WebSocket sau khi đã đảm bảo Redis đã nhận lệnh
-        userTokenMap.forEach((userId, token) -> {
-            Map<String, Object> mes = new HashMap<>();
-            mes.put("status", "BUYING");
-            mes.put("token", token);
+        for (String userId : chosenUsers) {
             long expiresIn = (BUYING_TTL_MS + 10) / 1000;
-            mes.put("expiresIn", expiresIn);
+            QueueStatusResponse wsMes = QueueStatusResponse.builder()
+                    .status("BUYING")
+                    .expiresIn(expiresIn)
+                    .build();
             messagingTemplate.convertAndSendToUser(
                     userId,
                     "/p/show/" + showId + "/queue",
-                    mes
-            );
-        });
+                    wsMes);
+        }
 
         log.info("[QUEUE] Drain thành công {} người dùng chuyển sang trạng thái BUYING cho showId={}",
                 chosenUsers.size(), showId);
     }
 
     @Override
-    public boolean validateQueueToken(String showId, String clientToken) {
+    public boolean validateQueueAccess(String showId) {
         String userId = securityUtils.getCurrentUserId();
-        String tokenKey = String.format(TOKEN, showId, userId);
         String buyingKey = String.format(BUYING, showId);
-
-        // Lấy token từ Redis
-        String savedToken = redis.opsForValue().get(tokenKey);
-        if (savedToken == null || !savedToken.equals(clientToken)) {
-            log.warn("[QUEUE] Queue token không hợp lệ hoặc không khớp | showId={}, userId={}", showId, userId);
-            throw new AppException(ErrorCode.INVALID_QUEUE_TOKEN);
-        }
 
         // Kiểm tra xem có còn trong danh sách Buying không
         Double expireAt = redis.opsForZSet().score(buyingKey, userId);
         if (expireAt == null || System.currentTimeMillis() > expireAt) {
-            log.warn("[QUEUE] Phiên mua vé của người dùng đã quá hạn | showId={}, userId={}", showId, userId);
+            log.warn("[QUEUE] Phiên mua vé của người dùng đã quá hạn hoặc không tồn tại | showId={}, userId={}", showId,
+                    userId);
             leaveQueue(showId);
             throw new AppException(ErrorCode.BUYING_SESSION_EXPIRED);
         }
 
-        log.info("[QUEUE] Xác thực queue token thành công | showId={}, userId={}", showId, userId);
+        log.info("[QUEUE] Xác thực quyền mua vé thành công | showId={}, userId={}", showId, userId);
         return true;
     }
 
@@ -352,7 +327,8 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         // Lấy expireAt từ buying queue
         Double expireAt = redis.opsForZSet().score(buyingKey, userId);
         if (expireAt == null) {
-            log.warn("[QUEUE] Không tìm thấy phiên mua vé khi lấy thời gian còn lại | showId={}, userId={}", showId, userId);
+            log.warn("[QUEUE] Không tìm thấy phiên mua vé khi lấy thời gian còn lại | showId={}, userId={}", showId,
+                    userId);
             throw new AppException(ErrorCode.NOT_IN_QUEUE);
         }
 
@@ -361,7 +337,8 @@ public class TicketQueueServiceImpl implements TicketQueueService {
 
         // Nếu hết hạng đá user ra khỏi queue
         if (remaining <= 0) {
-            log.warn("[QUEUE] Phiên mua vé đã hết hạn khi lấy thời gian còn lại | showId={}, userId={}", showId, userId);
+            log.warn("[QUEUE] Phiên mua vé đã hết hạn khi lấy thời gian còn lại | showId={}, userId={}", showId,
+                    userId);
             leaveQueue(showId);
             throw new AppException(ErrorCode.BUYING_SESSION_EXPIRED);
         }

@@ -3,6 +3,7 @@ package com.example.event.controller;
 import com.example.event.dto.*;
 import com.example.event.dto.request.UpdateShowStatusReq;
 import com.example.event.dto.response.ApiResponse;
+import com.example.event.dto.response.QueueStatusResponse;
 import com.example.event.service.ShowService;
 import com.example.event.service.TicketQueueService;
 import com.example.event.service.TicketTypeService;
@@ -114,7 +115,7 @@ public class ShowController {
 
     @PostMapping("/{id}/queue/join")
     public ResponseEntity<?> joinQueue(@PathVariable String id) {
-        Map<String, Object> result = ticketQueueService.joinQueue(id);
+        QueueStatusResponse result = ticketQueueService.joinQueue(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(result)
@@ -125,7 +126,7 @@ public class ShowController {
 
     @GetMapping("/{id}/queue/status")
     public ResponseEntity<?> pollStatus(@PathVariable String id) {
-        Map<String, Object> result = ticketQueueService.getStatus(id);
+        QueueStatusResponse result = ticketQueueService.getStatus(id);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(result)
@@ -144,13 +145,13 @@ public class ShowController {
         return ResponseEntity.status(HttpStatus.OK).body(response);
     }
 
-    @GetMapping("/validate-access")
-    public ResponseEntity<?> validateAccess(
-            @PathVariable String showId,
-            @RequestParam String token) {
-        ticketQueueService.validateQueueToken(showId, token);
+    @GetMapping("/{showId}/validate-access")
+    public ResponseEntity<?> validateAccess(@PathVariable String showId) {
+        ticketQueueService.validateQueueAccess(showId);
+        QueueStatusResponse queueStatus = ticketQueueService.getStatus(showId);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
+                .data(queueStatus)
                 .message("Thành công.")
                 .build();
         return ResponseEntity.status(HttpStatus.OK).body(response);

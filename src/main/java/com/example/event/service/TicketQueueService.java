@@ -1,15 +1,22 @@
 package com.example.event.service;
 
-import java.util.Map;
+import com.example.event.dto.response.QueueStatusResponse;
 
 public interface TicketQueueService {
-    Map<String, Object> joinQueue(String showId);
-    Map<String, Object> getStatus(String showId);
+    QueueStatusResponse joinQueue(String showId);
+
+    QueueStatusResponse getStatus(String showId);
+
     void leaveQueue(String showId);
-    boolean validateQueueToken(String showId, String clientToken);
+
+    void leaveQueue(String showId, String userId);
+
+    boolean validateQueueAccess(String showId);
+
     long getRemainingTimeSeconds(String showId, String userId);
 
-    //Worker dọn rác
+    // Worker dọn rác
     void cleanupGhostUsers(String showId);
+
     void drainQueue(String showId);
 }
