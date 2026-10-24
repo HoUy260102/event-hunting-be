@@ -27,6 +27,10 @@ app:
   api-base-url: ${APP_API_BASE_URL:http://localhost:8080/api/v1}
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
 
+ticket:
+  queue:
+    max-buying: ${TICKET_QUEUE_MAX_BUYING:50}
+
 logging:
   charset:
     console: UTF-8

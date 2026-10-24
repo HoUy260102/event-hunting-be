@@ -7,6 +7,7 @@ import com.example.event.exception.AppException;
 import com.example.event.service.TicketQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -24,7 +25,9 @@ public class TicketQueueServiceImpl implements TicketQueueService {
     private final SecurityUtils securityUtils;
     private final SimpMessagingTemplate messagingTemplate;
 
-    private static final int MAX_BUYING = 2;
+    @Value("${ticket.queue.max-buying:50}")
+    private int maxBuying;
+
     private static final int BATCH_SIZE = 10;
     private static final long BUYING_TTL_MS = 600000;
     private static final long HB_TTL_MS = 30000;
@@ -265,7 +268,7 @@ public class TicketQueueServiceImpl implements TicketQueueService {
 
         // Tính slot trống
         Long buying = redis.opsForZSet().zCard(buyingKey);
-        long available = MAX_BUYING - (buying != null ? buying : 0);
+        long available = maxBuying - (buying != null ? buying : 0);
         if (available <= 0)
             return;
 
