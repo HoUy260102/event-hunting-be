@@ -21,8 +21,8 @@ public class PaymentController {
     private final TicketService ticketService;
 
     @PostMapping("/create_payment_url")
-    public ResponseEntity<?> createPayment(@RequestBody ReservationDTO request, HttpServletRequest httpRequest, @RequestHeader(name = "Idempotency-Key") String idempotencyKey) {
-        String paymentUrl = paymentService.createPaymentUrl(request, httpRequest, idempotencyKey);
+    public ResponseEntity<?> createPayment(@RequestBody ReservationDTO request, HttpServletRequest httpRequest) {
+        String paymentUrl = paymentService.createPaymentUrl(request, httpRequest);
         ApiResponse response = ApiResponse.builder()
                 .message("Thành công")
                 .status(HttpStatus.OK.value())
