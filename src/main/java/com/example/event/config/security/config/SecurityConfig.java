@@ -97,6 +97,7 @@ public class SecurityConfig {
                                     "/auth/callback/google",
                                     "/auth/google/url",
                                     "/auth/verify",
+                                    "/files/generate-signature",
                                     "/ws/**",
                                     "/topic/**",
                                     "/app/**")
