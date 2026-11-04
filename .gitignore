@@ -33,3 +33,9 @@ build/
 .vscode/
 
 .env
+
+# Test data & token generation
+tokens.csv
+users.csv
+**/TestUserDataGeneratorRunner.java
+**/TestUserTokenGeneratorTest.java

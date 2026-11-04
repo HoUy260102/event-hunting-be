@@ -78,7 +78,7 @@ public class VNPaymentServiceImpl implements PaymentService {
     /**
      * Tạo URL thanh toán VNPay kèm cơ chế Idempotency chống trùng lặp.
      * Sử dụng Redis Distributed Lock + TTL động theo thời gian hết hạn của đơn giữ
-     * chỗ (Reservation).
+     * chỗ0 (Reservation).
      */
     @Override
     @Transactional

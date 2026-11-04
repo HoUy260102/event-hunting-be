@@ -122,6 +122,7 @@ public class LockServiceImpl implements LockService {
     private static final String KEY_TIER_LIMIT = "ticket_tier:{show:%s}:%s:limit";
     private static final String KEY_TIER_RESERVED = "ticket_tier:{show:%s}:%s:reserved";
     private static final String KEY_SEAT_STATUS = "ticket_seat:{show:%s}:%s:lock";
+    public static final String KEY_SHOW_SYNC_LOCK = "sync_lock:{show:%s}";
 
     private final DefaultRedisScript<String> bulkUnassginReserveScript = createScript(BULK_RESERVE_UNASSIGN_LUA,
             String.class);
@@ -138,6 +139,7 @@ public class LockServiceImpl implements LockService {
 
     @Override
     public void reserveUnassignedTickets(String showId, List<ReservationItemReq> requests) {
+        checkShowSyncLock(showId);
         List<String> keys = new ArrayList<>();
         List<String> args = new ArrayList<>();
 
@@ -173,6 +175,7 @@ public class LockServiceImpl implements LockService {
 
     @Override
     public void lockSeats(String showId, List<ReservationItemReq> req, String userId, String lockToken) {
+        checkShowSyncLock(showId);
         if (req == null || req.isEmpty())
             return;
         List<String> sortedSeatIds = req.stream()
@@ -373,5 +376,13 @@ public class LockServiceImpl implements LockService {
             throw new RuntimeException("Dữ liệu đặt vé không hợp lệ.");
         }
         throw new RuntimeException("Đặt vé thất bại, vui lòng thử lại.");
+    }
+
+    private void checkShowSyncLock(String showId) {
+        String syncLockKey = String.format(KEY_SHOW_SYNC_LOCK, showId);
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(syncLockKey))) {
+            log.warn("[LOCK] Suất diễn {} đang được đồng bộ tồn kho. Tạm dừng nhận thêm yêu cầu giữ vé.", showId);
+            throw new AppException(ErrorCode.SHOW_SYNCING_IN_PROGRESS);
+        }
     }
 }
