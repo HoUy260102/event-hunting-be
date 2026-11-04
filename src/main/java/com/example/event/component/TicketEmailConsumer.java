@@ -121,7 +121,7 @@ public class TicketEmailConsumer
         }
     }
 
-private void ack(MapRecord<String, String, String> record) {
+    private void ack(MapRecord<String, String, String> record) {
         stringRedisTemplate.opsForStream().acknowledge(
                 RedisStreamConfig.STREAM_KEY,
                 RedisStreamConfig.GROUP_NAME,
