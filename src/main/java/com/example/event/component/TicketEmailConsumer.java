@@ -39,7 +39,7 @@ public class TicketEmailConsumer
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_SENT = "SENT";
 
-    private static final Duration LOCK_TIMEOUT = Duration.ofMinutes(5);
+    private static final Duration LOCK_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration COMPLETED_TTL = Duration.ofDays(7);
 
     @Override

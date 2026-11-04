@@ -23,7 +23,7 @@ public class AuthForgotPasswordConsumer implements StreamListener<String, MapRec
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_SENT = "SENT";
 
-    private static final Duration LOCK_TIMEOUT = Duration.ofMinutes(5);
+    private static final Duration LOCK_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration COMPLETED_TTL = Duration.ofMinutes(15);
 
     @Override
