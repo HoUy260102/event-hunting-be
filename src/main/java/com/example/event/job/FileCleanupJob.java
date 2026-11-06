@@ -1,6 +1,7 @@
 package com.example.event.job;
 
 import com.cloudinary.Cloudinary;
+import com.example.event.constant.FileType;
 import com.example.event.entity.File;
 import com.example.event.repository.FileRepository;
 import lombok.RequiredArgsConstructor;
@@ -68,8 +69,12 @@ public class FileCleanupJob {
             for (File file : filesToClean) {
                 if (file.getPublicId() != null && !file.getPublicId().isEmpty()) {
                     try {
-                        log.info("[FILE-CLEANUP] Xóa file trên Cloudinary: fileId={}, publicId={}", file.getId(), file.getPublicId());
-                        Map destroyResult = cloudinary.uploader().destroy(file.getPublicId(), new HashMap<>());
+                        log.info("[FILE-CLEANUP] Xóa file trên Cloudinary: fileId={}, publicId={}, type={}", file.getId(), file.getPublicId(), file.getType());
+                        Map<String, Object> destroyOptions = new HashMap<>();
+                        if (file.getType() == FileType.VIDEO) {
+                            destroyOptions.put("resource_type", "video");
+                        }
+                        Map destroyResult = cloudinary.uploader().destroy(file.getPublicId(), destroyOptions);
                         log.debug("[FILE-CLEANUP] Kết quả xóa Cloudinary cho {}: {}", file.getPublicId(), destroyResult);
                         if (sleepMs > 0) {
                             Thread.sleep(sleepMs);
