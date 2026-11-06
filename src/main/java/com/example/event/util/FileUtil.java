@@ -21,17 +21,38 @@ public class FileUtil {
     public static boolean isAllowedExtension(String extension, FileType fileType) {
         if (extension == null) return false;
         List<String> validFileType = FileUtil.allowedFileTypes.get(fileType.name());
-        return validFileType != null && validFileType.contains(extension);
+        return validFileType != null && validFileType.contains(extension.toLowerCase());
     }
 
     public static boolean isValidMimeType(MultipartFile file, FileType fileType) {
         try (InputStream is = file.getInputStream()) {
             String detectedType = TIKA.detect(is);
-            List<String> validMimeType = FileUtil.allowedMimeTypes.get(fileType.name());
-            return validMimeType != null && validMimeType.contains(detectedType);
+            return isAllowedMimeType(detectedType, fileType);
         } catch (Exception e) {
             return false;
         }
+    }
+
+    public static boolean isAllowedMimeType(String detectedMimeType, FileType fileType) {
+        if (detectedMimeType == null) return false;
+        List<String> validMimeType = FileUtil.allowedMimeTypes.get(fileType.name());
+        return validMimeType != null && validMimeType.contains(detectedMimeType);
+    }
+
+    public static String detectMimeType(byte[] bytes) {
+        try {
+            return TIKA.detect(bytes);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static String getAllowedFormatsString(FileType fileType) {
+        List<String> formats = allowedFileTypes.get(fileType.name());
+        if (formats == null || formats.isEmpty()) {
+            return "";
+        }
+        return String.join(",", formats);
     }
 
     public static String getFileExtension(String fileName) {
@@ -42,7 +63,10 @@ public class FileUtil {
     }
 
     public static String generatePublicId(String originalFilename) {
-        String baseName = originalFilename.substring(0, originalFilename.lastIndexOf("."));
+        String baseName = originalFilename;
+        if (originalFilename.contains(".")) {
+            baseName = originalFilename.substring(0, originalFilename.lastIndexOf("."));
+        }
         String cleanName = baseName.replaceAll("[^a-zA-Z0-9]", "-");
         return UUID.randomUUID().toString() + "-" + cleanName;
     }

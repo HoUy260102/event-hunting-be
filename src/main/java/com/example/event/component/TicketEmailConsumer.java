@@ -73,12 +73,14 @@ public class TicketEmailConsumer
             if (Boolean.FALSE.equals(acquired)) {
                 String currentStatus = stringRedisTemplate.opsForValue().get(idempotencyKey);
                 if (STATUS_SENT.equals(currentStatus)) {
-                    log.info("[TICKET-CONSUMER] Email cho reservationId={} đã được gửi thành công trước đó. Bỏ qua và ACK record={}",
+                    log.info(
+                            "[TICKET-CONSUMER] Email cho reservationId={} đã được gửi thành công trước đó. Bỏ qua và ACK record={}",
                             reservationId, recordId);
                     ack(record);
                     return;
                 } else if (STATUS_PROCESSING.equals(currentStatus)) {
-                    log.warn("[TICKET-CONSUMER] Đơn hàng reservationId={} đang được worker khác xử lý. Bỏ qua record={}",
+                    log.warn(
+                            "[TICKET-CONSUMER] Đơn hàng reservationId={} đang được worker khác xử lý. Bỏ qua record={}",
                             reservationId, recordId);
                     return;
                 }
@@ -115,7 +117,8 @@ public class TicketEmailConsumer
                         stringRedisTemplate.delete(idempotencyKey);
                     }
                 } catch (Exception ex) {
-                    log.error("[TICKET-CONSUMER] Lỗi khi giải phóng lock idempotency cho key={}: {}", idempotencyKey, ex.getMessage());
+                    log.error("[TICKET-CONSUMER] Lỗi khi giải phóng lock idempotency cho key={}: {}", idempotencyKey,
+                            ex.getMessage());
                 }
             }
         }
@@ -125,7 +128,6 @@ public class TicketEmailConsumer
         stringRedisTemplate.opsForStream().acknowledge(
                 RedisStreamConfig.STREAM_KEY,
                 RedisStreamConfig.GROUP_NAME,
-                record.getId()
-        );
+                record.getId());
     }
 }

@@ -98,6 +98,7 @@ public class SecurityConfig {
                                     "/auth/google/url",
                                     "/auth/verify",
                                     "/files/generate-signature",
+                                    "/files/complete",
                                     "/ws/**",
                                     "/topic/**",
                                     "/app/**")
