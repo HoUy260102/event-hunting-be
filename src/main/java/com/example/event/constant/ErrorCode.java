@@ -153,7 +153,11 @@ public enum ErrorCode {
     SYSTEM_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi do hệ thống."),
 
     DUPLICATE_PAYMENT_REQUEST_IN_PROGRESS(HttpStatus.CONFLICT, "Yêu cầu tạo thanh toán đang được xử lý. Vui lòng không bấm liên tục và đợi trong giây lát."),
-    SHOW_SYNCING_IN_PROGRESS(HttpStatus.SERVICE_UNAVAILABLE, "Suất diễn đang được đồng bộ tồn kho trong giây lát. Vui lòng thử lại sau 1-2 giây.");
+    SHOW_SYNCING_IN_PROGRESS(HttpStatus.SERVICE_UNAVAILABLE, "Suất diễn đang được đồng bộ tồn kho trong giây lát. Vui lòng thử lại sau 1-2 giây."),
+
+    CAPTCHA_INVALID(HttpStatus.BAD_REQUEST, "Xác thực bảo vệ (Captcha) không hợp lệ hoặc đã hết hạn. Vui lòng thử lại."),
+    CAPTCHA_REQUIRED(HttpStatus.BAD_REQUEST, "Vui lòng hoàn tất xác thực Captcha trước khi tham gia hàng đợi.");
+
 
     private final String message;
     private final HttpStatus httpStatus;

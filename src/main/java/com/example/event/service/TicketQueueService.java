@@ -5,6 +5,8 @@ import com.example.event.dto.response.QueueStatusResponse;
 public interface TicketQueueService {
     QueueStatusResponse joinQueue(String showId);
 
+    QueueStatusResponse joinQueue(String showId, String captchaToken);
+
     QueueStatusResponse getStatus(String showId);
 
     void leaveQueue(String showId);

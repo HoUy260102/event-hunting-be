@@ -99,8 +99,10 @@ public class AuthController {
     }
 
     @PostMapping("/resend-verify")
-    public ResponseEntity<?> resendVerify(@RequestParam(name = "email") String email) {
-        authService.resendVerify(email);
+    public ResponseEntity<?> resendVerify(
+            @RequestParam(name = "email") String email,
+            @RequestParam(name = "captchaToken", required = false) String captchaToken) {
+        authService.resendVerify(email, captchaToken);
         return ResponseEntity.ok(ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")

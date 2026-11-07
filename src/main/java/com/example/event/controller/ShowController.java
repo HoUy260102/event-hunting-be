@@ -1,6 +1,7 @@
 package com.example.event.controller;
 
 import com.example.event.dto.*;
+import com.example.event.dto.request.QueueJoinReq;
 import com.example.event.dto.request.UpdateShowStatusReq;
 import com.example.event.dto.response.ApiResponse;
 import com.example.event.dto.response.QueueStatusResponse;
@@ -114,8 +115,11 @@ public class ShowController {
     }
 
     @PostMapping("/{id}/queue/join")
-    public ResponseEntity<?> joinQueue(@PathVariable String id) {
-        QueueStatusResponse result = ticketQueueService.joinQueue(id);
+    public ResponseEntity<?> joinQueue(
+            @PathVariable String id,
+            @RequestBody(required = false) QueueJoinReq req) {
+        String captchaToken = (req != null) ? req.getCaptchaToken() : null;
+        QueueStatusResponse result = ticketQueueService.joinQueue(id, captchaToken);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .data(result)

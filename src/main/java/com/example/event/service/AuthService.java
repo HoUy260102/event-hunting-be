@@ -10,16 +10,28 @@ import java.io.IOException;
 
 public interface AuthService {
     AuthResponse login(LoginReq req, String deviceId, String ipAddress);
+
     AuthDTO getAuthInfo();
+
     AuthTokensResponse refreshToken(String refreshToken, String deviceId);
+
     void logout(String accessToken);
+
     void verify(String verifyToken);
+
     void resendVerify(String email);
+
+    void resendVerify(String email, String captchaToken);
+
     void signup(SignUpReq req, String deviceId);
+
     String buildGoogleAuthUrl(String deviceId);
+
     String handleCallback(String code, String deviceId) throws IOException;
 
     String sendForgotPasswordOtp(com.example.event.dto.request.ForgotPasswordSendOtpReq req);
+
     void verifyForgotPasswordOtp(com.example.event.dto.request.ForgotPasswordVerifyOtpReq req);
+
     void resetPassword(com.example.event.dto.request.ForgotPasswordResetReq req);
 }

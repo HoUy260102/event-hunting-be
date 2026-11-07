@@ -4,6 +4,7 @@ import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.ErrorCode;
 import com.example.event.dto.response.QueueStatusResponse;
 import com.example.event.exception.AppException;
+import com.example.event.service.CaptchaService;
 import com.example.event.service.TicketQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ public class TicketQueueServiceImpl implements TicketQueueService {
     private final RedisTemplate<String, String> redis;
     private final SecurityUtils securityUtils;
     private final SimpMessagingTemplate messagingTemplate;
+    private final CaptchaService captchaService;
 
     @Value("${ticket.queue.max-buying:50}")
     private int maxBuying;
@@ -69,6 +71,11 @@ public class TicketQueueServiceImpl implements TicketQueueService {
 
     @Override
     public QueueStatusResponse joinQueue(String showId) {
+        return joinQueue(showId, null);
+    }
+
+    @Override
+    public QueueStatusResponse joinQueue(String showId, String captchaToken) {
         String userId = securityUtils.getCurrentUserId();
         String waitingKey = String.format(WAITING, showId);
         String buyingKey = String.format(BUYING, showId);
@@ -77,7 +84,7 @@ public class TicketQueueServiceImpl implements TicketQueueService {
         // Đưa show vào list active show
         redis.opsForZSet().addIfAbsent(ACTIVE_SHOWS_KEY, showId, System.currentTimeMillis());
 
-        // Kiểm tra xem đã trong hàng ợi chưa
+        // Kiểm tra xem đã trong hàng đợi chưa
         Long position = redis.opsForZSet().rank(waitingKey, userId);
 
         // Nếu nằm trong hàng đợi buying
@@ -108,7 +115,14 @@ public class TicketQueueServiceImpl implements TicketQueueService {
                     .build();
         }
 
-        // Nếu là người dùng mới
+        // Nếu là người dùng mới: Xác thực Captcha chống bot trước khi đưa vào hàng đợi
+        boolean isCaptchaValid = captchaService.verifyToken(captchaToken, null);
+        if (!isCaptchaValid) {
+            log.warn("[QUEUE] Người dùng không vượt qua xác thực Captcha | showId={}, userId={}", showId, userId);
+            throw new AppException(ErrorCode.CAPTCHA_INVALID);
+        }
+
+        // Người dùng hợp lệ -> Đưa vào Redis hàng đợi
         long now = System.currentTimeMillis();
         long deadline = now + HB_TTL_MS;
         redis.executePipelined((RedisCallback<Object>) conn -> {

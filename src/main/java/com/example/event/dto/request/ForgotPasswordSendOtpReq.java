@@ -17,4 +17,5 @@ public class ForgotPasswordSendOtpReq {
     private String email;
 
     private String resetToken;
+    private String captchaToken;
 }

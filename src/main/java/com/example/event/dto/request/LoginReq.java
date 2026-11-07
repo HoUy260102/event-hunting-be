@@ -11,4 +11,5 @@ public class LoginReq {
     private String username;
     @NotBlank(message = "Password không được trống")
     private String password;
+    private String captchaToken;
 }

@@ -33,6 +33,7 @@ import com.example.event.repository.RoleRepository;
 import com.example.event.repository.SessionRepository;
 import com.example.event.repository.UserRepository;
 import com.example.event.service.AuthService;
+import com.example.event.service.CaptchaService;
 import com.example.event.service.MailService;
 import com.example.event.service.RedisService;
 import com.example.event.service.SessionService;
@@ -79,6 +80,7 @@ public class AuthServiceImpl implements AuthService {
     private final RedisService redisService;
     private final SessionService sessionService;
     private final PasswordEncoder passwordEncoder;
+    private final CaptchaService captchaService;
     private final Long maxRetries = 5L;
     private final String loginFailPrefix = "login:fail:";
     private final String tokenPrefix = "auth:";
@@ -86,15 +88,16 @@ public class AuthServiceImpl implements AuthService {
     // Constants cho tính năng Quên mật khẩu / Reset Password
     private static final String FORGOT_TOKEN_PREFIX = "forgot:token:";
     private static final String FORGOT_OTP_PREFIX = "forgot:otp:";
-    private static final Long FORGOT_PASSWORD_TOKEN_TTL_SECONDS = 900L;      // 15 phút: thời gian sống của phiên resetToken
-    private static final Long FORGOT_PASSWORD_OTP_TTL_SECONDS = 300L;        // 5 phút: thời gian sống của mã xác thực OTP
-    private static final Long FORGOT_PASSWORD_VERIFIED_TTL_SECONDS = 600L;   // 10 phút: thời gian cho phép đổi mật khẩu sau khi verify OTP thành công
+    private static final Long FORGOT_PASSWORD_TOKEN_TTL_SECONDS = 900L; // 15 phút: thời gian sống của phiên resetToken
+    private static final Long FORGOT_PASSWORD_OTP_TTL_SECONDS = 300L; // 5 phút: thời gian sống của mã xác thực OTP
+    private static final Long FORGOT_PASSWORD_VERIFIED_TTL_SECONDS = 600L; // 10 phút: thời gian cho phép đổi mật khẩu
+                                                                           // sau khi verify OTP thành công
     private static final String FORGOT_COOLDOWN_PREFIX = "forgot:cooldown:email:";
-    private static final Long FORGOT_PASSWORD_COOLDOWN_SECONDS = 60L;       // 60 giây giãn cách giữa các lần yêu cầu gửi OTP
+    private static final Long FORGOT_PASSWORD_COOLDOWN_SECONDS = 60L; // 60 giây giãn cách giữa các lần yêu cầu gửi OTP
 
     // Constants cho tính năng Xác thực tài khoản đăng ký
     private static final String RESEND_VERIFY_COOLDOWN_PREFIX = "auth:cooldown:verify:";
-    private static final Long RESEND_VERIFY_COOLDOWN_SECONDS = 60L;         // 60 giây giãn cách gửi lại email xác thực
+    private static final Long RESEND_VERIFY_COOLDOWN_SECONDS = 60L; // 60 giây giãn cách gửi lại email xác thực
 
     private final UserRepository userRepository;
     private final MailService mailService;
@@ -121,6 +124,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public AuthResponse login(LoginReq req, String deviceId, String ipAddress) {
+        if (!captchaService.verifyToken(req.getCaptchaToken(), ipAddress)) {
+            throw new AppException(ErrorCode.CAPTCHA_INVALID);
+        }
         try {
             if (!isLoginRetryBlocked(req.getUsername(), deviceId, ipAddress)) {
                 throw new AppException(ErrorCode.LOGIN_BLOCKED);
@@ -189,7 +195,8 @@ public class AuthServiceImpl implements AuthService {
             SessionRevokeReason reuseReason = session.getRevokeReason() == SessionRevokeReason.TOKEN_ROTATED
                     ? SessionRevokeReason.REFRESH_TOKEN_REUSE
                     : SessionRevokeReason.REVOKED_TOKEN_REUSE;
-            log.warn("[AUTH] Phát hiện gửi lại refresh token đã thu hồi, session id={}, nguyên nhân={}", sid, reuseReason);
+            log.warn("[AUTH] Phát hiện gửi lại refresh token đã thu hồi, session id={}, nguyên nhân={}", sid,
+                    reuseReason);
             revokeTokenFamily(tokenFamily, reuseReason);
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
@@ -197,7 +204,8 @@ public class AuthServiceImpl implements AuthService {
         LocalDateTime now = LocalDateTime.now();
         if (session.getTokenFamilyExpiresAt() == null
                 || !session.getTokenFamilyExpiresAt().isAfter(now)) {
-            // Hạn family cố định theo refresh token đầu tiên, không được kéo dài khi rotation.
+            // Hạn family cố định theo refresh token đầu tiên, không được kéo dài khi
+            // rotation.
             log.warn("[AUTH] Từ chối refresh vì token family đã hết hạn, session id={}", sid);
             revokeTokenFamily(tokenFamily, SessionRevokeReason.TOKEN_FAMILY_EXPIRED);
             throw new AppException(ErrorCode.TOKEN_EXPIRED);
@@ -216,7 +224,8 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.TOKEN_INVALID);
         }
 
-        // Mỗi lần rotation tạo một row mới nhưng giữ nguyên family và deadline tuyệt đối.
+        // Mỗi lần rotation tạo một row mới nhưng giữ nguyên family và deadline tuyệt
+        // đối.
         Session rotatedSession = new Session();
         rotatedSession.setUser(user);
         rotatedSession.setDeviceId(session.getDeviceId());
@@ -227,11 +236,12 @@ public class AuthServiceImpl implements AuthService {
         rotatedSession.setRevoked(false);
         sessionRepository.saveAndFlush(rotatedSession);
 
-        // Client nhận UUID mới; database chỉ lưu hash và hạn không vượt deadline family.
+        // Client nhận UUID mới; database chỉ lưu hash và hạn không vượt deadline
+        // family.
         String rotatedRefreshToken = refreshTokenUtils.generateToken();
         rotatedSession.setRefreshTokenHash(refreshTokenUtils.hashToken(rotatedRefreshToken));
         rotatedSession.setExpiryDate(refreshTokenUtils.getRotatedExpiry(
-            now, rotatedSession.getTokenFamilyExpiresAt()));
+                now, rotatedSession.getTokenFamilyExpiresAt()));
         sessionRepository.save(rotatedSession);
 
         // Đánh dấu token cũ đã rotate; lần dùng lại nó sẽ kích hoạt thu hồi family.
@@ -242,7 +252,7 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtUtils.generateToken(user.getEmail(), rotatedSession.getId(), "access");
         log.info("[AUTH] Làm mới token thành công; session cũ id={}, session mới id={}",
-            session.getId(), rotatedSession.getId());
+                session.getId(), rotatedSession.getId());
         return new AuthTokensResponse(accessToken, rotatedRefreshToken);
     }
 
@@ -325,6 +335,15 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public void resendVerify(String email) {
+        resendVerify(email, null);
+    }
+
+    @Transactional
+    @Override
+    public void resendVerify(String email, String captchaToken) {
+        if (!captchaService.verifyToken(captchaToken, null)) {
+            throw new AppException(ErrorCode.CAPTCHA_INVALID);
+        }
         String cleanEmail = email.trim().toLowerCase();
 
         // 1. Kiểm tra Cooldown theo Email (chặn spam vào cùng 1 hòm thư)
@@ -353,6 +372,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public void signup(SignUpReq req, String deviceId) {
+        if (!captchaService.verifyToken(req.getCaptchaToken(), null)) {
+            throw new AppException(ErrorCode.CAPTCHA_INVALID);
+        }
         if (!req.getPassword().equals(req.getConfirmPassword())) {
             throw new AppException(ErrorCode.PASSWORD_MISMATCH);
         }
@@ -389,8 +411,10 @@ public class AuthServiceImpl implements AuthService {
         redisService.set(verifyKey, verifyToken, ttl);
         authVerifyEmailProducer.sendVerifyEmail(createUser.getEmail(), verifyToken);
 
-        // Thiết lập cooldown 60 giây ngay sau khi đăng ký và gửi email kích hoạt đầu tiên
-        redisService.set(RESEND_VERIFY_COOLDOWN_PREFIX + createUser.getEmail().toLowerCase(), "1", RESEND_VERIFY_COOLDOWN_SECONDS);
+        // Thiết lập cooldown 60 giây ngay sau khi đăng ký và gửi email kích hoạt đầu
+        // tiên
+        redisService.set(RESEND_VERIFY_COOLDOWN_PREFIX + createUser.getEmail().toLowerCase(), "1",
+                RESEND_VERIFY_COOLDOWN_SECONDS);
     }
 
     @Override
@@ -574,6 +598,9 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public String sendForgotPasswordOtp(ForgotPasswordSendOtpReq req) {
+        if (!captchaService.verifyToken(req.getCaptchaToken(), null)) {
+            throw new AppException(ErrorCode.CAPTCHA_INVALID);
+        }
         String email = req.getEmail().trim().toLowerCase();
 
         User user = Optional.ofNullable(userRepository.findUserByEmail(email))
@@ -592,7 +619,8 @@ public class AuthServiceImpl implements AuthService {
             throw new AppException(ErrorCode.ACCOUNT_REGISTERED_WITH_GOOGLE);
         }
 
-        // Kiểm tra Rate Limit: giãn cách tối thiểu 60s giữa các lần yêu cầu gửi OTP cho cùng 1 email
+        // Kiểm tra Rate Limit: giãn cách tối thiểu 60s giữa các lần yêu cầu gửi OTP cho
+        // cùng 1 email
         String cooldownKey = FORGOT_COOLDOWN_PREFIX + email;
         if (redisService.get(cooldownKey, Object.class) != null) {
             throw new AppException(ErrorCode.OTP_RESEND_COOLDOWN);
@@ -604,7 +632,8 @@ public class AuthServiceImpl implements AuthService {
         if (resetToken != null && !resetToken.isBlank()) {
             Object rawData = redisService.get(FORGOT_TOKEN_PREFIX + resetToken, Object.class);
             if (rawData != null) {
-                ForgotPasswordTokenData tokenData = new ObjectMapper().convertValue(rawData, ForgotPasswordTokenData.class);
+                ForgotPasswordTokenData tokenData = new ObjectMapper().convertValue(rawData,
+                        ForgotPasswordTokenData.class);
                 if (tokenData != null && email.equalsIgnoreCase(tokenData.getEmail())) {
                     reuseToken = true;
                 }
@@ -670,7 +699,8 @@ public class AuthServiceImpl implements AuthService {
         // 3. Khớp OTP: Xóa Key OTP ngay để không thể tái sử dụng
         redisService.del(FORGOT_OTP_PREFIX + resetToken);
 
-        // 4. Cập nhật trạng thái verified = true và gia hạn thêm 10 phút để nhập mật khẩu
+        // 4. Cập nhật trạng thái verified = true và gia hạn thêm 10 phút để nhập mật
+        // khẩu
         tokenData.setVerified(true);
         redisService.set(FORGOT_TOKEN_PREFIX + resetToken, tokenData, FORGOT_PASSWORD_VERIFIED_TTL_SECONDS);
 
