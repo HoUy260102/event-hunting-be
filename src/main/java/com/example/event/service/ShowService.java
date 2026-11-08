@@ -11,21 +11,33 @@ import java.util.List;
 
 public interface ShowService {
     void createShows(List<CreateShowReq> showsReq,
-                     Event event,
-                     String creatorId);
+            Event event,
+            String creatorId);
+
     ShowDTO createShow(CreateShowReq showReq, String eventId);
+
     ShowDTO updateShow(UpdateShowReq showReq, String showId,
-                     String eventId);
+            String eventId);
+
     ShowRegistryDTO findShowRegistryById(String id);
+
     ShowBookingDTO findShowBookingById(String id);
+
     ShowDetailDTO findShowDetailById(String id);
+
     void updateShowStatus(String showId, ShowStatus status);
+
     List<ShowDTO> findShowsByEventId(String eventId);
+
     List<ShowSelectionDTO> findShowSelectionByEventId(String eventId);
+
     void softDeleteShows(List<String> ids, String deletorId);
+
     void restoreShows(List<String> ids, String restorerId);
+
     void softDeleteShow(String id);
+
     void restoreShow(String id);
+
     List<ShowDTO> findDeletedShowsByEventId(String eventId);
-    void warmUpMissingShowStockKeys(String showId);
 }

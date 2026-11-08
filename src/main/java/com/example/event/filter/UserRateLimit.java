@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -34,8 +35,10 @@ public class UserRateLimit extends OncePerRequestFilter {
     private final RedisTemplate<String, Object> redisTemplate;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    private static final String LUA_SCRIPT =
-            "local key = KEYS[1] " +
+    @Value("${app.rate-limit.enabled:true}")
+    private boolean enabled;
+
+    private static final String LUA_SCRIPT = "local key = KEYS[1] " +
             "local member = ARGV[1] " +
             "local score = tonumber(ARGV[2]) " +
             "local minScore = tonumber(ARGV[3]) " +
@@ -63,7 +66,7 @@ public class UserRateLimit extends OncePerRequestFilter {
             put("/events/*/info", new RateLimitConfig(60L, 10L));
 
             // Transactional/Sensitive APIs
-//            put("/reservations", new RateLimitConfig(10L, 10L));
+            put("/reservations", new RateLimitConfig(10L, 10L));
             put("/reservations/*/cancel", new RateLimitConfig(5L, 10L));
             put("/payments/create_payment_url", new RateLimitConfig(5L, 10L));
             put("/favorites/*", new RateLimitConfig(10L, 10L));
@@ -71,7 +74,13 @@ public class UserRateLimit extends OncePerRequestFilter {
     };
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        if (!enabled) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String path = request.getServletPath();
 
         RateLimitConfig limit = null;
@@ -123,8 +132,7 @@ public class UserRateLimit extends OncePerRequestFilter {
                 now,
                 windowStart,
                 maxRequests,
-                windowSec + 2
-        );
+                windowSec + 2);
 
         if (result != null && result == 0) {
             ErrorResponse err = ErrorResponse.builder()

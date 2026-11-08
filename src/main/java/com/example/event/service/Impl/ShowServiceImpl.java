@@ -15,7 +15,6 @@ import com.example.event.service.*;
 import com.example.event.validation.ShowValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,13 +37,7 @@ public class ShowServiceImpl implements ShowService {
     private final ShowMapper showMapper;
     private final EventRepository eventRepository;
     private final ShowValidator showValidator;
-    private final RedisTemplate<String, String> redisTemplate;
     private final ReservationRepository reservationRepository;
-
-    private static final String KEY_TYPE_TOTAL = "ticket_type:{show:%s}:%s:total";
-    private static final String KEY_TYPE_RESERVED = "ticket_type:{show:%s}:%s:reserved";
-    private static final String KEY_TIER_LIMIT = "ticket_tier:{show:%s}:%s:limit";
-    private static final String KEY_TIER_RESERVED = "ticket_tier:{show:%s}:%s:reserved";
 
     @Override
     public void createShows(List<CreateShowReq> showsReq, Event event, String creatorId) {
@@ -256,9 +249,6 @@ public class ShowServiceImpl implements ShowService {
         savedShow.setTicketTypes(updatedTypes);
         
         updateEventTime(event);
-        if (savedShow.getStatus() == ShowStatus.ACTIVE) {
-            syncShowStockToRedis(savedShow);
-        }
 
         log.info("[SHOW] Cập nhật thông tin suất diễn thành công: showId={}, eventId={}, status={}, updatorId={}",
                 savedShow.getId(), event.getId(), savedShow.getStatus(), updatorId);
@@ -328,7 +318,6 @@ public class ShowServiceImpl implements ShowService {
         }
         if (newStatus == ShowStatus.ACTIVE) {
             updateEventTime(show.getEvent());
-            syncShowStockToRedis(show);
         }
         show.setStatus(newStatus);
         show.setUpdatedAt(LocalDateTime.now());
@@ -537,90 +526,6 @@ public class ShowServiceImpl implements ShowService {
         event.setEndTime(endTime);
         event.setMinPrice(minPrice);
         eventRepository.save(event);
-    }
-
-    void syncShowStockToRedis(Show show) {
-        String showId = show.getId();
-        for (TicketType type : show.getTicketTypes()) {
-            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED)
-                continue;
-            String typeId = type.getId();
-            redisTemplate.opsForValue().set(
-                    String.format(KEY_TYPE_TOTAL, showId, typeId),
-                    String.valueOf(type.getTotalQuantity())
-            );
-
-            redisTemplate.opsForValue().setIfAbsent(
-                    String.format(KEY_TYPE_RESERVED, showId, typeId),
-                    "0"
-            );
-
-            for (TicketTier tier : type.getTicketTiers()) {
-                String tierId = tier.getId();
-
-                redisTemplate.opsForValue().set(
-                        String.format(KEY_TIER_LIMIT, showId, tierId),
-                        String.valueOf(tier.getLimitQuantity())
-                );
-
-                redisTemplate.opsForValue().setIfAbsent(
-                        String.format(KEY_TIER_RESERVED, showId, tierId),
-                        "0"
-                );
-            }
-        }
-        log.info("[SHOW] Đã đồng bộ dữ liệu Show {} lên Redis an toàn.", showId);
-    }
-
-    @Override
-    @Transactional
-    public void warmUpMissingShowStockKeys(String showId) {
-        Show show = Optional.ofNullable(showRepository.findShowById(showId))
-                .orElse(null);
-
-        if (show == null) {
-            log.warn("[SHOW] Không tìm thấy Show {} để warm-up Redis stock.", showId);
-            return;
-        }
-
-        for (TicketType type : show.getTicketTypes()) {
-            if (show.getSeatMapType() == SeatMapType.SECTION_WITH_SEATS && type.getSeatingType() == SeatingType.SEATED) {
-                continue;
-            }
-
-            String typeId = type.getId();
-            String typeTotalKey = String.format(KEY_TYPE_TOTAL, showId, typeId);
-            if (!Boolean.TRUE.equals(redisTemplate.hasKey(typeTotalKey))) {
-                redisTemplate.opsForValue().set(typeTotalKey, String.valueOf(type.getTotalQuantity()));
-                log.info("[SHOW] Warm-up missing Redis key: {}", typeTotalKey);
-            }
-
-            String typeReservedKey = String.format(KEY_TYPE_RESERVED, showId, typeId);
-            if (!Boolean.TRUE.equals(redisTemplate.hasKey(typeReservedKey))) {
-                boolean setOk = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(typeReservedKey, "0"));
-                if (setOk) {
-                    log.info("[SHOW] Warm-up missing Redis key: {}", typeReservedKey);
-                }
-            }
-
-            for (TicketTier tier : type.getTicketTiers()) {
-                String tierId = tier.getId();
-                String tierLimitKey = String.format(KEY_TIER_LIMIT, showId, tierId);
-                if (!Boolean.TRUE.equals(redisTemplate.hasKey(tierLimitKey))) {
-                    redisTemplate.opsForValue().set(tierLimitKey, String.valueOf(tier.getLimitQuantity()));
-                    log.info("[SHOW] Warm-up missing Redis key: {}", tierLimitKey);
-                }
-
-                String tierReservedKey = String.format(KEY_TIER_RESERVED, showId, tierId);
-                if (!Boolean.TRUE.equals(redisTemplate.hasKey(tierReservedKey))) {
-                    boolean setOk = Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(tierReservedKey, "0"));
-                    if (setOk) {
-                        log.info("[SHOW] Warm-up missing Redis key: {}", tierReservedKey);
-                    }
-                }
-            }
-        }
-        log.info("[SHOW] Đã warm-up missing keys cho Show {} trên Redis.", showId);
     }
 
     @Override

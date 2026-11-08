@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -32,6 +33,9 @@ public class RateLimit extends OncePerRequestFilter {
     private final RedisTemplate<String, Object> redisTemplate;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    @Value("${app.rate-limit.enabled:true}")
+    private boolean enabled;
 
     private static final String LUA_SCRIPT = "local key = KEYS[1] " +
             "local member = ARGV[1] " +
@@ -86,6 +90,11 @@ public class RateLimit extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        if (!enabled) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String path = request.getServletPath();
 
         // 1. Kiểm tra danh sách bỏ qua (Bypass: VNPay webhook, WebSocket...)
