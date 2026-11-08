@@ -401,7 +401,6 @@ public class ReservationServiceImpl implements ReservationService {
             String message = e.getMessage();
             log.error("[RESERVATION] LỖI khi tạo đơn hàng. ShowId: {}, UserId: {}. Lý do: {}",
                     show.getId(), creatorId, message);
-
             if (isSeatsLocked) {
                 log.info("[RESERVATION] Đang giải phóng ghế do lỗi...");
                 lockService.unlockSeats(show.getId(), assignedItems, lockToken);
@@ -458,7 +457,6 @@ public class ReservationServiceImpl implements ReservationService {
             Voucher voucher = reservation.getVoucher();
             List<ReservationItem> items = reservation.getItems();
             // Phân loại Items
-            List<ReservationItem> unassignedItems = new ArrayList<>();
             List<ReservationItem> seatedItems = new ArrayList<>();
             List<String> seatCodes = new ArrayList<>();
 
@@ -471,8 +469,6 @@ public class ReservationServiceImpl implements ReservationService {
                 if (item.getSeat() != null) {
                     seatCodes.add(item.getSeatCode());
                     seatedItems.add(item);
-                } else {
-                    unassignedItems.add(item);
                 }
             }
 
