@@ -161,7 +161,6 @@ class ReservationServiceImplTest {
 
         // Then
         assertNotNull(result);
-        verify(lockService, times(1)).reserveUnassignedTickets(eq(show.getId()), any());
         verify(reservationRepository, times(1)).saveAndFlush(any(Reservation.class));
         verify(ticketTypeRepository, times(1)).incrementReservedQuantity(eq(ticketType.getId()), eq(2), any(), anyString());
         verify(ticketTierRepository, times(1)).incrementReservedQuantity(eq(ticketTier.getId()), eq(2), any(), anyString());
@@ -286,7 +285,6 @@ class ReservationServiceImplTest {
 
         // Then
         assertEquals(ErrorCode.TICKET_TYPE_SOLD_OUT, ex.getErrorCode());
-        verify(lockService, times(1)).releaseUnassignedTickets(eq(show.getId()), any());
         verify(reservationRepository, times(1)).saveAndFlush(any());
     }
 
@@ -311,7 +309,6 @@ class ReservationServiceImplTest {
 
         // Then
         assertEquals(ErrorCode.TICKET_TIER_SOLD_OUT, ex.getErrorCode());
-        verify(lockService, times(1)).releaseUnassignedTickets(eq(show.getId()), any());
         verify(reservationRepository, times(1)).saveAndFlush(any());
     }
 

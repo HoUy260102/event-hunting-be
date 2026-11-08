@@ -12,7 +12,6 @@ import com.example.event.mapper.ReservationMapper;
 import com.example.event.repository.*;
 import com.example.event.service.LockService;
 import com.example.event.service.ReservationService;
-import com.example.event.service.ShowService;
 import com.example.event.service.TicketQueueService;
 import com.example.event.service.VoucherService;
 import com.example.event.specification.ReservationSpecification;
@@ -43,7 +42,6 @@ public class ReservationServiceImpl implements ReservationService {
     private final TicketTierRepository ticketTierRepository;
     private final UserRepository userRepository;
     private final LockService lockService;
-    private final ShowService showService;
     private final ShowRepository showRepository;
     private final SecurityUtils securityUtils;
     private final SeatRepository seatRepository;
@@ -229,19 +227,11 @@ public class ReservationServiceImpl implements ReservationService {
                 .map(item -> item.getQuantity() * item.getUnitPrice())
                 .reduce(0L, Long::sum);
 
-        // Tiến hành lock ghế
-        boolean isUnassignedReserved = false;
+        // Tiến hành lock ghế (chỉ áp dụng cho vé có ghế / assigned)
         boolean isSeatsLocked = false;
         List<String> seatSockettCodes = new ArrayList<>();
         String lockToken = assignedItems.isEmpty() ? null : UUID.randomUUID().toString();
         try {
-            // Lock các vé unassign (không có ghế)
-            if (!unassignedItems.isEmpty()) {
-                log.info("[RESERVATION] User {} | Show {} - Đang giữ chỗ cho {} loại vé không số ghế", creatorId,
-                        show.getId(), unassignedItems.size());
-                lockService.reserveUnassignedTickets(show.getId(), unassignedItems);
-                isUnassignedReserved = true;
-            }
             // Lock các vé assign (có ghế)
             if (!assignedItems.isEmpty()) {
                 log.info("[RESERVATION] User {} | Show {} - Đang lock {} ghế", creatorId, show.getId(),
@@ -409,19 +399,9 @@ public class ReservationServiceImpl implements ReservationService {
             return reservationMapper.toDto(reservation);
         } catch (Exception e) {
             String message = e.getMessage();
-            if (e instanceof RuntimeException && message != null && message.startsWith("ERR_MISSING_KEY")) {
-                log.warn("[RESERVATION] Redis thiếu stock key cho show {}. Bắt đầu warm-up cache từ DB. Chi tiết: {}",
-                        show.getId(), message);
-                showService.warmUpMissingShowStockKeys(show.getId());
-                throw new RuntimeException("Dữ liệu stock Redis đang được tải lại, vui lòng thử lại sau.");
-            }
             log.error("[RESERVATION] LỖI khi tạo đơn hàng. ShowId: {}, UserId: {}. Lý do: {}",
                     show.getId(), creatorId, message);
 
-            if (isUnassignedReserved) {
-                log.info("[RESERVATION] Đang giải phóng unassigned tickets do lỗi...");
-                lockService.releaseUnassignedTickets(show.getId(), unassignedItems);
-            }
             if (isSeatsLocked) {
                 log.info("[RESERVATION] Đang giải phóng ghế do lỗi...");
                 lockService.unlockSeats(show.getId(), assignedItems, lockToken);
@@ -496,9 +476,6 @@ public class ReservationServiceImpl implements ReservationService {
                 }
             }
 
-            if (!unassignedItems.isEmpty()) {
-                lockService.releaseUnassignedReservationItem(showId, unassignedItems);
-            }
             if (!seatedItems.isEmpty()) {
                 lockService.unlockSeatsReservationItem(showId, seatedItems, reservation.getLockToken());
             }
