@@ -28,8 +28,11 @@ public class FileCleanupJob {
     private final FileRepository fileRepository;
     private final Cloudinary cloudinary;
 
-    @Value("${app.cleanup.pending-days:7}")
-    private int pendingDaysThreshold;
+    @Value("${app.cleanup.pending-hours:3}")
+    private int pendingHoursThreshold;
+
+    @Value("${app.cleanup.uploaded-hours:24}")
+    private int uploadedHoursThreshold;
 
     @Value("${app.cleanup.deleted-days:30}")
     private int deletedDaysThreshold;
@@ -49,7 +52,8 @@ public class FileCleanupJob {
     public void cleanupExpiredFiles() {
         log.info("Bắt đầu cleanup file hết hạn");
 
-        LocalDateTime pendingThreshold = LocalDateTime.now().minusDays(pendingDaysThreshold);
+        LocalDateTime pendingThreshold = LocalDateTime.now().minusHours(pendingHoursThreshold);
+        LocalDateTime uploadedThreshold = LocalDateTime.now().minusHours(uploadedHoursThreshold);
         LocalDateTime deletedThreshold = LocalDateTime.now().minusDays(deletedDaysThreshold);
 
         int totalDeleted = 0;
@@ -57,7 +61,7 @@ public class FileCleanupJob {
 
         while (true) {
             // 1. Query next batch from DB
-            Slice<File> expiredSlice = fileRepository.findExpiredFiles(pendingThreshold, deletedThreshold, pageable);
+            Slice<File> expiredSlice = fileRepository.findExpiredFiles(pendingThreshold, uploadedThreshold, deletedThreshold, pageable);
             List<File> filesToClean = expiredSlice.getContent();
 
             if (filesToClean.isEmpty()) {

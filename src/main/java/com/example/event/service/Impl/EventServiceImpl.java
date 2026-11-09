@@ -88,21 +88,44 @@ public class EventServiceImpl implements EventService {
             errorDetails.put("bannerId", "Không tìm thấy được ảnh banner, vui lòng tải lại.");
         } else if (banner.getType() != FileType.IMAGE) {
             errorDetails.put("bannerId", "Banner phải là ảnh, vui lòng tải lại.");
+        } else if (banner.getStatus() == FileStatus.PENDING) {
+            errorDetails.put("bannerId", "Ảnh banner đang được tải lên, vui lòng đợi hoàn tất.");
+        } else if (banner.getStatus() != FileStatus.UPLOADED) {
+            errorDetails.put("bannerId", "Ảnh banner không hợp lệ hoặc đã bị xóa.");
         }
         if (poster == null) {
             errorDetails.put("posterId", "Không tìm thấy được ảnh poster, vui lòng tải lại.");
         } else if (poster.getType() != FileType.IMAGE) {
             errorDetails.put("posterId", "Poster phải là ảnh, vui lòng tải lại.");
+        } else if (poster.getStatus() == FileStatus.PENDING) {
+            errorDetails.put("posterId", "Ảnh poster đang được tải lên, vui lòng đợi hoàn tất.");
+        } else if (poster.getStatus() != FileStatus.UPLOADED) {
+            errorDetails.put("posterId", "Ảnh poster không hợp lệ hoặc đã bị xóa.");
         }
         if (organizerLogo == null) {
             errorDetails.put("organizerLogoId", "Không tìm thấy được ảnh logo nhà tổ chức, vui lòng tải lại.");
         } else if (organizerLogo.getType() != FileType.IMAGE) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức phải là ảnh, vui lòng tải lại.");
+        } else if (organizerLogo.getStatus() == FileStatus.PENDING) {
+            errorDetails.put("organizerLogoId", "Logo ban tổ chức đang được tải lên, vui lòng đợi hoàn tất.");
+        } else if (organizerLogo.getStatus() != FileStatus.UPLOADED) {
+            errorDetails.put("organizerLogoId", "Logo ban tổ chức không hợp lệ hoặc đã bị xóa.");
         }
         // Kiểm tra xem các media gửi lên có tồn tại không
         if (createEventReq.getMediaIds() != null && !createEventReq.getMediaIds().isEmpty()) {
-            if (createEventReq.getMediaIds().size() != fileRepository.countFileByIdIn(createEventReq.getMediaIds())) {
+            List<File> medias = fileRepository.findAllById(createEventReq.getMediaIds());
+            if (medias.size() != createEventReq.getMediaIds().size()) {
                 errorDetails.put("mediaIds", "Một số file đính kèm không tồn tại.");
+            } else {
+                for (File media : medias) {
+                    if (media.getStatus() == FileStatus.PENDING) {
+                        errorDetails.put("mediaIds", "Một số file đính kèm đang được tải lên, vui lòng đợi hoàn tất.");
+                        break;
+                    } else if (media.getStatus() != FileStatus.UPLOADED) {
+                        errorDetails.put("mediaIds", "Một số file đính kèm không hợp lệ hoặc đã được sử dụng.");
+                        break;
+                    }
+                }
             }
         }
         // Check show validate
@@ -313,21 +336,44 @@ public class EventServiceImpl implements EventService {
             errorDetails.put("bannerId", "Không tìm thấy được ảnh banner, vui lòng tải lại.");
         } else if (banner.getType() != FileType.IMAGE) {
             errorDetails.put("bannerId", "Banner phải là ảnh, vui lòng tải lại.");
+        } else if (banner.getStatus() == FileStatus.PENDING) {
+            errorDetails.put("bannerId", "Ảnh banner đang được tải lên, vui lòng đợi hoàn tất.");
+        } else if (banner.getStatus() != FileStatus.UPLOADED && !(banner.getStatus() == FileStatus.ACTIVE && id.equals(banner.getReferenceId()))) {
+            errorDetails.put("bannerId", "Ảnh banner không hợp lệ hoặc không thuộc sự kiện này.");
         }
         if (poster == null) {
             errorDetails.put("posterId", "Không tìm thấy được ảnh poster, vui lòng tải lại.");
         } else if (poster.getType() != FileType.IMAGE) {
             errorDetails.put("posterId", "Poster phải là ảnh, vui lòng tải lại.");
+        } else if (poster.getStatus() == FileStatus.PENDING) {
+            errorDetails.put("posterId", "Ảnh poster đang được tải lên, vui lòng đợi hoàn tất.");
+        } else if (poster.getStatus() != FileStatus.UPLOADED && !(poster.getStatus() == FileStatus.ACTIVE && id.equals(poster.getReferenceId()))) {
+            errorDetails.put("posterId", "Ảnh poster không hợp lệ hoặc không thuộc sự kiện này.");
         }
         if (organizerLogo == null) {
             errorDetails.put("organizerLogoId", "Không tìm thấy được ảnh logo nhà tổ chức, vui lòng tải lại.");
         } else if (organizerLogo.getType() != FileType.IMAGE) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức phải là ảnh, vui lòng tải lại.");
+        } else if (organizerLogo.getStatus() == FileStatus.PENDING) {
+            errorDetails.put("organizerLogoId", "Logo ban tổ chức đang được tải lên, vui lòng đợi hoàn tất.");
+        } else if (organizerLogo.getStatus() != FileStatus.UPLOADED && !(organizerLogo.getStatus() == FileStatus.ACTIVE && id.equals(organizerLogo.getReferenceId()))) {
+            errorDetails.put("organizerLogoId", "Logo ban tổ chức không hợp lệ hoặc không thuộc sự kiện này.");
         }
         // Kiểm tra xem các media gửi lên có tồn tại không
         if (updateEventReq.getMediaIds() != null && !updateEventReq.getMediaIds().isEmpty()) {
-            if (updateEventReq.getMediaIds().size() != fileRepository.countFileByIdIn(updateEventReq.getMediaIds())) {
+            List<File> medias = fileRepository.findAllById(updateEventReq.getMediaIds());
+            if (medias.size() != updateEventReq.getMediaIds().size()) {
                 errorDetails.put("mediaIds", "Một số file đính kèm không tồn tại.");
+            } else {
+                for (File media : medias) {
+                    if (media.getStatus() == FileStatus.PENDING) {
+                        errorDetails.put("mediaIds", "Một số file đính kèm đang được tải lên, vui lòng đợi hoàn tất.");
+                        break;
+                    } else if (media.getStatus() != FileStatus.UPLOADED && !(media.getStatus() == FileStatus.ACTIVE && id.equals(media.getReferenceId()))) {
+                        errorDetails.put("mediaIds", "Một số file đính kèm không hợp lệ hoặc không thuộc sự kiện này.");
+                        break;
+                    }
+                }
             }
         }
 

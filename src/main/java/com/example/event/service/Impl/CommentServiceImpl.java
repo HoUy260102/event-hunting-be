@@ -106,8 +106,17 @@ public class CommentServiceImpl implements CommentService {
             // Ghi nhận tương tác Event Interaction (Tăng điểm gợi ý/xu hướng)
             eventInteractionService.addInteraction(event.getId(), userId, InteractionType.COMMENT);
 
-            // 4. Kích hoạt và liên kết file ảnh đính kèm (chuyển PENDING sang ACTIVE)
+            // 4. Kích hoạt và liên kết file ảnh đính kèm (chuyển UPLOADED sang ACTIVE)
             if (req.getFileIds() != null && !req.getFileIds().isEmpty()) {
+                List<File> files = fileRepository.findAllById(req.getFileIds());
+                if (files.size() != req.getFileIds().size()) {
+                    throw new AppException(ErrorCode.FILE_NOT_FOUND);
+                }
+                for (File f : files) {
+                    if (f.getStatus() == FileStatus.PENDING) {
+                        throw new AppException(ErrorCode.VALIDATION_ERROR, "Hình ảnh đang được tải lên, vui lòng đợi hoàn tất.");
+                    }
+                }
                 log.info("[COMMENT] Kích hoạt các file đính kèm: fileIds={}", req.getFileIds());
                 fileRepository.activateFiles(req.getFileIds(), savedComment.getId());
             }
@@ -295,8 +304,17 @@ public class CommentServiceImpl implements CommentService {
             List<String> fileIdsToActivate = extractIdsToUpdate(oldFileIds, newFileIds);
             List<String> fileIdsToDelete = extractIdsToDelete(oldFileIds, newFileIds);
 
-            // Kích hoạt các ảnh mới được thêm vào (từ PENDING sang ACTIVE)
+            // Kích hoạt các ảnh mới được thêm vào (chuyển UPLOADED sang ACTIVE)
             if (!fileIdsToActivate.isEmpty()) {
+                List<File> files = fileRepository.findAllById(fileIdsToActivate);
+                if (files.size() != fileIdsToActivate.size()) {
+                    throw new AppException(ErrorCode.FILE_NOT_FOUND);
+                }
+                for (File f : files) {
+                    if (f.getStatus() == FileStatus.PENDING) {
+                        throw new AppException(ErrorCode.VALIDATION_ERROR, "Hình ảnh đang được tải lên, vui lòng đợi hoàn tất.");
+                    }
+                }
                 log.info("[COMMENT] Kích hoạt file ảnh mới: fileIds={}", fileIdsToActivate);
                 fileRepository.activateFiles(fileIdsToActivate, comment.getId());
             }

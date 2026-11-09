@@ -196,6 +196,16 @@ public class UserServiceImpl implements UserService {
                             updateUser.getId(), newAvatarId, newAvatar.getType());
                     throw new AppException(ErrorCode.INVALID_FILE_TYPE);
                 }
+                if (newAvatar.getStatus() == FileStatus.PENDING) {
+                    log.warn("[USER] File đại diện chưa hoàn tất upload: userId={}, fileId={}",
+                            updateUser.getId(), newAvatarId);
+                    throw new AppException(ErrorCode.FILE_NOT_FOUND, "Ảnh đại diện chưa hoàn tất tải lên, vui lòng thử lại sau giây lát.");
+                }
+                if (newAvatar.getStatus() != FileStatus.UPLOADED) {
+                    log.warn("[USER] File đại diện không ở trạng thái UPLOADED: userId={}, fileId={}, status={}",
+                            updateUser.getId(), newAvatarId, newAvatar.getStatus());
+                    throw new AppException(ErrorCode.FILE_NOT_FOUND, "Ảnh đại diện không hợp lệ hoặc đã bị xóa.");
+                }
                 newAvatar.setStatus(FileStatus.ACTIVE);
                 newAvatar.setReferenceId(updateUser.getId());
                 fileRepository.save(newAvatar);
@@ -237,6 +247,16 @@ public class UserServiceImpl implements UserService {
                     log.warn("[USER] File đại diện cập nhật hồ sơ không phải hình ảnh: userId={}, fileId={}, fileType={}",
                             updateUser.getId(), newAvatarId, newAvatar.getType());
                     throw new AppException(ErrorCode.INVALID_FILE_TYPE);
+                }
+                if (newAvatar.getStatus() == FileStatus.PENDING) {
+                    log.warn("[USER] File đại diện cập nhật hồ sơ chưa hoàn tất upload: userId={}, fileId={}",
+                            updateUser.getId(), newAvatarId);
+                    throw new AppException(ErrorCode.FILE_NOT_FOUND, "Ảnh đại diện chưa hoàn tất tải lên, vui lòng thử lại sau giây lát.");
+                }
+                if (newAvatar.getStatus() != FileStatus.UPLOADED) {
+                    log.warn("[USER] File đại diện cập nhật hồ sơ không ở trạng thái UPLOADED: userId={}, fileId={}, status={}",
+                            updateUser.getId(), newAvatarId, newAvatar.getStatus());
+                    throw new AppException(ErrorCode.FILE_NOT_FOUND, "Ảnh đại diện không hợp lệ hoặc đã bị xóa.");
                 }
                 newAvatar.setStatus(FileStatus.ACTIVE);
                 newAvatar.setReferenceId(updateUser.getId());

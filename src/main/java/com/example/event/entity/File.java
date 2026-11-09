@@ -32,6 +32,7 @@ public class File {
     @Enumerated(EnumType.STRING)
     private FileType type;
     private String format;
+    private Long size;
     @Enumerated(EnumType.STRING)
     @jakarta.persistence.Column(name = "folder", length = 50)
     private FileFolder folder;

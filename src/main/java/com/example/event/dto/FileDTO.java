@@ -21,6 +21,7 @@ public class FileDTO {
     private FileStatus status;
     private FileType type;
     private String format;
+    private Long size;
     private FileFolder folder;
     private String referenceId;
 

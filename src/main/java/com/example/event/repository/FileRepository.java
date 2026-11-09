@@ -22,7 +22,7 @@ public interface FileRepository extends JpaRepository<File, String> {
     @Modifying
     @Transactional
     @Query("UPDATE File f SET f.status = 'ACTIVE', f.referenceId = :referenceId " +
-            "WHERE f.id IN :fileIds AND f.status = 'PENDING'")
+            "WHERE f.id IN :fileIds AND f.status = 'UPLOADED'")
     int activateFiles(List<String> fileIds, String referenceId);
 
     @Modifying
@@ -33,9 +33,11 @@ public interface FileRepository extends JpaRepository<File, String> {
 
     @Query("SELECT f FROM File f WHERE " +
             "(f.status = 'PENDING' AND f.createdAt < :pendingThreshold) OR " +
+            "(f.status = 'UPLOADED' AND f.createdAt < :uploadedThreshold) OR " +
             "(f.status = 'DELETED' AND f.deletedAt < :deletedThreshold)")
     org.springframework.data.domain.Slice<File> findExpiredFiles(
             java.time.LocalDateTime pendingThreshold,
+            java.time.LocalDateTime uploadedThreshold,
             java.time.LocalDateTime deletedThreshold,
             org.springframework.data.domain.Pageable pageable
     );

@@ -22,6 +22,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HashMap;
@@ -31,8 +36,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class FileServiceImpl implements FileService {
-    private static final long MAX_IMAGE_SIZE = 10L * 1024 * 1024;   // 10MB cho Cloudinary Free Image
-    private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024;  // 100MB cho Cloudinary Free Video
+    private static final long MAX_IMAGE_SIZE = 10L * 1024 * 1024; // 10MB cho Cloudinary Free Image
+    private static final long MAX_VIDEO_SIZE = 100L * 1024 * 1024; // 100MB cho Cloudinary Free Video
+
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(Duration.ofSeconds(5))
+            .build();
 
     private final Cloudinary cloudinary;
     private final FileRepository fileRepository;
@@ -71,7 +81,8 @@ public class FileServiceImpl implements FileService {
             savedFile.setUrl(response.get("secure_url").toString());
             savedFile.setFolder(fileFolder);
             savedFile.setType(fileType);
-            savedFile.setStatus(FileStatus.PENDING);
+            savedFile.setStatus(FileStatus.UPLOADED);
+            savedFile.setSize(file.getSize());
             savedFile.setCreatedAt(LocalDateTime.now());
 
             Object formatObj = response.get("format");
@@ -103,7 +114,8 @@ public class FileServiceImpl implements FileService {
         response.put("folder", folder);
         response.put("api_key", cloudinary.config.apiKey);
         response.put("cloud_name", cloudinary.config.cloudName);
-        log.info("[FILE] Tạo chữ ký upload trực tiếp lên Cloudinary thành công | folder={}, timestamp={}", folder, timestamp);
+        log.info("[FILE] Tạo chữ ký upload trực tiếp lên Cloudinary thành công | folder={}, timestamp={}", folder,
+                timestamp);
         return response;
     }
 
@@ -143,7 +155,8 @@ public class FileServiceImpl implements FileService {
 
         String detectedMime = FileUtil.detectMimeType(headerBytes);
         if (!FileUtil.isAllowedMimeType(detectedMime, req.getFileType())) {
-            log.warn("[SECURITY] Phát hiện MIME type không khớp Magic Bytes: filename={}, detectedMime={}, expectedType={}",
+            log.warn(
+                    "[SECURITY] Phát hiện MIME type không khớp Magic Bytes: filename={}, detectedMime={}, expectedType={}",
                     req.getFileName(), detectedMime, req.getFileType());
             throw new AppException(ErrorCode.INVALID_FILE_MIME_TYPE);
         }
@@ -204,11 +217,102 @@ public class FileServiceImpl implements FileService {
     public FileDTO completeUpload(CompleteUploadReq req) {
         File file = fileRepository.findById(req.getFileId())
                 .orElseThrow(() -> new AppException(ErrorCode.FILE_NOT_FOUND));
-        if (req.getUrl() != null && !req.getUrl().isBlank()) {
-            file.setUrl(req.getUrl().trim());
-            fileRepository.save(file);
-            log.info("[FILE] Hoàn tất cập nhật secure_url cho fileId={}, url={}", file.getId(), file.getUrl());
+
+        if (file.getStatus() == FileStatus.DELETED) {
+            log.warn("[FILE] File đã bị xóa, không thể hoàn tất upload: fileId={}", file.getId());
+            throw new AppException(ErrorCode.FILE_NOT_FOUND);
         }
+
+        if (file.getStatus() == FileStatus.ACTIVE) {
+            log.info("[FILE] File đã ở trạng thái ACTIVE, giữ nguyên: fileId={}", file.getId());
+            return fileMapper.toDTO(file);
+        }
+
+        if (req.getUrl() == null || req.getUrl().isBlank()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "URL không được để trống.");
+        }
+
+        String targetUrl = req.getUrl().trim();
+
+        // 1. Kiểm tra URL hợp lệ & SSRF protection
+        try {
+            URI uri = URI.create(targetUrl);
+            String host = uri.getHost();
+            if (host == null || (!host.equalsIgnoreCase("res.cloudinary.com") && !host.endsWith(".cloudinary.com"))) {
+                log.warn("[SECURITY] Phát hiện URL không thuộc Cloudinary: url={}", targetUrl);
+                throw new AppException(ErrorCode.VALIDATION_ERROR, "URL file không hợp lệ.");
+            }
+        } catch (IllegalArgumentException e) {
+            log.warn("[SECURITY] URL không đúng định dạng: url={}", targetUrl);
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "URL file không đúng định dạng.");
+        }
+
+        // Đảm bảo URL chứa đúng publicId của file đã khởi tạo
+        if (file.getPublicId() != null && !targetUrl.contains(file.getPublicId())) {
+            log.warn("[SECURITY] URL không khớp publicId đã khởi tạo: expectedPublicId={}, url={}",
+                    file.getPublicId(), targetUrl);
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "URL file không khớp với bản ghi đã khởi tạo.");
+        }
+
+        // 2. Lấy dung lượng thực tế trên Cloudinary bằng HTTP HEAD request
+        long actualSize = fetchActualFileSize(targetUrl);
+        long maxAllowed = (file.getType() == FileType.VIDEO) ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+
+        if (actualSize > maxAllowed) {
+            log.warn(
+                    "[SECURITY] Dung lượng file thực tế vượt quá trần cho phép: actualSize={}, maxAllowed={}, publicId={}",
+                    actualSize, maxAllowed, file.getPublicId());
+            destroyCloudinaryFileSilently(file.getPublicId(), file.getType());
+            fileRepository.delete(file);
+            throw new AppException(ErrorCode.FILE_TOO_LARGE);
+        }
+
+        file.setUrl(targetUrl);
+        file.setStatus(FileStatus.UPLOADED);
+        if (actualSize > 0) {
+            file.setSize(actualSize);
+        }
+        fileRepository.save(file);
+        log.info(
+                "[FILE] Hoàn tất cập nhật secure_url, size={} bytes và chuyển status sang UPLOADED cho fileId={}, url={}",
+                file.getSize(), file.getId(), file.getUrl());
+
         return fileMapper.toDTO(file);
+    }
+
+    private long fetchActualFileSize(String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<Void> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() >= 200 && response.statusCode() < 400) {
+                return response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+            } else {
+                log.warn("[FILE] HTTP HEAD tới Cloudinary trả về status không thành công: status={}, url={}",
+                        response.statusCode(), url);
+            }
+        } catch (Exception e) {
+            log.warn("[FILE] Không thể thực hiện HTTP HEAD để kiểm tra dung lượng: url={}, error={}",
+                    url, e.getMessage());
+        }
+        return -1L;
+    }
+
+    private void destroyCloudinaryFileSilently(String publicId, FileType fileType) {
+        if (publicId == null || publicId.isBlank())
+            return;
+        try {
+            Map<String, Object> destroyOptions = new HashMap<>();
+            if (fileType == FileType.VIDEO) {
+                destroyOptions.put("resource_type", "video");
+            }
+            cloudinary.uploader().destroy(publicId, destroyOptions);
+        } catch (Exception e) {
+            log.error("[FILE] Lỗi khi hủy file vượt dung lượng trên Cloudinary: publicId={}, error={}",
+                    publicId, e.getMessage());
+        }
     }
 }
