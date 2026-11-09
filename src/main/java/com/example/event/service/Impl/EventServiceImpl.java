@@ -28,8 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -113,27 +111,20 @@ public class EventServiceImpl implements EventService {
         } else if (organizerLogo.getStatus() != FileStatus.UPLOADED) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức không hợp lệ hoặc đã bị xóa.");
         }
-        // Kiểm tra xem các media gửi lên (bao gồm cả ảnh/video trong descriptionHtml) có tồn tại và hợp lệ không
-        Set<String> allMediaIds = new HashSet<>();
-        if (createEventReq.getMediaIds() != null) {
-            allMediaIds.addAll(createEventReq.getMediaIds());
-        }
-        allMediaIds.addAll(extractFileIdsFromHtml(createEventReq.getDescriptionHtml()));
-
-        if (!allMediaIds.isEmpty()) {
-            List<File> medias = fileRepository.findAllById(allMediaIds);
-            if (medias.size() != allMediaIds.size()) {
-                errorDetails.put("mediaIds", "Một số file đính kèm trong mô tả không tồn tại.");
-                errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong mô tả không tồn tại.");
+        // Kiểm tra xem các media gửi lên từ phần mô tả có tồn tại và hợp lệ không
+        if (createEventReq.getMediaIds() != null && !createEventReq.getMediaIds().isEmpty()) {
+            List<File> medias = fileRepository.findAllById(createEventReq.getMediaIds());
+            if (medias.size() != createEventReq.getMediaIds().size()) {
+                errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong phần mô tả không tồn tại.");
             } else {
                 for (File media : medias) {
                     if (media.getStatus() == FileStatus.PENDING) {
-                        errorDetails.put("mediaIds", "Một số file đính kèm đang được tải lên, vui lòng đợi hoàn tất.");
-                        errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong phần mô tả đang được tải lên, vui lòng đợi hoàn tất.");
+                        errorDetails.put("descriptionHtml",
+                                "Một số hình ảnh/video trong phần mô tả đang được tải lên, vui lòng đợi hoàn tất.");
                         break;
                     } else if (media.getStatus() != FileStatus.UPLOADED) {
-                        errorDetails.put("mediaIds", "Một số file đính kèm không hợp lệ hoặc đã được sử dụng.");
-                        errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong phần mô tả không hợp lệ hoặc đã được sử dụng.");
+                        errorDetails.put("descriptionHtml",
+                                "Một số hình ảnh/video trong phần mô tả không hợp lệ hoặc đã được sử dụng.");
                         break;
                     }
                 }
@@ -143,7 +134,8 @@ public class EventServiceImpl implements EventService {
         Map<String, String> showErrorDetails = showValidator.validate(createEventReq.getShows());
         errorDetails.putAll(showErrorDetails);
         if (!errorDetails.isEmpty()) {
-            log.warn("[EVENT] Xác thực tạo sự kiện thất bại: userId={}, errors={}", createEventReq.getUserId(), errorDetails);
+            log.warn("[EVENT] Xác thực tạo sự kiện thất bại: userId={}, errors={}", createEventReq.getUserId(),
+                    errorDetails);
             throw new AppException(ErrorCode.EVENT_VALIDATION_ERROR, errorDetails);
         }
 
@@ -197,7 +189,9 @@ public class EventServiceImpl implements EventService {
         fileIdsForUpdate.add(banner.getId());
         fileIdsForUpdate.add(poster.getId());
         fileIdsForUpdate.add(organizerLogo.getId());
-        fileIdsForUpdate.addAll(allMediaIds);
+        if (createEventReq.getMediaIds() != null && !createEventReq.getMediaIds().isEmpty()) {
+            fileIdsForUpdate.addAll(createEventReq.getMediaIds());
+        }
         // Lưu file chuyển từ pending sang active
         if (fileIdsForUpdate.size() > 0)
             fileRepository.activateFiles(fileIdsForUpdate, event.getId());
@@ -318,7 +312,8 @@ public class EventServiceImpl implements EventService {
         }
 
         if (updateEventReq.getVersion() != null && !updateEventReq.getVersion().equals(event.getVersion())) {
-            log.warn("[EVENT] Xung đột phiên bản khi cập nhật sự kiện: eventId={}, expectedVersion={}, actualVersion={}",
+            log.warn(
+                    "[EVENT] Xung đột phiên bản khi cập nhật sự kiện: eventId={}, expectedVersion={}, actualVersion={}",
                     id, updateEventReq.getVersion(), event.getVersion());
             throw new AppException(ErrorCode.CONCURRENT_UPDATE);
         }
@@ -345,7 +340,8 @@ public class EventServiceImpl implements EventService {
             errorDetails.put("bannerId", "Banner phải là ảnh, vui lòng tải lại.");
         } else if (banner.getStatus() == FileStatus.PENDING) {
             errorDetails.put("bannerId", "Ảnh banner đang được tải lên, vui lòng đợi hoàn tất.");
-        } else if (banner.getStatus() != FileStatus.UPLOADED && !(banner.getStatus() == FileStatus.ACTIVE && id.equals(banner.getReferenceId()))) {
+        } else if (banner.getStatus() != FileStatus.UPLOADED
+                && !(banner.getStatus() == FileStatus.ACTIVE && id.equals(banner.getReferenceId()))) {
             errorDetails.put("bannerId", "Ảnh banner không hợp lệ hoặc không thuộc sự kiện này.");
         }
         if (poster == null) {
@@ -354,7 +350,8 @@ public class EventServiceImpl implements EventService {
             errorDetails.put("posterId", "Poster phải là ảnh, vui lòng tải lại.");
         } else if (poster.getStatus() == FileStatus.PENDING) {
             errorDetails.put("posterId", "Ảnh poster đang được tải lên, vui lòng đợi hoàn tất.");
-        } else if (poster.getStatus() != FileStatus.UPLOADED && !(poster.getStatus() == FileStatus.ACTIVE && id.equals(poster.getReferenceId()))) {
+        } else if (poster.getStatus() != FileStatus.UPLOADED
+                && !(poster.getStatus() == FileStatus.ACTIVE && id.equals(poster.getReferenceId()))) {
             errorDetails.put("posterId", "Ảnh poster không hợp lệ hoặc không thuộc sự kiện này.");
         }
         if (organizerLogo == null) {
@@ -363,30 +360,25 @@ public class EventServiceImpl implements EventService {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức phải là ảnh, vui lòng tải lại.");
         } else if (organizerLogo.getStatus() == FileStatus.PENDING) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức đang được tải lên, vui lòng đợi hoàn tất.");
-        } else if (organizerLogo.getStatus() != FileStatus.UPLOADED && !(organizerLogo.getStatus() == FileStatus.ACTIVE && id.equals(organizerLogo.getReferenceId()))) {
+        } else if (organizerLogo.getStatus() != FileStatus.UPLOADED
+                && !(organizerLogo.getStatus() == FileStatus.ACTIVE && id.equals(organizerLogo.getReferenceId()))) {
             errorDetails.put("organizerLogoId", "Logo ban tổ chức không hợp lệ hoặc không thuộc sự kiện này.");
         }
-        // Kiểm tra xem các media gửi lên (bao gồm cả ảnh/video trong descriptionHtml) có tồn tại và hợp lệ không
-        Set<String> allMediaIds = new HashSet<>();
-        if (updateEventReq.getMediaIds() != null) {
-            allMediaIds.addAll(updateEventReq.getMediaIds());
-        }
-        allMediaIds.addAll(extractFileIdsFromHtml(updateEventReq.getDescriptionHtml()));
-
-        if (!allMediaIds.isEmpty()) {
-            List<File> medias = fileRepository.findAllById(allMediaIds);
-            if (medias.size() != allMediaIds.size()) {
-                errorDetails.put("mediaIds", "Một số file đính kèm trong phần mô tả không tồn tại.");
+        // Kiểm tra xem các media gửi lên từ phần mô tả có tồn tại và hợp lệ không
+        if (updateEventReq.getMediaIds() != null && !updateEventReq.getMediaIds().isEmpty()) {
+            List<File> medias = fileRepository.findAllById(updateEventReq.getMediaIds());
+            if (medias.size() != updateEventReq.getMediaIds().size()) {
                 errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong phần mô tả không tồn tại.");
             } else {
                 for (File media : medias) {
                     if (media.getStatus() == FileStatus.PENDING) {
-                        errorDetails.put("mediaIds", "Một số file đính kèm đang được tải lên, vui lòng đợi hoàn tất.");
-                        errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong phần mô tả đang được tải lên, vui lòng đợi hoàn tất.");
+                        errorDetails.put("descriptionHtml",
+                                "Một số hình ảnh/video trong phần mô tả đang được tải lên, vui lòng đợi hoàn tất.");
                         break;
-                    } else if (media.getStatus() != FileStatus.UPLOADED && !(media.getStatus() == FileStatus.ACTIVE && id.equals(media.getReferenceId()))) {
-                        errorDetails.put("mediaIds", "Một số file đính kèm không hợp lệ hoặc không thuộc sự kiện này.");
-                        errorDetails.put("descriptionHtml", "Một số hình ảnh/video trong phần mô tả không hợp lệ hoặc không thuộc sự kiện này.");
+                    } else if (media.getStatus() != FileStatus.UPLOADED
+                            && !(media.getStatus() == FileStatus.ACTIVE && id.equals(media.getReferenceId()))) {
+                        errorDetails.put("descriptionHtml",
+                                "Một số hình ảnh/video trong phần mô tả không hợp lệ hoặc không thuộc sự kiện này.");
                         break;
                     }
                 }
@@ -400,7 +392,10 @@ public class EventServiceImpl implements EventService {
 
         List<String> oldFileIds = fileRepository.findFilesByStatusAndReferenceId(FileStatus.ACTIVE, id).stream()
                 .map(File::getId).collect(Collectors.toList());
-        List<String> newFileIds = new ArrayList<>(allMediaIds);
+        List<String> newFileIds = new ArrayList<>();
+        if (updateEventReq.getMediaIds() != null) {
+            newFileIds.addAll(updateEventReq.getMediaIds());
+        }
         newFileIds.add(updateEventReq.getBannerId());
         newFileIds.add(updateEventReq.getPosterId());
         newFileIds.add(updateEventReq.getOrganizerLogoId());
@@ -866,7 +861,8 @@ public class EventServiceImpl implements EventService {
         if (event.getStatus() == EventStatus.APPROVED ||
                 event.getStatus() == EventStatus.PUBLISHED ||
                 event.getStatus() == EventStatus.CANCELLED) {
-            log.warn("[EVENT] Không thể xóa sự kiện đã duyệt/xuất bản/hủy: eventId={}, status={}", id, event.getStatus());
+            log.warn("[EVENT] Không thể xóa sự kiện đã duyệt/xuất bản/hủy: eventId={}, status={}", id,
+                    event.getStatus());
             throw new AppException(ErrorCode.CANNOT_DELETE_APPROVED_OR_PUBLISHED_EVENT);
         }
 
@@ -905,16 +901,5 @@ public class EventServiceImpl implements EventService {
         event.setUpdatedAt(LocalDateTime.now());
         event.setUpdatedBy(userId);
         eventRepository.save(event);
-    }
-
-    private List<String> extractFileIdsFromHtml(String html) {
-        if (html == null || html.isBlank()) return Collections.emptyList();
-        Set<String> fileIds = new HashSet<>();
-        Pattern pattern = Pattern.compile("[?&]fileId=([a-zA-Z0-9_-]+)");
-        Matcher matcher = pattern.matcher(html);
-        while (matcher.find()) {
-            fileIds.add(matcher.group(1));
-        }
-        return new ArrayList<>(fileIds);
     }
 }
