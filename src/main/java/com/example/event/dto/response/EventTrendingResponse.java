@@ -34,4 +34,16 @@ public class EventTrendingResponse implements Serializable {
                 .trendingScore(projection.getTrendingScore())
                 .build();
     }
+
+    public static EventTrendingResponse fromEvent(com.example.event.entity.Event event) {
+        if (event == null) return null;
+        return EventTrendingResponse.builder()
+                .id(event.getId())
+                .name(event.getName())
+                .location(event.getLocation())
+                .posterUrl(event.getPoster() != null ? event.getPoster().getUrl() : null)
+                .startTime(event.getStartTime())
+                .endTime(event.getEndTime())
+                .build();
+    }
 }

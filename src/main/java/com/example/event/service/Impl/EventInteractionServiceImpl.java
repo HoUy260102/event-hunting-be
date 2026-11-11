@@ -1,6 +1,7 @@
 package com.example.event.service.Impl;
 
 import com.example.event.constant.ErrorCode;
+import com.example.event.constant.EventStatus;
 import com.example.event.constant.InteractionType;
 import com.example.event.dto.response.EventTrendingResponse;
 import com.example.event.entity.Event;
@@ -21,8 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,30 +75,66 @@ public class EventInteractionServiceImpl implements EventInteractionService {
 
     @Override
     public List<EventTrendingResponse> getTopTrendingEvents() {
+        List<String> eventIds = null;
+
+        // 1. Thử lấy danh sách ID sự kiện xu hướng từ cache Redis
         try {
             String cachedJson = redisService.get(TRENDING_EVENTS_KEY, String.class);
-            if (cachedJson != null) {
-                log.info("[INTERACTION] Lấy danh sách sự kiện xu hướng từ cache Redis.");
-                return objectMapper.readValue(cachedJson, new TypeReference<List<EventTrendingResponse>>() {});
+            if (cachedJson != null && !cachedJson.isBlank()) {
+                if (cachedJson.trim().startsWith("[{")) {
+                    // Dữ liệu cache cũ dạng full object -> Xóa để nâng cấp sang lưu List<String> ID
+                    redisService.del(TRENDING_EVENTS_KEY);
+                } else {
+                    eventIds = objectMapper.readValue(cachedJson, new TypeReference<List<String>>() {});
+                    log.info("[INTERACTION] Lấy danh sách ID sự kiện xu hướng từ cache Redis: {}", eventIds);
+                }
             }
         } catch (Exception e) {
-            log.error("[INTERACTION] Lỗi đọc danh sách sự kiện xu hướng từ cache Redis: {}", e.getMessage());
+            log.error("[INTERACTION] Lỗi đọc ID sự kiện xu hướng từ cache Redis: {}", e.getMessage());
         }
 
-        log.info("[INTERACTION] Cache miss sự kiện xu hướng. Đang truy vấn từ cơ sở dữ liệu.");
-        LocalDateTime since = LocalDateTime.now().minusDays(30);
-        List<EventTrendingProjection> projections = interactionRepository.findTrendingEvents(since, 10);
+        // 2. Cache miss hoặc rỗng -> Tính toán thứ hạng và gom 10 ID sự kiện từ Database
+        if (eventIds == null || eventIds.isEmpty()) {
+            log.info("[INTERACTION] Cache miss sự kiện xu hướng. Đang tính toán thứ hạng từ cơ sở dữ liệu.");
+            LocalDateTime since = LocalDateTime.now().minusDays(30);
+            List<EventTrendingProjection> projections = interactionRepository.findTrendingEvents(since, 10);
 
-        List<EventTrendingResponse> responses = projections.stream()
-                .map(EventTrendingResponse::fromProjection)
-                .collect(Collectors.toList());
+            eventIds = projections.stream()
+                    .map(EventTrendingProjection::getId)
+                    .collect(Collectors.toList());
 
-        try {
-            String jsonToCache = objectMapper.writeValueAsString(responses);
-            redisService.set(TRENDING_EVENTS_KEY, jsonToCache, TRENDING_EVENTS_TTL);
-            log.info("[INTERACTION] Đã lưu cache sự kiện xu hướng vào Redis (TTL 1 ngày).");
-        } catch (Exception e) {
-            log.error("[INTERACTION] Lỗi lưu sự kiện xu hướng vào Redis cache: {}", e.getMessage());
+            if (!eventIds.isEmpty()) {
+                try {
+                    String jsonToCache = objectMapper.writeValueAsString(eventIds);
+                    redisService.set(TRENDING_EVENTS_KEY, jsonToCache, TRENDING_EVENTS_TTL);
+                    log.info("[INTERACTION] Đã lưu danh sách ID sự kiện xu hướng vào Redis (TTL 1 ngày).");
+                } catch (Exception e) {
+                    log.error("[INTERACTION] Lỗi lưu ID sự kiện xu hướng vào Redis cache: {}", e.getMessage());
+                }
+            }
+        }
+
+        if (eventIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 3. Lấy thông tin chi tiết sự kiện mới nhất từ MySQL theo danh sách ID (Primary Key IN query)
+        List<Event> events = eventRepository.findEventsByIdsWithDetails(eventIds);
+        Map<String, Event> eventMap = events.stream()
+                .collect(Collectors.toMap(Event::getId, Function.identity()));
+
+        // 4. Giữ đúng thứ tự xếp hạng (Ranking) và lọc bỏ sự kiện bị hủy / xóa / đã kết thúc
+        LocalDateTime now = LocalDateTime.now();
+        List<EventTrendingResponse> responses = new ArrayList<>();
+        for (String id : eventIds) {
+            Event event = eventMap.get(id);
+            if (event != null 
+                    && event.getDeletedAt() == null 
+                    && event.getStatus() == EventStatus.PUBLISHED 
+                    && event.getEndTime() != null 
+                    && event.getEndTime().isAfter(now)) {
+                responses.add(EventTrendingResponse.fromEvent(event));
+            }
         }
 
         return responses;
