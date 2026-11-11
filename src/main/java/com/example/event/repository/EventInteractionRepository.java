@@ -21,6 +21,59 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
 
     List<EventInteraction> findByUser_IdAndType(String userId, InteractionType type);
 
+    @Query(value = "SELECT DISTINCT user_id FROM event_interaction WHERE created_at >= :since", nativeQuery = true)
+    List<String> findActiveUserIds(@Param("since") LocalDateTime since);
+
+    @Query(value = """
+            SELECT 
+                i.user_id AS userId,
+                e.sequence_id AS sequenceId,
+                MAX(
+                    CASE i.type
+                        WHEN 'VIEW'     THEN 1.0
+                        WHEN 'COMMENT'  THEN 2.0
+                        WHEN 'FAVORITE' THEN 3.0
+                        WHEN 'REGISTER' THEN 5.0
+                        ELSE 0.0
+                    END
+                ) AS maxWeight
+            FROM event_interaction i
+            JOIN event e ON e.id = i.event_id
+            WHERE i.user_id IN (:userIds)
+              AND i.created_at >= :since
+              AND e.sequence_id IS NOT NULL
+            GROUP BY i.user_id, e.sequence_id
+            """, nativeQuery = true)
+    List<Object[]> findUserInteractionsByUsers(
+            @Param("userIds") List<String> userIds,
+            @Param("since") LocalDateTime since
+    );
+
+    @Query(value = """
+            SELECT i.event_id, MAX(
+                CASE i.type
+                    WHEN 'VIEW'     THEN 1.0
+                    WHEN 'COMMENT'  THEN 2.0
+                    WHEN 'FAVORITE' THEN 3.0
+                    WHEN 'REGISTER' THEN 5.0
+                    ELSE 0.0
+                END
+            ) AS score
+            FROM event_interaction i
+            JOIN event e ON e.id = i.event_id
+            WHERE i.user_id IN (:userIds)
+              AND i.created_at >= :since
+              AND e.status = 'PUBLISHED'
+              AND e.deleted_at IS NULL
+              AND e.end_time > NOW()
+            GROUP BY i.event_id
+            ORDER BY score DESC
+            """, nativeQuery = true)
+    List<Object[]> findCandidateEventIdsWithScore(
+            @Param("userIds") List<String> userIds,
+            @Param("since") LocalDateTime since
+    );
+
     @Query(value = """
             SELECT 
                 i.user_id AS userId,

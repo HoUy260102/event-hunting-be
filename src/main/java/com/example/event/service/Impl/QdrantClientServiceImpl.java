@@ -19,6 +19,7 @@ import com.github.f4b6a3.ulid.Ulid;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -38,12 +39,16 @@ public class QdrantClientServiceImpl implements QdrantClientService {
     private final SecurityUtils securityUtils;
     private final ObjectMapper objectMapper;
 
+    @Value("${app.recommendation.score-threshold:0.1}")
+    private double recommendationScoreThreshold;
+
     private static final ZoneOffset VN_OFFSET = ZoneOffset.ofHours(7);
 
     @PostConstruct
     public void onStart() {
         try {
             initCollectionIfNotExists();
+            initUsersCollectionIfNotExists();
         } catch (Exception e) {
             log.warn("[QDRANT] Chưa thể kết nối hoặc khởi tạo collection Qdrant khi startup: {}", e.getMessage());
         }
@@ -74,9 +79,7 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                 Map<String, Object> body = Map.of(
                         "vectors", Map.of(
                                 "core_dense", Map.of("size", 768, "distance", "Cosine"),
-                                "desc_dense", Map.of("size", 768, "distance", "Cosine")
-                        )
-                );
+                                "desc_dense", Map.of("size", 768, "distance", "Cosine")));
 
                 qdrantRestClient.put()
                         .uri("/collections/{collection}", collection)
@@ -113,11 +116,11 @@ public class QdrantClientServiceImpl implements QdrantClientService {
     }
 
     private void createPayloadIndexes(String collection) {
-        String[] keywords = {"status", "provinceId", "categoryId"};
+        String[] keywords = { "status", "provinceId", "categoryId" };
         for (String field : keywords) {
             createSingleIndex(collection, field, "keyword");
         }
-        String[] integers = {"minPrice", "startTime", "endTime"};
+        String[] integers = { "minPrice", "startTime", "endTime" };
         for (String field : integers) {
             createSingleIndex(collection, field, "integer");
         }
@@ -127,8 +130,7 @@ public class QdrantClientServiceImpl implements QdrantClientService {
         try {
             Map<String, Object> body = Map.of(
                     "field_name", fieldName,
-                    "field_schema", schemaType
-            );
+                    "field_schema", schemaType);
             qdrantRestClient.put()
                     .uri("/collections/{collection}/index", collection)
                     .body(body)
@@ -168,8 +170,7 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                     categoryName,
                     organizerName,
                     provinceName,
-                    eventLocation
-            ).trim();
+                    eventLocation).trim();
 
             // Vector 2: desc_dense
             String descText = event.getDescriptionText() != null ? event.getDescriptionText() : "";
@@ -182,9 +183,12 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                 return;
             }
 
-            // Nếu 1 trong 2 vector dense rỗng, fallback mượn vector kia để không lỗi schema Qdrant
-            if (coreVector.isEmpty()) coreVector = descVector;
-            if (descVector.isEmpty()) descVector = coreVector;
+            // Nếu 1 trong 2 vector dense rỗng, fallback mượn vector kia để không lỗi schema
+            // Qdrant
+            if (coreVector.isEmpty())
+                coreVector = descVector;
+            if (descVector.isEmpty())
+                descVector = coreVector;
 
             // 2. Chuẩn bị payload
             Map<String, Object> payload = new HashMap<>();
@@ -223,8 +227,7 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             Map<String, Object> point = Map.of(
                     "id", uuid,
                     "vector", vectors,
-                    "payload", payload
-            );
+                    "payload", payload);
 
             Map<String, Object> requestBody = Map.of("points", List.of(point));
 
@@ -323,25 +326,25 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             boolean hasKeyword = req.getKeyword() != null && !req.getKeyword().trim().isEmpty();
 
             if (hasKeyword) {
-                // === DENSE VECTOR SEARCH (GEMINI) VỚI FORMULA QUERY FUSION (70% Core + 30% Desc) ===
+                // === DENSE VECTOR SEARCH (GEMINI) VỚI FORMULA QUERY FUSION (70% Core + 30%
+                // Desc) ===
                 String keyword = req.getKeyword().trim();
                 List<Float> queryDense = geminiEmbeddingService.getEmbedding(keyword);
 
                 List<Map<String, Object>> prefetchList = new ArrayList<>();
-                // Prefetch limit động theo offset + fetchLimit để đảm bảo phân trang sâu không bị hụt kết quả
+                // Prefetch limit động theo offset + fetchLimit để đảm bảo phân trang sâu không
+                // bị hụt kết quả
                 int prefetchLimit = Math.max(100, offset + fetchLimit + 20);
 
                 if (!queryDense.isEmpty()) {
                     prefetchList.add(Map.of(
                             "query", queryDense,
                             "using", "core_dense",
-                            "limit", prefetchLimit
-                    ));
+                            "limit", prefetchLimit));
                     prefetchList.add(Map.of(
                             "query", queryDense,
                             "using", "desc_dense",
-                            "limit", prefetchLimit
-                    ));
+                            "limit", prefetchLimit));
                 }
 
                 Map<String, Object> queryBody = new HashMap<>();
@@ -351,13 +354,12 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                         "formula", Map.of(
                                 "sum", List.of(
                                         Map.of("mult", List.of(0.8, "$score[0]")),
-                                        Map.of("mult", List.of(0.2, "$score[1]"))
-                                )
-                        )
-                ));
-                // Ngưỡng điểm tương đồng động (Dynamic Threshold) theo độ dài và ngữ cảnh từ khóa:
+                                        Map.of("mult", List.of(0.2, "$score[1]"))))));
+                // Ngưỡng điểm tương đồng động (Dynamic Threshold) theo độ dài và ngữ cảnh từ
+                // khóa:
                 // - Từ đơn rất ngắn (<= 1 từ hoặc <= 8 ký tự như "music", "kịch"): ngưỡng 0.45f
-                // - Từ ghép 2 chữ tiếng Việt (<= 2 từ hoặc <= 14 ký tự như "âm nhạc", "ca nhạc", "vẽ tranh"): ngưỡng 0.52f
+                // - Từ ghép 2 chữ tiếng Việt (<= 2 từ hoặc <= 14 ký tự như "âm nhạc", "ca
+                // nhạc", "vẽ tranh"): ngưỡng 0.52f
                 // - Cụm từ cụ thể / tên riêng (>= 3 từ như "phùng khánh linh"): ngưỡng 0.55f
                 float threshold = 0.55f;
                 String[] words = keyword.split("\\s+");
@@ -449,7 +451,8 @@ public class QdrantClientServiceImpl implements QdrantClientService {
         if (statusStr != null) {
             try {
                 builder.status(EventStatus.valueOf(statusStr));
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         if (payload.hasNonNull("startTime")) {
@@ -484,5 +487,118 @@ public class QdrantClientServiceImpl implements QdrantClientService {
         }
 
         return builder.build();
+    }
+
+    @Override
+    public void initUsersCollectionIfNotExists() {
+        String collection = qdrantConfig.getUsersCollectionName();
+        try {
+            boolean exists = false;
+            try {
+                JsonNode res = qdrantRestClient.get()
+                        .uri("/collections/{collection}", collection)
+                        .retrieve()
+                        .body(JsonNode.class);
+                if (res != null && "ok".equalsIgnoreCase(res.path("status").asText())) {
+                    exists = true;
+                    log.info("[QDRANT-USERS] Collection '{}' đã tồn tại.", collection);
+                }
+            } catch (Exception ex) {
+                exists = false;
+            }
+
+            if (!exists) {
+                log.info("[QDRANT-USERS] Đang tạo collection '{}' với cấu hình Sparse Vector cho người dùng...",
+                        collection);
+                Map<String, Object> body = Map.of(
+                        "sparse_vectors", Map.of(
+                                "user_sparse", Map.of()));
+
+                qdrantRestClient.put()
+                        .uri("/collections/{collection}", collection)
+                        .body(body)
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("[QDRANT-USERS] Đã tạo thành công collection '{}'.", collection);
+            }
+        } catch (Exception e) {
+            log.error("[QDRANT-USERS] Lỗi khi kiểm tra/tạo collection '{}': {}", collection, e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public void upsertUserSparseVectors(List<Map<String, Object>> userPoints) {
+        if (userPoints == null || userPoints.isEmpty()) {
+            return;
+        }
+        initUsersCollectionIfNotExists();
+        String collection = qdrantConfig.getUsersCollectionName();
+        try {
+            Map<String, Object> body = Map.of("points", userPoints);
+            qdrantRestClient.put()
+                    .uri("/collections/{collection}/points", collection)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.debug("[QDRANT-USERS] Đã upsert {} điểm sparse vector người dùng vào '{}'.", userPoints.size(),
+                    collection);
+        } catch (Exception e) {
+            log.error("[QDRANT-USERS] Lỗi khi upsert sparse vectors vào '{}': {}", collection, e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public List<String> findSimilarUserIds(String userId, int limit) {
+        initUsersCollectionIfNotExists();
+        String collection = qdrantConfig.getUsersCollectionName();
+        try {
+            String userPointId;
+            try {
+                userPointId = Ulid.from(userId).toUuid().toString();
+            } catch (Exception e) {
+                userPointId = userId;
+            }
+
+            // Truy vấn láng giềng gần nhất theo Sparse Vector (chuẩn hóa Cosine Similarity trong khoảng 0.0 -> 1.0)
+            // recommendationScoreThreshold mặc định = 0.1: Chỉ giữ lại người dùng có độ tương đồng dương đáng kể
+            int queryLimit = limit > 0 ? limit : 10;
+            Map<String, Object> queryBody = new HashMap<>();
+            queryBody.put("query", Map.of("nearest", userPointId));
+            queryBody.put("using", "user_sparse");
+            queryBody.put("limit", queryLimit);
+            queryBody.put("score_threshold", recommendationScoreThreshold);
+            queryBody.put("with_payload", true);
+
+            JsonNode response = qdrantRestClient.post()
+                    .uri("/collections/{collection}/points/query", collection)
+                    .body(queryBody)
+                    .retrieve()
+                    .body(JsonNode.class);
+
+            List<String> similarUserIds = new ArrayList<>();
+            JsonNode pointsNode = response.path("result").path("points");
+            if (pointsNode.isArray()) {
+                for (JsonNode pointNode : pointsNode) {
+                    String pointUserId = pointNode.path("payload").path("userId").asText();
+                    if (pointUserId == null || pointUserId.isBlank()) {
+                        String pointUuid = pointNode.path("id").asText();
+                        try {
+                            pointUserId = Ulid.from(UUID.fromString(pointUuid)).toString();
+                        } catch (Exception ignored) {
+                            pointUserId = pointUuid;
+                        }
+                    }
+                    if (pointUserId != null && !pointUserId.isBlank() && !pointUserId.equals(userId)) {
+                        similarUserIds.add(pointUserId);
+                    }
+                }
+            }
+            log.debug("[QDRANT-USERS] Tìm thấy {} users tương đồng cho User {}: {}", similarUserIds.size(), userId,
+                    similarUserIds);
+            return similarUserIds;
+        } catch (Exception e) {
+            log.warn("[QDRANT-USERS] Không thể tìm users tương đồng cho User {}: {}", userId, e.getMessage());
+            return Collections.emptyList();
+        }
     }
 }

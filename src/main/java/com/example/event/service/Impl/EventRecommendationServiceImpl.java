@@ -13,14 +13,14 @@ import com.example.event.repository.EventRepository;
 import com.example.event.repository.FavoriteRepository;
 import com.example.event.service.EventInteractionService;
 import com.example.event.service.EventRecommendationService;
+import com.example.event.service.QdrantClientService;
 import com.example.event.service.RedisService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.f4b6a3.ulid.Ulid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,47 +41,118 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
     private final EventMapper eventMapper;
     private final ObjectMapper objectMapper;
     private final EventInteractionService eventInteractionService;
+    private final QdrantClientService qdrantClientService;
 
     private static final String REC_KEY_PREFIX = "user:recommendation:";
     private static final long REC_TTL_SECONDS = 86400L; // 1 ngày
 
-    /**
-     * Tác vụ lập lịch chạy ngầm định kỳ hàng ngày vào lúc 2 giờ sáng.
-     * Mặc định quét dữ liệu tương tác trong vòng 90 ngày qua.
-     */
-    @Scheduled(cron = "0 0 2 * * ?")
-    public void runDailyRecommendationJob() {
-        log.info("[RECOMMENDATION] Bắt đầu chạy Job lập lịch gợi ý hàng ngày (mặc định 90 ngày).");
-        runRecommendationJob(90);
-    }
-
-    /**
-     * Lắng nghe sự kiện ứng dụng đã sẵn sàng (Startup thành công) để chạy ngay lập tức.
-     * Điều này giúp việc kiểm thử (Testing) diễn ra tức thời mà không cần đợi đến 2h sáng.
-     */
-    @EventListener(ApplicationReadyEvent.class)
-    public void onApplicationReady() {
-        log.info("[RECOMMENDATION] Ứng dụng đã khởi động thành công. Kích hoạt tính toán gợi ý ngay lập tức.");
-        // Chạy bất đồng bộ trên một luồng riêng để tránh làm nghẽn/chậm quá trình khởi chạy của Spring Boot
-        new Thread(() -> {
-            try {
-                runRecommendationJob(90);
-            } catch (Exception e) {
-                log.error("[RECOMMENDATION] Lỗi khi tính toán gợi ý lúc khởi động: {}", e.getMessage());
-            }
-        }).start();
-    }
+    @Value("${app.recommendation.days-window:180}")
+    private int defaultDaysWindow;
 
     @Override
     @Transactional(readOnly = true)
     public void runRecommendationJob(int days) {
-        log.info("[RECOMMENDATION] Bắt đầu tính toán ma trận gợi ý dựa trên dữ liệu tương tác {} ngày qua.", days);
+        log.info("[RECOMMENDATION] Bắt đầu đồng bộ Vector người dùng và tính gợi ý qua Qdrant Sparse Vector ({} ngày qua).", days);
+        LocalDateTime sinceDate = LocalDateTime.now().minusDays(days);
+
+        // 1. Lấy danh sách tất cả các User ID có tương tác trong N ngày qua
+        List<String> activeUserIds = interactionRepository.findActiveUserIds(sinceDate);
+        if (activeUserIds.isEmpty()) {
+            log.warn("[RECOMMENDATION] Không tìm thấy người dùng nào có tương tác trong {} ngày qua.", days);
+            return;
+        }
+
+        log.info("[RECOMMENDATION] Tìm thấy {} người dùng hoạt động. Bắt đầu xử lý theo từng mẻ (Batch 50 users)...", activeUserIds.size());
+        int batchSize = 50;
+        int totalUsers = activeUserIds.size();
+
+        for (int i = 0; i < totalUsers; i += batchSize) {
+            int end = Math.min(i + batchSize, totalUsers);
+            List<String> batchUserIds = activeUserIds.subList(i, end);
+
+            try {
+                // A. Lấy tương tác của mẻ này theo sequence_id
+                List<Object[]> rows = interactionRepository.findUserInteractionsByUsers(batchUserIds, sinceDate);
+
+                // B. Gom nhóm Sparse Vector cho từng User
+                Map<String, Map<Long, Double>> userInteractions = new HashMap<>();
+                for (Object[] row : rows) {
+                    String uid = (String) row[0];
+                    Long seqId = ((Number) row[1]).longValue();
+                    Double weight = ((Number) row[2]).doubleValue();
+                    userInteractions.computeIfAbsent(uid, k -> new HashMap<>()).put(seqId, weight);
+                }
+
+                // C. Chuẩn bị points để đẩy lên Qdrant users_cf
+                List<Map<String, Object>> qdrantPoints = new ArrayList<>();
+                for (Map.Entry<String, Map<Long, Double>> entry : userInteractions.entrySet()) {
+                    String uid = entry.getKey();
+                    Map<Long, Double> seqWeights = entry.getValue();
+
+                    List<Long> indices = new ArrayList<>(seqWeights.keySet());
+                    List<Double> rawValues = new ArrayList<>(seqWeights.values());
+
+                    // Chuẩn hóa L2-norm để đưa Tích vô hướng về chuẩn Cosine Similarity [0.0 -> 1.0]
+                    double sumSq = 0.0;
+                    for (Double val : rawValues) {
+                        sumSq += val * val;
+                    }
+                    double norm = Math.sqrt(sumSq);
+
+                    List<Double> normalizedValues = new ArrayList<>(rawValues.size());
+                    for (Double val : rawValues) {
+                        normalizedValues.add(norm > 0 ? (val / norm) : val);
+                    }
+
+                    String pointId;
+                    try {
+                        pointId = Ulid.from(uid).toUuid().toString();
+                    } catch (Exception e) {
+                        pointId = uid;
+                    }
+
+                    qdrantPoints.add(Map.of(
+                            "id", pointId,
+                            "vector", Map.of(
+                                    "user_sparse", Map.of(
+                                            "indices", indices,
+                                            "values", normalizedValues
+                                    )
+                            ),
+                            "payload", Map.of("userId", uid)
+                    ));
+                }
+
+                // D. Upsert mẻ này vào Qdrant
+                qdrantClientService.upsertUserSparseVectors(qdrantPoints);
+
+                log.info("[RECOMMENDATION] Hoàn thành đồng bộ mẻ User [{}/{}].", end, totalUsers);
+
+                // Nghỉ 50ms giữa các mẻ để nhường tài nguyên CPU
+                Thread.sleep(50);
+
+            } catch (Exception e) {
+                log.error("[RECOMMENDATION] Lỗi khi xử lý mẻ User từ {} đến {}: {}", i, end, e.getMessage(), e);
+            }
+        }
+        log.info("[RECOMMENDATION] Hoàn thành việc đồng bộ toàn bộ Vector người dùng lên Qdrant.");
+    }
+
+    /**
+     * Thuật toán cũ tính ma trận hoàn toàn trên RAM của Java (Legacy).
+     * Được giữ lại 100% làm phương án đối chứng / dự phòng.
+     */
+    
+    @Override
+    @Transactional(readOnly = true)
+    public void runRecommendationJobLegacy(int days) {
+        log.info("[RECOMMENDATION-LEGACY] Bắt đầu tính toán ma trận gợi ý trên RAM Java ({} ngày qua).", days);
         LocalDateTime sinceDate = LocalDateTime.now().minusDays(days);
         
         // 1. Lấy dữ liệu tương tác đã được gom nhóm và tính trọng số lớn nhất từ Database
         List<Object[]> aggregatedInteractions = interactionRepository.findAggregatedInteractions(sinceDate);
         if (aggregatedInteractions.isEmpty()) {
-            log.warn("[RECOMMENDATION] Không tìm thấy dữ liệu tương tác nào trong vòng {} ngày qua. Huỷ bỏ job.", days);
+            log.warn("[RECOMMENDATION-LEGACY] Không tìm thấy dữ liệu tương tác nào trong vòng {} ngày qua. Huỷ bỏ job.", days);
             return;
         }
 
@@ -106,12 +177,12 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
                 String jsonVal = objectMapper.writeValueAsString(recommendedEventIds);
                 redisService.set(redisKey, jsonVal, REC_TTL_SECONDS);
                 
-                log.debug("[RECOMMENDATION] Đã lưu gợi ý cho User {}: {}", userId, recommendedEventIds);
+                log.debug("[RECOMMENDATION-LEGACY] Đã lưu gợi ý cho User {}: {}", userId, recommendedEventIds);
             } catch (Exception e) {
-                log.error("[RECOMMENDATION] Lỗi khi xử lý gợi ý cho User {}: {}", userId, e.getMessage());
+                log.error("[RECOMMENDATION-LEGACY] Lỗi khi xử lý gợi ý cho User {}: {}", userId, e.getMessage());
             }
         }
-        log.info("[RECOMMENDATION] Hoàn thành việc cập nhật toàn bộ gợi ý cá nhân hóa lên Redis.");
+        log.info("[RECOMMENDATION-LEGACY] Hoàn thành việc cập nhật toàn bộ gợi ý cá nhân hóa lên Redis bằng RAM.");
     }
 
     @Override
@@ -127,18 +198,28 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
 
         String redisKey = REC_KEY_PREFIX + userId;
         String cachedJson = redisService.get(redisKey, String.class);
+        List<String> candidateEventIds = null;
 
-        // Trường hợp chưa có dữ liệu tính toán trước trong Redis -> Fallback sang sự kiện xu hướng
-        if (cachedJson == null || cachedJson.isEmpty()) {
-            log.info("[RECOMMENDATION] Không tìm thấy dữ liệu gợi ý cho User {} trong Redis. Trả về sự kiện xu hướng.", userId);
-            return getTrendingEventsFallback(limit);
+        if (cachedJson != null && !cachedJson.isEmpty()) {
+            try {
+                candidateEventIds = objectMapper.readValue(cachedJson, new TypeReference<List<String>>() {});
+            } catch (Exception e) {
+                log.warn("[RECOMMENDATION] Lỗi giải mã cache gợi ý của User {}: {}", userId, e.getMessage());
+            }
         }
 
-        try {
-            List<String> candidateEventIds = objectMapper.readValue(cachedJson, new TypeReference<List<String>>() {});
-            if (candidateEventIds.isEmpty()) {
+        // Cache miss -> Truy vấn láng giềng tương đồng qua Qdrant Sparse Vector theo thời gian thực
+        if (candidateEventIds == null || candidateEventIds.isEmpty()) {
+            log.info("[RECOMMENDATION] Cache miss gợi ý cho User {}. Đang truy vấn láng giềng từ Qdrant.", userId);
+            List<String> similarUserIds = qdrantClientService.findSimilarUserIds(userId, 10);
+
+            if (similarUserIds.isEmpty()) {
+                log.info("[RECOMMENDATION] Không tìm thấy láng giềng tương đồng cho User {}. Fallback sang xu hướng.", userId);
                 return getTrendingEventsFallback(limit);
             }
+
+            LocalDateTime sinceDate = LocalDateTime.now().minusDays(defaultDaysWindow);
+            List<Object[]> candidateRows = interactionRepository.findCandidateEventIdsWithScore(similarUserIds, sinceDate);
 
             // [LỌC THỰC TẾ] Lấy các sự kiện mà người dùng CHƯA đăng ký mua vé (Real-time check)
             List<EventInteraction> registrations = interactionRepository.findByUser_IdAndType(userId, InteractionType.REGISTER);
@@ -146,45 +227,66 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
                     .map(ri -> ri.getEvent().getId())
                     .collect(Collectors.toSet());
 
-            List<String> finalRecommendedIds = candidateEventIds.stream()
-                    .filter(eventId -> !registeredEventIds.contains(eventId)) // Chỉ giữ lại các sự kiện CHƯA đăng ký
-                    .limit(limit)
+            candidateEventIds = candidateRows.stream()
+                    .map(r -> (String) r[0])
+                    .filter(eventId -> !registeredEventIds.contains(eventId))
+                    .limit(10)
                     .collect(Collectors.toList());
 
-            if (finalRecommendedIds.isEmpty()) {
+            if (candidateEventIds.isEmpty()) {
                 return getTrendingEventsFallback(limit);
             }
 
-            // Lấy thông tin chi tiết các sự kiện gợi ý cuối cùng từ Database (Batch fetch để tránh N+1)
-            List<EventSearchPublicDTO> dtos = new ArrayList<>();
-            if (!finalRecommendedIds.isEmpty()) {
-                List<Event> events = eventRepository.findEventsByIdsWithDetails(finalRecommendedIds);
-                Map<String, Event> eventMap = events.stream()
-                        .collect(Collectors.toMap(Event::getId, event -> event));
-                for (String eventId : finalRecommendedIds) {
-                    Event event = eventMap.get(eventId);
-                    if (event != null 
-                            && event.getDeletedAt() == null 
-                            && event.getStatus() == EventStatus.PUBLISHED 
-                            && event.getEndTime().isAfter(LocalDateTime.now())) {
-                        dtos.add(eventMapper.toSearchPublicDTO(event));
-                    }
-                }
+            // Lưu danh sách ID sự kiện gợi ý vào Redis (TTL 24h)
+            try {
+                String jsonVal = objectMapper.writeValueAsString(candidateEventIds);
+                redisService.set(redisKey, jsonVal, REC_TTL_SECONDS);
+            } catch (Exception e) {
+                log.error("[RECOMMENDATION] Lỗi lưu cache gợi ý cho User {}: {}", userId, e.getMessage());
             }
+        }
 
-            // Map trạng thái IsSaved của người dùng vào mỗi sự kiện
-            if (!dtos.isEmpty()) {
-                List<String> eventIds = dtos.stream().map(EventSearchPublicDTO::getId).collect(Collectors.toList());
-                Set<String> savedEventIds = favoriteRepository.findSavedEventIds(userId, eventIds);
-                dtos.forEach(dto -> dto.setIsSaved(savedEventIds.contains(dto.getId())));
-            }
+        // [LỌC THỰC TẾ TRƯỚC KHI TRẢ VỀ] Lấy các sự kiện mà người dùng CHƯA đăng ký mua vé
+        List<EventInteraction> registrations = interactionRepository.findByUser_IdAndType(userId, InteractionType.REGISTER);
+        Set<String> registeredEventIds = registrations.stream()
+                .map(ri -> ri.getEvent().getId())
+                .collect(Collectors.toSet());
 
-            return dtos;
+        List<String> finalRecommendedIds = candidateEventIds.stream()
+                .filter(eventId -> !registeredEventIds.contains(eventId))
+                .limit(limit)
+                .collect(Collectors.toList());
 
-        } catch (Exception e) {
-            log.error("[RECOMMENDATION] Lỗi khi giải mã danh sách gợi ý của User {}: {}", userId, e.getMessage());
+        if (finalRecommendedIds.isEmpty()) {
             return getTrendingEventsFallback(limit);
         }
+
+        // Lấy thông tin chi tiết các sự kiện gợi ý từ Database (Batch fetch để tránh N+1)
+        List<EventSearchPublicDTO> dtos = new ArrayList<>();
+        List<Event> events = eventRepository.findEventsByIdsWithDetails(finalRecommendedIds);
+        Map<String, Event> eventMap = events.stream()
+                .collect(Collectors.toMap(Event::getId, event -> event));
+        for (String eventId : finalRecommendedIds) {
+            Event event = eventMap.get(eventId);
+            if (event != null 
+                    && event.getDeletedAt() == null 
+                    && event.getStatus() == EventStatus.PUBLISHED 
+                    && event.getEndTime() != null 
+                    && event.getEndTime().isAfter(LocalDateTime.now())) {
+                dtos.add(eventMapper.toSearchPublicDTO(event));
+            }
+        }
+
+        if (dtos.isEmpty()) {
+            return getTrendingEventsFallback(limit);
+        }
+
+        // Map trạng thái IsSaved của người dùng vào mỗi sự kiện
+        List<String> eventIds = dtos.stream().map(EventSearchPublicDTO::getId).collect(Collectors.toList());
+        Set<String> savedEventIds = favoriteRepository.findSavedEventIds(userId, eventIds);
+        dtos.forEach(dto -> dto.setIsSaved(savedEventIds.contains(dto.getId())));
+
+        return dtos;
     }
 
     /**

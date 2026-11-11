@@ -24,6 +24,9 @@ public class QdrantConfig {
     @Value("${qdrant.collection-name:events}")
     private String collectionName;
 
+    @Value("${qdrant.users-collection-name:users_cf}")
+    private String usersCollectionName;
+
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
 

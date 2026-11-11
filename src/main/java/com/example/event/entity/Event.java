@@ -22,6 +22,8 @@ public class Event {
     @Id
     @UlidID
     private String id;
+    @Column(name = "sequence_id", insertable = false, updatable = false)
+    private Long sequenceId;
     @Version
     private Long version;
     private String name;

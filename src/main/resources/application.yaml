@@ -34,6 +34,9 @@ app:
     pending-hours: ${APP_CLEANUP_PENDING_HOURS:3}
     uploaded-hours: ${APP_CLEANUP_UPLOADED_HOURS:24}
     deleted-days: ${APP_CLEANUP_DELETED_DAYS:30}
+  recommendation:
+    days-window: ${APP_RECOMMENDATION_DAYS_WINDOW:180}
+    score-threshold: ${APP_RECOMMENDATION_SCORE_THRESHOLD:0.1}
 
 ticket:
   queue:
