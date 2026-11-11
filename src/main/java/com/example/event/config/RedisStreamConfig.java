@@ -2,6 +2,7 @@ package com.example.event.config;
 
 import com.example.event.component.AuthForgotPasswordConsumer;
 import com.example.event.component.AuthVerifyEmailConsumer;
+import com.example.event.component.EventQdrantConsumer;
 import com.example.event.component.TicketEmailConsumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +39,10 @@ public class RedisStreamConfig {
     public static final String FORGOT_PASSWORD_STREAM_KEY = "stream:auth-forgot-password-email";
     public static final String FORGOT_PASSWORD_GROUP_NAME = "auth-forgot-password-email-group";
     public static final String FORGOT_PASSWORD_CONSUMER_NAME = "auth-forgot-consumer-1";
+
+    public static final String EVENT_QDRANT_STREAM_KEY = "stream:event-qdrant-sync";
+    public static final String EVENT_QDRANT_GROUP_NAME = "event-qdrant-group";
+    public static final String EVENT_QDRANT_CONSUMER_NAME = "event-qdrant-consumer-1";
 
     @Bean(destroyMethod = "stop")
     public StreamMessageListenerContainer<String, MapRecord<String, String, String>> ticketStreamContainer(
@@ -192,6 +197,56 @@ public class RedisStreamConfig {
             // 4. Khởi động
             forgotPasswordStreamContainer.start();
             log.info("[FORGOT-PASSWORD-STREAM] StreamMessageListenerContainer đã được khởi động");
+        };
+    }
+
+    @Bean(destroyMethod = "stop")
+    public StreamMessageListenerContainer<String, MapRecord<String, String, String>> eventQdrantStreamContainer(
+            RedisConnectionFactory factory) {
+
+        StreamMessageListenerContainerOptions<String, MapRecord<String, String, String>> opts = StreamMessageListenerContainerOptions
+                .<String, MapRecord<String, String, String>>builder()
+                .pollTimeout(Duration.ofSeconds(5))
+                .serializer(new StringRedisSerializer())
+                .errorHandler(t -> log.warn("[QDRANT-STREAM] Kết nối Redis gián đoạn, đang tự động kết nối lại: {}", t.getMessage()))
+                .build();
+
+        return StreamMessageListenerContainer.create(factory, opts);
+    }
+
+    @Bean
+    public ApplicationRunner eventQdrantStreamInit(
+            StringRedisTemplate stringRedisTemplate,
+            StreamMessageListenerContainer<String, MapRecord<String, String, String>> eventQdrantStreamContainer,
+            EventQdrantConsumer eventQdrantConsumer) {
+
+        return args -> {
+            // 1. Đảm bảo khóa stream tồn tại
+            if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(EVENT_QDRANT_STREAM_KEY))) {
+                Map<String, String> body = new HashMap<>();
+                body.put("_init", "1");
+                stringRedisTemplate.opsForStream().add(EVENT_QDRANT_STREAM_KEY, body);
+                log.info("[QDRANT-STREAM] Đã tạo stream '{}'", EVENT_QDRANT_STREAM_KEY);
+            }
+
+            // 2. Tạo consumer group
+            try {
+                stringRedisTemplate.opsForStream()
+                        .createGroup(EVENT_QDRANT_STREAM_KEY, ReadOffset.from("0-0"), EVENT_QDRANT_GROUP_NAME);
+                log.info("[QDRANT-STREAM] Đã tạo consumer group '{}'", EVENT_QDRANT_GROUP_NAME);
+            } catch (Exception e) {
+                log.info("[QDRANT-STREAM] Consumer group '{}' đã tồn tại — OK", EVENT_QDRANT_GROUP_NAME);
+            }
+
+            // 3. Đăng ký consumer
+            eventQdrantStreamContainer.receive(
+                    Consumer.from(EVENT_QDRANT_GROUP_NAME, EVENT_QDRANT_CONSUMER_NAME),
+                    StreamOffset.create(EVENT_QDRANT_STREAM_KEY, ReadOffset.lastConsumed()),
+                    eventQdrantConsumer);
+
+            // 4. Khởi động
+            eventQdrantStreamContainer.start();
+            log.info("[QDRANT-STREAM] StreamMessageListenerContainer đã được khởi động");
         };
     }
 }

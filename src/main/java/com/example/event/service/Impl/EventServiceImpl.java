@@ -1,5 +1,6 @@
 package com.example.event.service.Impl;
 
+import com.example.event.component.EventQdrantProducer;
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
 import com.example.event.dto.*;
@@ -12,6 +13,7 @@ import com.example.event.projection.TicketStatProjection;
 import com.example.event.repository.*;
 import com.example.event.service.EventInteractionService;
 import com.example.event.service.EventService;
+import com.example.event.service.QdrantClientService;
 import com.example.event.service.ShowService;
 import com.example.event.specification.EventSpecification;
 import com.example.event.util.DateUtil;
@@ -60,6 +62,8 @@ public class EventServiceImpl implements EventService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final ReservationRepository reservationRepository;
+    private final EventQdrantProducer eventQdrantProducer;
+    private final QdrantClientService qdrantClientService;
 
     @Override
     @Transactional
@@ -238,6 +242,12 @@ public class EventServiceImpl implements EventService {
         eventRepository.save(event);
         log.info("[EVENT] Cập nhật trạng thái sự kiện: eventId={}, oldStatus={}, newStatus={}, updatorId={}",
                 id, oldStatus, newStatus, updatorId);
+
+        if (newStatus == EventStatus.PUBLISHED) {
+            eventQdrantProducer.syncEvent(id, "UPSERT");
+        } else if (oldStatus == EventStatus.PUBLISHED) {
+            eventQdrantProducer.syncEvent(id, "DELETE");
+        }
     }
 
     @Override
@@ -425,6 +435,11 @@ public class EventServiceImpl implements EventService {
         Event savedEvent = eventRepository.saveAndFlush(event);
         log.info("[EVENT] Cập nhật thông tin sự kiện thành công: eventId={}, name={}, updatorId={}",
                 savedEvent.getId(), savedEvent.getName(), updatorId);
+
+        if (savedEvent.getStatus() == EventStatus.PUBLISHED) {
+            eventQdrantProducer.syncEvent(savedEvent.getId(), "UPSERT");
+        }
+
         return eventMapper.toDTO(savedEvent);
     }
 
@@ -539,6 +554,17 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req) {
+        // Tìm kiếm sự kiện công khai sử dụng Qdrant Hybrid Search (Vector + Sparse BM25 + Payload Filter)
+        return qdrantClientService.searchHybrid(req);
+    }
+
+    /**
+     * Tìm kiếm sự kiện public bằng MySQL (JPA Specification + Fulltext).
+     * Hàm này hiện không dùng, được tách riêng để lưu lại logic tìm kiếm cũ làm dự phòng.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublicWithMySQL(EventSearchPublicReq req) {
         String userId = securityUtils.getCurrentUserId();
         LocalDateTime now = LocalDateTime.now();
         List<EventStatus> targetStatuses = req.getStatuses();

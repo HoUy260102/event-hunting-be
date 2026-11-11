@@ -15,6 +15,7 @@ public interface EventService {
     void submitEvent(String id);
     Page<EventDTO> getEventSearchForAdmin(EventSearchReq req);
     KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublic(EventSearchPublicReq req);
+    KeysetPageResponse<EventSearchPublicDTO, String> getEventSearchPublicWithMySQL(EventSearchPublicReq req);
 
     EventDTO updateEvent(UpdateEventReq updateEventReq, String id);
     EventDTO findEventById(String id);

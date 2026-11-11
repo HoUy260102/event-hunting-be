@@ -2,6 +2,7 @@ package com.example.event.job;
 
 import com.example.event.component.AuthForgotPasswordConsumer;
 import com.example.event.component.AuthVerifyEmailConsumer;
+import com.example.event.component.EventQdrantConsumer;
 import com.example.event.component.TicketEmailConsumer;
 import com.example.event.config.RedisStreamConfig;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ public class RedisStreamRecoveryJob {
     private final TicketEmailConsumer ticketEmailConsumer;
     private final AuthVerifyEmailConsumer authVerifyEmailConsumer;
     private final AuthForgotPasswordConsumer authForgotPasswordConsumer;
+    private final EventQdrantConsumer eventQdrantConsumer;
 
     private static final int MAX_DELIVERY_COUNT = 3;
     private static final long MIN_IDLE_MINUTES = 2;
@@ -77,6 +79,20 @@ public class RedisStreamRecoveryJob {
                 RedisStreamConfig.FORGOT_PASSWORD_CONSUMER_NAME,
                 "[FORGOT-PASSWORD-STREAM-RECOVERY]",
                 authForgotPasswordConsumer::onMessage);
+    }
+
+    /**
+     * Định kỳ quét PEL cho Event Qdrant Sync Stream mỗi 1 phút.
+     */
+    @Scheduled(fixedDelay = 60_000)
+    @SchedulerLock(name = "recoverEventQdrantStreamJob", lockAtMostFor = "PT50S", lockAtLeastFor = "PT5S")
+    public void recoverEventQdrantPendingMessages() {
+        recoverStream(
+                RedisStreamConfig.EVENT_QDRANT_STREAM_KEY,
+                RedisStreamConfig.EVENT_QDRANT_GROUP_NAME,
+                RedisStreamConfig.EVENT_QDRANT_CONSUMER_NAME,
+                "[QDRANT-STREAM-RECOVERY]",
+                eventQdrantConsumer::onMessage);
     }
 
     private void recoverStream(

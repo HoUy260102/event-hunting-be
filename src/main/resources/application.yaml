@@ -39,6 +39,15 @@ ticket:
   queue:
     max-buying: ${TICKET_QUEUE_MAX_BUYING:50}
 
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
+
+qdrant:
+  url: ${QDRANT_URL:http://localhost:6333}
+  api-key: ${QDRANT_API_KEY:}
+  collection-name: ${QDRANT_COLLECTION:events}
+
 logging:
   charset:
     console: UTF-8

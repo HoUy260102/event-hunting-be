@@ -1,5 +1,6 @@
 package com.example.event.service.Impl;
 
+import com.example.event.component.EventQdrantProducer;
 import com.example.event.config.security.SecurityUtils;
 import com.example.event.constant.*;
 import com.example.event.dto.*;
@@ -38,6 +39,7 @@ public class ShowServiceImpl implements ShowService {
     private final EventRepository eventRepository;
     private final ShowValidator showValidator;
     private final ReservationRepository reservationRepository;
+    private final EventQdrantProducer eventQdrantProducer;
 
     @Override
     public void createShows(List<CreateShowReq> showsReq, Event event, String creatorId) {
@@ -526,6 +528,10 @@ public class ShowServiceImpl implements ShowService {
         event.setEndTime(endTime);
         event.setMinPrice(minPrice);
         eventRepository.save(event);
+
+        if (event.getStatus() == EventStatus.PUBLISHED) {
+            eventQdrantProducer.syncEvent(event.getId(), "UPSERT");
+        }
     }
 
     @Override
