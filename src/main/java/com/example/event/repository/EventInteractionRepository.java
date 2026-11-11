@@ -13,7 +13,8 @@ import java.util.List;
 public interface EventInteractionRepository extends JpaRepository<EventInteraction, String> {
     boolean existsByEvent_IdAndUser_IdAndType(String eventId, String userId, InteractionType type);
 
-    boolean existsByEvent_IdAndUser_IdAndTypeAndCreatedAtAfter(String eventId, String userId, InteractionType type, LocalDateTime since);
+    boolean existsByEvent_IdAndUser_IdAndTypeAndCreatedAtAfter(String eventId, String userId, InteractionType type,
+            LocalDateTime since);
 
     void deleteByEvent_IdAndUser_IdAndType(String eventId, String userId, InteractionType type);
 
@@ -25,7 +26,7 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
     List<String> findActiveUserIds(@Param("since") LocalDateTime since);
 
     @Query(value = """
-            SELECT 
+            SELECT
                 i.user_id AS userId,
                 e.sequence_id AS sequenceId,
                 MAX(
@@ -46,36 +47,43 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
             """, nativeQuery = true)
     List<Object[]> findUserInteractionsByUsers(
             @Param("userIds") List<String> userIds,
-            @Param("since") LocalDateTime since
-    );
+            @Param("since") LocalDateTime since);
 
     @Query(value = """
-            SELECT i.event_id, MAX(
-                CASE i.type
-                    WHEN 'VIEW'     THEN 1.0
-                    WHEN 'COMMENT'  THEN 2.0
-                    WHEN 'FAVORITE' THEN 3.0
-                    WHEN 'REGISTER' THEN 5.0
-                    ELSE 0.0
-                END
-            ) AS score
-            FROM event_interaction i
-            JOIN event e ON e.id = i.event_id
-            WHERE i.user_id IN (:userIds)
-              AND i.created_at >= :since
-              AND e.status = 'PUBLISHED'
-              AND e.deleted_at IS NULL
-              AND e.end_time > NOW()
-            GROUP BY i.event_id
-            ORDER BY score DESC
+            SELECT
+                user_event.event_id,
+                SUM(user_event.user_score) AS total_score
+            FROM (
+                SELECT
+                    i.user_id,
+                    i.event_id,
+                    MAX(
+                        CASE i.type
+                            WHEN 'VIEW'     THEN 1.0
+                            WHEN 'COMMENT'  THEN 2.0
+                            WHEN 'FAVORITE' THEN 3.0
+                            WHEN 'REGISTER' THEN 5.0
+                            ELSE 0.0
+                        END
+                    ) AS user_score
+                FROM event_interaction i
+                JOIN event e ON e.id = i.event_id
+                WHERE i.user_id IN (:userIds)
+                  AND i.created_at >= :since
+                  AND e.status = 'PUBLISHED'
+                  AND e.deleted_at IS NULL
+                  AND e.end_time > NOW()
+                GROUP BY i.user_id, i.event_id
+            ) AS user_event
+            GROUP BY user_event.event_id
+            ORDER BY total_score DESC
             """, nativeQuery = true)
     List<Object[]> findCandidateEventIdsWithScore(
             @Param("userIds") List<String> userIds,
-            @Param("since") LocalDateTime since
-    );
+            @Param("since") LocalDateTime since);
 
     @Query(value = """
-            SELECT 
+            SELECT
                 i.user_id AS userId,
                 i.event_id AS eventId,
                 MAX(
@@ -94,7 +102,7 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
     List<Object[]> findAggregatedInteractions(@Param("since") LocalDateTime since);
 
     @Query(value = """
-                SELECT 
+                SELECT
                     e.id AS id,
                     e.name AS name,
                     e.location AS location,
@@ -114,25 +122,24 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
                     ) AS trendingScore
                 FROM event_interaction i
                 JOIN event e ON e.id = i.event_id
-                LEFT JOIN file f ON e.id = f.reference_id 
-                    AND f.folder = 'EVENT_POSTER' 
+                LEFT JOIN file f ON e.id = f.reference_id
+                    AND f.folder = 'EVENT_POSTER'
                     AND f.status = 'ACTIVE'
                 WHERE i.created_at >= :since
-                    AND e.end_time >= NOW() 
+                    AND e.end_time >= NOW()
                     AND e.deleted_at IS NULL
                     AND e.status = 'PUBLISHED'
-                GROUP BY 
-                    e.id, 
-                    e.name, 
-                    e.location, 
-                    f.url, 
-                    e.start_time, 
+                GROUP BY
+                    e.id,
+                    e.name,
+                    e.location,
+                    f.url,
+                    e.start_time,
                     e.end_time
                 ORDER BY trendingScore DESC
                 LIMIT :limit
             """, nativeQuery = true)
     List<EventTrendingProjection> findTrendingEvents(
             @Param("since") LocalDateTime since,
-            @Param("limit") int limit
-    );
+            @Param("limit") int limit);
 }

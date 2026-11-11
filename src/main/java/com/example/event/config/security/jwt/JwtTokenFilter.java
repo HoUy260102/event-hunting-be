@@ -82,7 +82,7 @@ public class JwtTokenFilter extends OncePerRequestFilter {
                 return;
             }
         } catch (JwtAuthenticationException e) {
-            if (isByPassToken(request)) {
+            if (e.getErrorCode() != ErrorCode.TOKEN_EXPIRED && isByPassToken(request)) {
                 filterChain.doFilter(request, response);
                 return;
             }
