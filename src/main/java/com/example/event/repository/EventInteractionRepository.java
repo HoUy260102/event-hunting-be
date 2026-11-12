@@ -26,6 +26,19 @@ public interface EventInteractionRepository extends JpaRepository<EventInteracti
     List<String> findActiveUserIds(@Param("since") LocalDateTime since);
 
     @Query(value = """
+            SELECT DISTINCT user_id
+            FROM event_interaction
+            WHERE created_at >= :since
+              AND (:lastUserId = '' OR user_id > :lastUserId)
+            ORDER BY user_id ASC
+            LIMIT :batchSize
+            """, nativeQuery = true)
+    List<String> findActiveUserIdsKeyset(
+            @Param("since") LocalDateTime since,
+            @Param("lastUserId") String lastUserId,
+            @Param("batchSize") int batchSize);
+
+    @Query(value = """
             SELECT
                 i.user_id AS userId,
                 e.sequence_id AS sequenceId,

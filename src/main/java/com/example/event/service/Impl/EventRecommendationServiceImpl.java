@@ -50,92 +50,127 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
     private int defaultDaysWindow;
 
     @Override
-    @Transactional(readOnly = true)
     public void runRecommendationJob(int days) {
-        log.info("[RECOMMENDATION] Bắt đầu đồng bộ Vector người dùng và tính gợi ý qua Qdrant Sparse Vector ({} ngày qua).", days);
+        log.info("[RECOMMENDATION] Bắt đầu đồng bộ Vector người dùng và tính gợi ý qua Qdrant Sparse Vector theo từng Batch ({} ngày qua).", days);
         LocalDateTime sinceDate = LocalDateTime.now().minusDays(days);
 
-        // 1. Lấy danh sách tất cả các User ID có tương tác trong N ngày qua
-        List<String> activeUserIds = interactionRepository.findActiveUserIds(sinceDate);
-        if (activeUserIds.isEmpty()) {
-            log.warn("[RECOMMENDATION] Không tìm thấy người dùng nào có tương tác trong {} ngày qua.", days);
-            return;
-        }
-
-        log.info("[RECOMMENDATION] Tìm thấy {} người dùng hoạt động. Bắt đầu xử lý theo từng mẻ (Batch 50 users)...", activeUserIds.size());
         int batchSize = 50;
-        int totalUsers = activeUserIds.size();
+        String lastUserId = "";
+        int totalProcessed = 0;
+        int failedBatchCount = 0;
+        int batchIndex = 1;
+        int maxRetries = 3;
 
-        for (int i = 0; i < totalUsers; i += batchSize) {
-            int end = Math.min(i + batchSize, totalUsers);
-            List<String> batchUserIds = activeUserIds.subList(i, end);
-
-            try {
-                // A. Lấy tương tác của mẻ này theo sequence_id
-                List<Object[]> rows = interactionRepository.findUserInteractionsByUsers(batchUserIds, sinceDate);
-
-                // B. Gom nhóm Sparse Vector cho từng User
-                Map<String, Map<Long, Double>> userInteractions = new HashMap<>();
-                for (Object[] row : rows) {
-                    String uid = (String) row[0];
-                    Long seqId = ((Number) row[1]).longValue();
-                    Double weight = ((Number) row[2]).doubleValue();
-                    userInteractions.computeIfAbsent(uid, k -> new HashMap<>()).put(seqId, weight);
-                }
-
-                // C. Chuẩn bị points để đẩy lên Qdrant users_cf
-                List<Map<String, Object>> qdrantPoints = new ArrayList<>();
-                for (Map.Entry<String, Map<Long, Double>> entry : userInteractions.entrySet()) {
-                    String uid = entry.getKey();
-                    Map<Long, Double> seqWeights = entry.getValue();
-
-                    List<Long> indices = new ArrayList<>(seqWeights.keySet());
-                    List<Double> rawValues = new ArrayList<>(seqWeights.values());
-
-                    // Chuẩn hóa L2-norm để đưa Tích vô hướng về chuẩn Cosine Similarity [0.0 -> 1.0]
-                    double sumSq = 0.0;
-                    for (Double val : rawValues) {
-                        sumSq += val * val;
-                    }
-                    double norm = Math.sqrt(sumSq);
-
-                    List<Double> normalizedValues = new ArrayList<>(rawValues.size());
-                    for (Double val : rawValues) {
-                        normalizedValues.add(norm > 0 ? (val / norm) : val);
-                    }
-
-                    String pointId;
-                    try {
-                        pointId = Ulid.from(uid).toUuid().toString();
-                    } catch (Exception e) {
-                        pointId = uid;
-                    }
-
-                    qdrantPoints.add(Map.of(
-                            "id", pointId,
-                            "vector", Map.of(
-                                    "user_sparse", Map.of(
-                                            "indices", indices,
-                                            "values", normalizedValues
-                                    )
-                            ),
-                            "payload", Map.of("userId", uid)
-                    ));
-                }
-
-                // D. Upsert mẻ này vào Qdrant
-                qdrantClientService.upsertUserSparseVectors(qdrantPoints);
-
-                log.info("[RECOMMENDATION] Hoàn thành đồng bộ mẻ User [{}/{}].", end, totalUsers);
-
-                // Nghỉ 50ms giữa các mẻ để nhường tài nguyên CPU
-                Thread.sleep(50);
-
-            } catch (Exception e) {
-                log.error("[RECOMMENDATION] Lỗi khi xử lý mẻ User từ {} đến {}: {}", i, end, e.getMessage(), e);
+        while (true) {
+            // 1. Chỉ lấy đúng 50 user tiếp theo từ DB qua Keyset Pagination (user_id > lastUserId)
+            List<String> batchUserIds = interactionRepository.findActiveUserIdsKeyset(sinceDate, lastUserId, batchSize);
+            if (batchUserIds == null || batchUserIds.isEmpty()) {
+                break;
             }
+
+            int attempt = 0;
+            boolean batchSuccess = false;
+
+            while (attempt < maxRetries && !batchSuccess) {
+                attempt++;
+                try {
+                    // A. Lấy tương tác của mẻ này theo sequence_id
+                    List<Object[]> rows = interactionRepository.findUserInteractionsByUsers(batchUserIds, sinceDate);
+
+                    // B. Gom nhóm Sparse Vector cho từng User
+                    Map<String, Map<Long, Double>> userInteractions = new HashMap<>();
+                    for (Object[] row : rows) {
+                        String uid = (String) row[0];
+                        Long seqId = ((Number) row[1]).longValue();
+                        Double weight = ((Number) row[2]).doubleValue();
+                        userInteractions.computeIfAbsent(uid, k -> new HashMap<>()).put(seqId, weight);
+                    }
+
+                    // C. Chuẩn bị points để đẩy lên Qdrant users_cf
+                    List<Map<String, Object>> qdrantPoints = new ArrayList<>();
+                    for (Map.Entry<String, Map<Long, Double>> entry : userInteractions.entrySet()) {
+                        String uid = entry.getKey();
+                        Map<Long, Double> seqWeights = entry.getValue();
+
+                        List<Long> indices = new ArrayList<>(seqWeights.keySet());
+                        List<Double> rawValues = new ArrayList<>(seqWeights.values());
+
+                        // Chuẩn hóa L2-norm để đưa Tích vô hướng về chuẩn Cosine Similarity [0.0 -> 1.0]
+                        double sumSq = 0.0;
+                        for (Double val : rawValues) {
+                            sumSq += val * val;
+                        }
+                        double norm = Math.sqrt(sumSq);
+
+                        List<Double> normalizedValues = new ArrayList<>(rawValues.size());
+                        for (Double val : rawValues) {
+                            normalizedValues.add(norm > 0 ? (val / norm) : val);
+                        }
+
+                        String pointId;
+                        try {
+                            pointId = Ulid.from(uid).toUuid().toString();
+                        } catch (Exception e) {
+                            pointId = uid;
+                        }
+
+                        qdrantPoints.add(Map.of(
+                                "id", pointId,
+                                "vector", Map.of(
+                                        "user_sparse", Map.of(
+                                                "indices", indices,
+                                                "values", normalizedValues
+                                        )
+                                ),
+                                "payload", Map.of("userId", uid)
+                        ));
+                    }
+
+                    // D. Upsert mẻ này vào Qdrant
+                    if (!qdrantPoints.isEmpty()) {
+                        qdrantClientService.upsertUserSparseVectors(qdrantPoints);
+                    }
+
+                    totalProcessed += batchUserIds.size();
+                    batchSuccess = true;
+                    log.info("[RECOMMENDATION] Hoàn thành đồng bộ Batch #{} ({} users, luỹ kế: {} users).",
+                            batchIndex, batchUserIds.size(), totalProcessed);
+
+                    // Nghỉ 50ms giữa các mẻ để nhường tài nguyên CPU
+                    Thread.sleep(50);
+
+                } catch (Exception e) {
+                    log.warn("[RECOMMENDATION] Thất bại lần {}/{} khi xử lý Batch #{} từ user {}: {}",
+                            attempt, maxRetries, batchIndex, lastUserId, e.getMessage());
+
+                    if (attempt < maxRetries) {
+                        try {
+                            long backoffTime = 1000L * (long) Math.pow(2, attempt - 1);
+                            log.info("[RECOMMENDATION] Đang chờ {}ms trước khi thử lại Batch #{}...", backoffTime, batchIndex);
+                            Thread.sleep(backoffTime);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    } else {
+                        log.error("[RECOMMENDATION] Bỏ qua Batch #{} sau {} lần thử thất bại do lỗi: {}",
+                                batchIndex, maxRetries, e.getMessage(), e);
+                        failedBatchCount++;
+                    }
+                }
+            }
+
+            // Luôn cập nhật con trỏ lastUserId là user cuối cùng của batch này để không bị kẹt lặp
+            lastUserId = batchUserIds.get(batchUserIds.size() - 1);
+            batchIndex++;
         }
-        log.info("[RECOMMENDATION] Hoàn thành việc đồng bộ toàn bộ Vector người dùng lên Qdrant.");
+
+        if (totalProcessed == 0 && failedBatchCount == 0) {
+            log.warn("[RECOMMENDATION] Không tìm thấy người dùng nào có tương tác trong {} ngày qua.", days);
+        } else {
+            log.info("[RECOMMENDATION] Hoàn tất việc đồng bộ toàn bộ Vector người dùng lên Qdrant (Thành công: {} users, Thất bại: {} batches).",
+                    totalProcessed, failedBatchCount);
+        }
     }
 
     /**
