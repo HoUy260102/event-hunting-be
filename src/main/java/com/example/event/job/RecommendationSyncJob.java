@@ -19,11 +19,11 @@ public class RecommendationSyncJob {
     private int daysWindow;
 
     /**
-     * Tác vụ lập lịch chạy ngầm định kỳ hàng ngày vào lúc 2 giờ sáng.
+     * Tác vụ lập lịch chạy ngầm định kỳ hàng ngày vào lúc 3 giờ sáng.
      * Quét tương tác người dùng, tính ma trận thưa Sparse Vector và đồng bộ lên Qdrant & Redis.
      * ShedLock đảm bảo chỉ 1 node chạy trong môi trường phân tán (Cluster / Multi-instances).
      */
-    @Scheduled(cron = "0 0 2 * * ?")
+    @Scheduled(cron = "0 0 3 * * ?")
     @SchedulerLock(
             name = "recommendationSyncJob",
             lockAtMostFor = "PT2H",
