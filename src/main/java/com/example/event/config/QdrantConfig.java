@@ -30,6 +30,9 @@ public class QdrantConfig {
     @Value("${qdrant.search.hybrid.score-threshold:0.4}")
     private double hybridScoreThreshold;
 
+    @Value("${qdrant.search.hybrid.rrf-k:2}")
+    private int rrfK;
+
     @Value("${qdrant.search.hybrid.weights.core-dense:2.0}")
     private double weightCoreDense;
 

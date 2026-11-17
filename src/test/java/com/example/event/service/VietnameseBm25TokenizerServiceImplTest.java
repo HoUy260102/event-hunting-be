@@ -25,6 +25,48 @@ class VietnameseBm25TokenizerServiceImplTest {
     }
 
     @Test
+    @DisplayName("So sánh điểm BM25 giữa sự kiện HCM và Hà Nội cho query tìm kiếm Hà Nội")
+    void testCompareHcmAndHanoi() {
+        String docHcm = "'GIỮA MỘT VẠN TOUR (MỞ RỘNG)' - PHÙNG KHÁNH LINH | CHAPTER 5: LIVE EXPERIENCE IN HCMC Liveshow & Concert BLACK SWAN LABEL Hồ Chí Minh Nhà Thi Đấu Phú Thọ";
+        String docHn = "'GIỮA MỘT VẠN TOUR MỞ RỘNG' - PHÙNG KHÁNH LINH | CHAPTER 3: LIVE EXPERIENCE IN HÀ NỘI Liveshow & Concert BLACK SWAN LABEL Hà Nội TRUNG TÂM HỘI NGHỊ QUỐC GIA";
+
+        String query = "Concert Phùng Khánh Linh ở Hà Nội";
+
+        SparseVectorDTO vecHcm = tokenizerService.toDocumentSparseVector(docHcm, 100);
+        SparseVectorDTO vecHn = tokenizerService.toDocumentSparseVector(docHn, 100);
+        SparseVectorDTO vecQuery = tokenizerService.toQuerySparseVector(query);
+
+        // Tính Dot Product giữa query và document
+        float scoreHcm = calculateDotProduct(vecQuery, vecHcm);
+        float scoreHn = calculateDotProduct(vecQuery, vecHn);
+
+        System.out.println("==================================================");
+        System.out.println("Query: " + query);
+        System.out.println("Query Tokens: " + tokenizerService.extractTokens(query));
+        System.out.println("Doc HCM BM25 Score: " + scoreHcm);
+        System.out.println("Doc HN BM25 Score: " + scoreHn);
+        System.out.println("==================================================");
+
+        assertTrue(scoreHn > scoreHcm, "Điểm sự kiện Hà Nội PHẢI cao hơn HCM trong nhánh BM25");
+    }
+
+    private float calculateDotProduct(SparseVectorDTO q, SparseVectorDTO doc) {
+        float sum = 0f;
+        java.util.Map<Integer, Float> docMap = new java.util.HashMap<>();
+        for (int i = 0; i < doc.getIndices().size(); i++) {
+            docMap.put(doc.getIndices().get(i), doc.getValues().get(i));
+        }
+        for (int i = 0; i < q.getIndices().size(); i++) {
+            int qIdx = q.getIndices().get(i);
+            float qVal = q.getValues().get(i);
+            if (docMap.containsKey(qIdx)) {
+                sum += qVal * docMap.get(qIdx);
+            }
+        }
+        return sum;
+    }
+
+    @Test
     @DisplayName("Tách từ 1-gram và 2-gram loại bỏ stop words đúng luật ngắt nhịp")
     void testExtractTokens_PreservesCompoundsAndFiltersStopwords() {
         String input = "Liveshow ca nhạc của Đen Vâu tại Hà Nội!";

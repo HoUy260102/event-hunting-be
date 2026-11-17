@@ -55,6 +55,7 @@ qdrant:
   search:
     hybrid:
       score-threshold: ${QDRANT_HYBRID_SCORE_THRESHOLD:0.4}
+      rrf-k: ${QDRANT_RRF_K:2}
       weights:
         core-dense: ${QDRANT_WEIGHT_CORE:2.0}
         desc-dense: ${QDRANT_WEIGHT_DESC:1.0}
