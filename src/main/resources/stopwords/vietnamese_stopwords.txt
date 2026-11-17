@@ -1,0 +1,204 @@
+# Danh sách từ dừng tiếng Việt cơ bản (Vietnamese Stopwords)
+# Hư từ, liên từ, giới từ, đại từ
+và
+của
+tại
+ở
+cho
+với
+những
+các
+là
+được
+bị
+trong
+ngoài
+vào
+ra
+thì
+mà
+hoặc
+hay
+cũng
+đã
+đang
+sẽ
+một
+này
+đó
+kia
+sau
+trước
+khi
+nào
+gì
+ai
+sao
+thế
+vậy
+do
+bởi
+vì
+nên
+tuy
+nhưng
+dù
+mặc dù
+bởi vì
+do đó
+tuy nhiên
+cho nên
+đến
+từ
+lại
+qua
+lên
+xuống
+rồi
+vẫn
+chỉ
+cứ
+hãy
+đừng
+chớ
+nhé
+nha
+ạ
+ơi
+luôn
+ngay
+liền
+rất
+quá
+lắm
+hơn
+nhất
+cực
+kỳ
+chúng
+họ
+mình
+bạn
+từng
+nhiều
+ít
+mỗi
+mọi
+toàn
+toàn bộ
+tất cả
+nhất là
+đặc biệt
+theo
+như
+như là
+giống như
+tương tự
+đối với
+về
+giữa
+trên
+dưới
+cùng
+cùng với
+liên quan
+chính
+chính là
+thực sự
+thực ra
+thường
+luôn luôn
+đôi khi
+thỉnh thoảng
+gần
+xa
+khoảng
+chừng
+tầm
+hầu như
+hầu hết
+có
+không
+chưa
+chẳng
+chớ
+đâu
+nào đó
+ai đó
+gì đó
+sao đó
+bao giờ
+khi nào
+lúc nào
+bấy giờ
+lúc này
+hiện tại
+hôm nay
+ngày mai
+hôm qua
+trước đây
+sau này
+vừa
+vừa mới
+mới
+xong
+hết
+cả
+chỉ có
+duy nhất
+thêm
+bớt
+khác
+nhau
+riêng
+chung
+nữa
+thôi
+chứ
+nhỉ
+nhá
+vâng
+dạ
+ừ
+ừm
+à
+ờ
+thôi thì
+dù sao
+nói chung
+tóm lại
+tổng cộng
+khoảng chừng
+# Từ dừng ngữ cảnh domain sự kiện / bán vé (quá phổ biến)
+sự kiện
+event
+mua vé
+bán vé
+đặt vé
+chi tiết
+liên hệ
+hotline
+thông tin
+chương trình
+tổ chức
+diễn ra
+tham gia
+chính thức
+dành cho
+ưu đãi
+giá vé
+quy định
+lưu ý
+áp dụng
+chào đón
+hẹn gặp
+cập nhật
+hướng dẫn
+trải nghiệm
+khám phá
+không gian
+thời gian
+địa điểm
+khách mời
+biểu diễn
+

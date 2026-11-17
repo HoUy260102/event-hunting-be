@@ -7,14 +7,15 @@ import com.example.event.dto.CategoryDTO;
 import com.example.event.dto.EventSearchPublicDTO;
 import com.example.event.dto.FileDTO;
 import com.example.event.dto.ProvinceDTO;
+import com.example.event.dto.SparseVectorDTO;
 import com.example.event.dto.request.EventSearchPublicReq;
 import com.example.event.dto.response.KeysetPageResponse;
 import com.example.event.entity.Event;
 import com.example.event.repository.FavoriteRepository;
 import com.example.event.service.GeminiEmbeddingService;
 import com.example.event.service.QdrantClientService;
+import com.example.event.service.VietnameseBm25TokenizerService;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.f4b6a3.ulid.Ulid;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -35,9 +36,9 @@ public class QdrantClientServiceImpl implements QdrantClientService {
     private final RestClient qdrantRestClient;
     private final QdrantConfig qdrantConfig;
     private final GeminiEmbeddingService geminiEmbeddingService;
+    private final VietnameseBm25TokenizerService bm25TokenizerService;
     private final FavoriteRepository favoriteRepository;
     private final SecurityUtils securityUtils;
-    private final ObjectMapper objectMapper;
 
     @Value("${app.recommendation.score-threshold:0.1}")
     private double recommendationScoreThreshold;
@@ -75,11 +76,13 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             }
 
             if (!exists) {
-                log.info("[QDRANT] Đang tạo collection '{}' với cấu hình 2-Dense Vector (Gemini AI)...", collection);
+                log.info("[QDRANT] Đang tạo collection '{}' với cấu hình Hybrid (2-Dense + 1-Sparse BM25)...", collection);
                 Map<String, Object> body = Map.of(
                         "vectors", Map.of(
                                 "core_dense", Map.of("size", 768, "distance", "Cosine"),
-                                "desc_dense", Map.of("size", 768, "distance", "Cosine")));
+                                "desc_dense", Map.of("size", 768, "distance", "Cosine")),
+                        "sparse_vectors", Map.of(
+                                "text_bm25", Map.of("modifier", "idf")));
 
                 qdrantRestClient.put()
                         .uri("/collections/{collection}", collection)
@@ -87,6 +90,8 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                         .retrieve()
                         .toBodilessEntity();
                 log.info("[QDRANT] Đã tạo thành công collection '{}'.", collection);
+            } else {
+                ensureSparseVectorConfig(collection);
             }
 
             // 2. Đảm bảo các payload indexes được tạo
@@ -94,6 +99,34 @@ public class QdrantClientServiceImpl implements QdrantClientService {
 
         } catch (Exception e) {
             log.error("[QDRANT] Lỗi khởi tạo collection '{}': {}", collection, e.getMessage(), e);
+        }
+    }
+
+    private void ensureSparseVectorConfig(String collection) {
+        try {
+            JsonNode res = qdrantRestClient.get()
+                    .uri("/collections/{collection}", collection)
+                    .retrieve()
+                    .body(JsonNode.class);
+
+            boolean hasSparse = res != null && res.path("result")
+                    .path("config")
+                    .path("params")
+                    .path("sparse_vectors")
+                    .has("text_bm25");
+
+            if (!hasSparse) {
+                log.info("[QDRANT] Collection '{}' chưa có sparse vector 'text_bm25'. Đang bổ sung...", collection);
+                Map<String, Object> body = Map.of("sparse", Map.of("modifier", "idf"));
+                qdrantRestClient.put()
+                        .uri("/collections/{collection}/vectors/text_bm25", collection)
+                        .body(body)
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("[QDRANT] Đã bổ sung thành công sparse vector 'text_bm25' cho collection '{}'.", collection);
+            }
+        } catch (Exception e) {
+            log.warn("[QDRANT] Không thể tự động bổ sung sparse vector 'text_bm25' cho collection '{}': {}", collection, e.getMessage());
         }
     }
 
@@ -219,10 +252,19 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                 payload.put("posterUrl", event.getPoster().getUrl());
             }
 
-            // 3. Chuẩn bị vector data (2-Dense Vector thuần Gemini AI)
+            // Vector 3: text_bm25 (Sparse Vector)
+            String bm25Text = String.join(" ", coreText, descText).trim();
+            SparseVectorDTO sparseVector = bm25TokenizerService.toDocumentSparseVector(bm25Text, 100);
+
+            // 3. Chuẩn bị vector data (Hybrid: 2-Dense Vector Gemini AI + 1-Sparse Vector BM25)
             Map<String, Object> vectors = new HashMap<>();
             vectors.put("core_dense", coreVector);
             vectors.put("desc_dense", descVector);
+            if (sparseVector != null && !sparseVector.isEmpty()) {
+                vectors.put("text_bm25", Map.of(
+                        "indices", sparseVector.getIndices(),
+                        "values", sparseVector.getValues()));
+            }
 
             Map<String, Object> point = Map.of(
                     "id", uuid,
@@ -326,49 +368,54 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             boolean hasKeyword = req.getKeyword() != null && !req.getKeyword().trim().isEmpty();
 
             if (hasKeyword) {
-                // === DENSE VECTOR SEARCH (GEMINI) VỚI FORMULA QUERY FUSION (70% Core + 30%
-                // Desc) ===
+                // === HYBRID SEARCH: 2-DENSE (GEMINI) + 1-SPARSE (BM25) VỚI WEIGHTED RRF ===
                 String keyword = req.getKeyword().trim();
                 List<Float> queryDense = geminiEmbeddingService.getEmbedding(keyword);
+                SparseVectorDTO querySparse = bm25TokenizerService.toQuerySparseVector(keyword);
 
                 List<Map<String, Object>> prefetchList = new ArrayList<>();
-                // Prefetch limit động theo offset + fetchLimit để đảm bảo phân trang sâu không
-                // bị hụt kết quả
+                List<Double> rrfWeights = new ArrayList<>();
+
+                // Prefetch limit động theo offset + fetchLimit để đảm bảo phân trang sâu không bị hụt kết quả
                 int prefetchLimit = Math.max(100, offset + fetchLimit + 20);
 
                 if (!queryDense.isEmpty()) {
+                    // Nhánh 0: core_dense
                     prefetchList.add(Map.of(
                             "query", queryDense,
                             "using", "core_dense",
                             "limit", prefetchLimit));
+                    rrfWeights.add(qdrantConfig.getWeightCoreDense());
+
+                    // Nhánh 1: desc_dense
                     prefetchList.add(Map.of(
                             "query", queryDense,
                             "using", "desc_dense",
                             "limit", prefetchLimit));
+                    rrfWeights.add(qdrantConfig.getWeightDescDense());
+                }
+
+                if (querySparse != null && !querySparse.isEmpty()) {
+                    // Nhánh 2: text_bm25
+                    prefetchList.add(Map.of(
+                            "query", Map.of(
+                                    "indices", querySparse.getIndices(),
+                                    "values", querySparse.getValues()),
+                            "using", "text_bm25",
+                            "limit", prefetchLimit));
+                    rrfWeights.add(qdrantConfig.getWeightTextBm25());
                 }
 
                 Map<String, Object> queryBody = new HashMap<>();
-                queryBody.put("prefetch", prefetchList);
-                // Qdrant Formula Query: Điểm = 0.8 * score(core) + 0.2 * score(desc)
-                queryBody.put("query", Map.of(
-                        "formula", Map.of(
-                                "sum", List.of(
-                                        Map.of("mult", List.of(0.8, "$score[0]")),
-                                        Map.of("mult", List.of(0.2, "$score[1]"))))));
-                // Ngưỡng điểm tương đồng động (Dynamic Threshold) theo độ dài và ngữ cảnh từ
-                // khóa:
-                // - Từ đơn rất ngắn (<= 1 từ hoặc <= 8 ký tự như "music", "kịch"): ngưỡng 0.45f
-                // - Từ ghép 2 chữ tiếng Việt (<= 2 từ hoặc <= 14 ký tự như "âm nhạc", "ca
-                // nhạc", "vẽ tranh"): ngưỡng 0.52f
-                // - Cụm từ cụ thể / tên riêng (>= 3 từ như "phùng khánh linh"): ngưỡng 0.55f
-                float threshold = 0.55f;
-                String[] words = keyword.split("\\s+");
-                if (words.length <= 1 && keyword.length() <= 8) {
-                    threshold = 0.45f;
-                } else if (words.length <= 2 && keyword.length() <= 14) {
-                    threshold = 0.52f;
+                if (!prefetchList.isEmpty()) {
+                    queryBody.put("prefetch", prefetchList);
+                    queryBody.put("query", Map.of(
+                            "rrf", Map.of("weights", rrfWeights)));
+                    if (qdrantConfig.getHybridScoreThreshold() > 0) {
+                        queryBody.put("score_threshold", qdrantConfig.getHybridScoreThreshold());
+                    }
                 }
-                queryBody.put("score_threshold", threshold);
+
                 queryBody.put("filter", filter);
                 queryBody.put("limit", fetchLimit);
                 queryBody.put("offset", offset);
@@ -562,16 +609,16 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             // Truy vấn láng giềng gần nhất theo Sparse Vector (chuẩn hóa Cosine Similarity trong khoảng 0.0 -> 1.0)
             // recommendationScoreThreshold mặc định = 0.1: Chỉ giữ lại người dùng có độ tương đồng dương đáng kể
             int queryLimit = limit > 0 ? limit : 10;
-            Map<String, Object> queryBody = new HashMap<>();
-            queryBody.put("query", Map.of("nearest", userPointId));
-            queryBody.put("using", "user_sparse");
-            queryBody.put("limit", queryLimit);
-            queryBody.put("score_threshold", recommendationScoreThreshold);
-            queryBody.put("with_payload", true);
+            Map<String, Object> userQueryBody = new HashMap<>();
+            userQueryBody.put("query", Map.of("nearest", userPointId));
+            userQueryBody.put("using", "user_sparse");
+            userQueryBody.put("limit", queryLimit);
+            userQueryBody.put("score_threshold", recommendationScoreThreshold);
+            userQueryBody.put("with_payload", true);
 
             JsonNode response = qdrantRestClient.post()
                     .uri("/collections/{collection}/points/query", collection)
-                    .body(queryBody)
+                    .body(userQueryBody)
                     .retrieve()
                     .body(JsonNode.class);
 

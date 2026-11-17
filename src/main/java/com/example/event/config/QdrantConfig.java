@@ -27,6 +27,18 @@ public class QdrantConfig {
     @Value("${qdrant.users-collection-name:users_cf}")
     private String usersCollectionName;
 
+    @Value("${qdrant.search.hybrid.score-threshold:0.4}")
+    private double hybridScoreThreshold;
+
+    @Value("${qdrant.search.hybrid.weights.core-dense:2.0}")
+    private double weightCoreDense;
+
+    @Value("${qdrant.search.hybrid.weights.desc-dense:1.0}")
+    private double weightDescDense;
+
+    @Value("${qdrant.search.hybrid.weights.text-bm25:3.0}")
+    private double weightTextBm25;
+
     @Value("${gemini.api-key:}")
     private String geminiApiKey;
 

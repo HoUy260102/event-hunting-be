@@ -50,6 +50,15 @@ qdrant:
   url: ${QDRANT_URL:http://localhost:6333}
   api-key: ${QDRANT_API_KEY:}
   collection-name: ${QDRANT_COLLECTION:events}
+  warmup:
+    auto-reindex: ${QDRANT_AUTO_REINDEX:true}
+  search:
+    hybrid:
+      score-threshold: ${QDRANT_HYBRID_SCORE_THRESHOLD:0.4}
+      weights:
+        core-dense: ${QDRANT_WEIGHT_CORE:2.0}
+        desc-dense: ${QDRANT_WEIGHT_DESC:1.0}
+        text-bm25: ${QDRANT_WEIGHT_BM25:3.0}
 
 logging:
   charset:

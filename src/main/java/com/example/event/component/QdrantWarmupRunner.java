@@ -24,6 +24,9 @@ public class QdrantWarmupRunner implements ApplicationRunner {
     @Value("${app.recommendation.days-window:180}")
     private int daysWindow;
 
+    @Value("${qdrant.warmup.auto-reindex:true}")
+    private boolean autoReindex;
+
     @Override
     public void run(ApplicationArguments args) {
         // Chạy ngầm trong background thread để không chặn tiến trình khởi động server
@@ -50,14 +53,16 @@ public class QdrantWarmupRunner implements ApplicationRunner {
             qdrantClientService.initCollectionIfNotExists();
 
             long currentCount = qdrantClientService.countPoints();
-            if (currentCount > 0) {
-                log.info("[QDRANT-WARMUP] Collection Qdrant đã sẵn sàng với {} sự kiện. Bỏ qua tự động reindex.", currentCount);
+            log.info("[QDRANT-WARMUP] Hiện tại trên Qdrant đang có {} points.", currentCount);
+
+            if (!autoReindex && currentCount > 0) {
+                log.info("[QDRANT-WARMUP] Cấu hình auto-reindex=false và collection đã có {} sự kiện. Bỏ qua tự động reindex.", currentCount);
                 return;
             }
 
-            log.info("[QDRANT-WARMUP] Qdrant hiện tại chưa có dữ liệu (0 points). Bắt đầu tự động warmup các sự kiện PUBLISHED...");
+            log.info("[QDRANT-WARMUP] Bắt đầu tự động đồng bộ (reindex) toàn bộ sự kiện PUBLISHED từ MySQL lên Qdrant...");
             int totalIndexed = qdrantDataMigrationService.reindexAllPublishedEvents();
-            log.info("[QDRANT-WARMUP] Hoàn tất warmup dữ liệu sự kiện lên Qdrant thành công! Tổng cộng: {} sự kiện.", totalIndexed);
+            log.info("[QDRANT-WARMUP] Hoàn tất đồng bộ dữ liệu sự kiện lên Qdrant thành công! Tổng cộng: {} sự kiện.", totalIndexed);
         } catch (Exception e) {
             log.error("[QDRANT-WARMUP] Lỗi khi warmup dữ liệu sự kiện (Search): {}", e.getMessage(), e);
         }
