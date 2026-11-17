@@ -222,13 +222,16 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
 
     @Override
     @Transactional(readOnly = true)
-    public List<EventSearchPublicDTO> getPersonalizedRecommendations(int limit) {
+    public List<EventSearchPublicDTO> getPersonalizedRecommendations(int page, int size) {
         String userId = securityUtils.getCurrentUserId();
-        
-        // Trường hợp người dùng chưa đăng nhập -> Fallback sang sự kiện xu hướng (Trending)
+        int actualPage = (page <= 1) ? 1 : page;
+        int actualSize = Math.max(1, size);
+        int offset = (actualPage - 1) * actualSize;
+
+        // Trường hợp người dùng chưa đăng nhập -> Fallback sang sự kiện xu hướng (Trending) có phân trang
         if (userId == null || userId.isEmpty()) {
-            log.info("[RECOMMENDATION] Người dùng chưa đăng nhập. Trả về danh sách sự kiện xu hướng.");
-            return getTrendingEventsFallback(limit);
+            log.info("[RECOMMENDATION] Người dùng chưa đăng nhập. Trả về danh sách sự kiện xu hướng (page={}, size={}).", actualPage, actualSize);
+            return getTrendingEventsFallback(actualPage, actualSize);
         }
 
         String redisKey = REC_KEY_PREFIX + userId;
@@ -246,11 +249,11 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
         // Cache miss -> Truy vấn láng giềng tương đồng qua Qdrant Sparse Vector theo thời gian thực
         if (candidateEventIds == null || candidateEventIds.isEmpty()) {
             log.info("[RECOMMENDATION] Cache miss gợi ý cho User {}. Đang truy vấn láng giềng từ Qdrant.", userId);
-            List<String> similarUserIds = qdrantClientService.findSimilarUserIds(userId, 10);
+            List<String> similarUserIds = qdrantClientService.findSimilarUserIds(userId, 20);
 
             if (similarUserIds.isEmpty()) {
                 log.info("[RECOMMENDATION] Không tìm thấy láng giềng tương đồng cho User {}. Fallback sang xu hướng.", userId);
-                return getTrendingEventsFallback(limit);
+                return actualPage == 1 ? getTrendingEventsFallback(actualPage, actualSize) : Collections.emptyList();
             }
 
             LocalDateTime sinceDate = LocalDateTime.now().minusDays(defaultDaysWindow);
@@ -265,11 +268,11 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
             candidateEventIds = candidateRows.stream()
                     .map(r -> (String) r[0])
                     .filter(eventId -> !registeredEventIds.contains(eventId))
-                    .limit(10)
+                    .limit(50)
                     .collect(Collectors.toList());
 
             if (candidateEventIds.isEmpty()) {
-                return getTrendingEventsFallback(limit);
+                return actualPage == 1 ? getTrendingEventsFallback(actualPage, actualSize) : Collections.emptyList();
             }
 
             // Lưu danh sách ID sự kiện gợi ý vào Redis (TTL 24h)
@@ -287,13 +290,15 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
                 .map(ri -> ri.getEvent().getId())
                 .collect(Collectors.toSet());
 
+        // Phân trang bằng skip và limit
         List<String> finalRecommendedIds = candidateEventIds.stream()
                 .filter(eventId -> !registeredEventIds.contains(eventId))
-                .limit(limit)
+                .skip(offset)
+                .limit(actualSize)
                 .collect(Collectors.toList());
 
         if (finalRecommendedIds.isEmpty()) {
-            return getTrendingEventsFallback(limit);
+            return actualPage == 1 ? getTrendingEventsFallback(actualPage, actualSize) : Collections.emptyList();
         }
 
         // Lấy thông tin chi tiết các sự kiện gợi ý từ Database (Batch fetch để tránh N+1)
@@ -313,7 +318,7 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
         }
 
         if (dtos.isEmpty()) {
-            return getTrendingEventsFallback(limit);
+            return actualPage == 1 ? getTrendingEventsFallback(actualPage, actualSize) : Collections.emptyList();
         }
 
         // Map trạng thái IsSaved của người dùng vào mỗi sự kiện
@@ -382,13 +387,17 @@ public class EventRecommendationServiceImpl implements EventRecommendationServic
     /**
      * Dịch vụ Fallback: Sử dụng danh sách sự kiện xu hướng khi không có gợi ý cá nhân
      */
-    private List<EventSearchPublicDTO> getTrendingEventsFallback(int limit) {
+    private List<EventSearchPublicDTO> getTrendingEventsFallback(int page, int size) {
         List<EventTrendingResponse> trending = eventInteractionService.getTopTrendingEvents();
         List<EventSearchPublicDTO> dtos = new ArrayList<>();
         String userId = securityUtils.getCurrentUserId();
 
+        int actualPage = (page <= 1) ? 1 : page;
+        int actualSize = Math.max(1, size);
+        int offset = (actualPage - 1) * actualSize;
         List<String> eventIds = trending.stream()
-                .limit(limit)
+                .skip(offset)
+                .limit(actualSize)
                 .map(EventTrendingResponse::getId)
                 .collect(Collectors.toList());
 

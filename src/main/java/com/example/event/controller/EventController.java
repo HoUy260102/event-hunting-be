@@ -106,8 +106,14 @@ public class EventController {
     }
 
     @GetMapping("/recommendations")
-    public ResponseEntity<?> getRecommendations(@RequestParam(defaultValue = "6") int limit) {
-        List<EventSearchPublicDTO> recommendedEvents = eventRecommendationService.getPersonalizedRecommendations(limit);
+    public ResponseEntity<?> getRecommendations(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "4") int size,
+            @RequestParam(required = false) Integer limit) {
+        int actualPage = (limit != null && limit > 0) ? 1 : Math.max(1, page);
+        int actualSize = (limit != null && limit > 0) ? limit : Math.max(1, size);
+
+        List<EventSearchPublicDTO> recommendedEvents = eventRecommendationService.getPersonalizedRecommendations(actualPage, actualSize);
         ApiResponse response = ApiResponse.builder()
                 .status(HttpStatus.OK.value())
                 .message("Thành công.")

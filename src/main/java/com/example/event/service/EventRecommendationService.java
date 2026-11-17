@@ -17,8 +17,16 @@ public interface EventRecommendationService {
     void runRecommendationJobLegacy(int days);
 
     /**
-     * Lấy danh sách sự kiện gợi ý đã được cá nhân hóa cho người dùng hiện tại từ Redis.
-     * @param limit Số lượng sự kiện tối đa cần lấy.
+     * Lấy danh sách sự kiện gợi ý cá nhân hóa có hỗ trợ phân trang (skip / limit).
+     * @param page Số thứ tự trang (1-indexed: 1, 2, 3...).
+     * @param size Số lượng sự kiện cần lấy cho mỗi trang.
      */
-    List<EventSearchPublicDTO> getPersonalizedRecommendations(int limit);
+    List<EventSearchPublicDTO> getPersonalizedRecommendations(int page, int size);
+
+    /**
+     * Phương thức tương thích cũ (Legacy): lấy trang đầu tiên với giới hạn limit.
+     */
+    default List<EventSearchPublicDTO> getPersonalizedRecommendations(int limit) {
+        return getPersonalizedRecommendations(1, limit);
+    }
 }
