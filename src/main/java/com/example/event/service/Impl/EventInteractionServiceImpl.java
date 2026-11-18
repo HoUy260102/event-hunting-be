@@ -18,6 +18,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,9 @@ public class EventInteractionServiceImpl implements EventInteractionService {
 
     private static final String TRENDING_EVENTS_KEY = "events:trending";
     private static final long TRENDING_EVENTS_TTL = 86400L; 
+
+    @Value("${app.trending.days-window:60}")
+    private int trendingDaysWindow; 
 
     @Override
     @Transactional
@@ -95,8 +99,8 @@ public class EventInteractionServiceImpl implements EventInteractionService {
 
         // 2. Cache miss hoặc rỗng -> Tính toán thứ hạng và gom 10 ID sự kiện từ Database
         if (eventIds == null || eventIds.isEmpty()) {
-            log.info("[INTERACTION] Cache miss sự kiện xu hướng. Đang tính toán thứ hạng từ cơ sở dữ liệu.");
-            LocalDateTime since = LocalDateTime.now().minusDays(30);
+            log.info("[INTERACTION] Cache miss sự kiện xu hướng. Đang tính toán thứ hạng từ cơ sở dữ liệu (cửa sổ {} ngày).", trendingDaysWindow);
+            LocalDateTime since = LocalDateTime.now().minusDays(trendingDaysWindow);
             List<EventTrendingProjection> projections = interactionRepository.findTrendingEvents(since, 10);
 
             eventIds = projections.stream()
