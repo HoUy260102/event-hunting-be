@@ -218,13 +218,6 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                 return;
             }
 
-            // Nếu 1 trong 2 vector dense rỗng, fallback mượn vector kia để không lỗi schema
-            // Qdrant
-            if (coreVector.isEmpty())
-                coreVector = descVector;
-            if (descVector.isEmpty())
-                descVector = coreVector;
-
             // 2. Chuẩn bị payload
             Map<String, Object> payload = new HashMap<>();
             payload.put("id", event.getId());
@@ -258,11 +251,15 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             String bm25Text = String.join(" ", coreText, descText).trim();
             SparseVectorDTO sparseVector = bm25TokenizerService.toDocumentSparseVector(bm25Text, 100);
 
-            // 3. Chuẩn bị vector data (Hybrid: 2-Dense Vector Gemini AI + 1-Sparse Vector
-            // BM25)
+            // 3. Chuẩn bị vector data (Hybrid: 2-Dense Vector Gemini AI + 1-Sparse Vector BM25)
+            // Chỉ lưu những vector thực sự có dữ liệu, không mượn chéo để tránh méo mó điểm xếp hạng
             Map<String, Object> vectors = new HashMap<>();
-            vectors.put("core_dense", coreVector);
-            vectors.put("desc_dense", descVector);
+            if (!coreVector.isEmpty()) {
+                vectors.put("core_dense", coreVector);
+            }
+            if (!descVector.isEmpty()) {
+                vectors.put("desc_dense", descVector);
+            }
             if (sparseVector != null && !sparseVector.isEmpty()) {
                 vectors.put("text_bm25", Map.of(
                         "indices", sparseVector.getIndices(),
