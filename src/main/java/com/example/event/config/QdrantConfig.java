@@ -27,7 +27,7 @@ public class QdrantConfig {
     @Value("${qdrant.users-collection-name:users_cf}")
     private String usersCollectionName;
 
-    @Value("${qdrant.search.hybrid.score-threshold:0.4}")
+    @Value("${qdrant.search.hybrid.score-threshold:0.0}")
     private double hybridScoreThreshold;
 
     @Value("${qdrant.search.hybrid.rrf-k:2}")
@@ -79,4 +79,3 @@ public class QdrantConfig {
                 .build();
     }
 }
-

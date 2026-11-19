@@ -56,7 +56,7 @@ qdrant:
     auto-reindex: ${QDRANT_AUTO_REINDEX:true}
   search:
     hybrid:
-      score-threshold: ${QDRANT_HYBRID_SCORE_THRESHOLD:0.4}
+      score-threshold: ${QDRANT_HYBRID_SCORE_THRESHOLD:0.0}
       rrf-k: ${QDRANT_RRF_K:2}
       weights:
         core-dense: ${QDRANT_WEIGHT_CORE:2.0}
