@@ -247,9 +247,8 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                 payload.put("posterUrl", event.getPoster().getUrl());
             }
 
-            // Vector 3: text_bm25 (Sparse Vector)
-            String bm25Text = String.join(" ", coreText, descText).trim();
-            SparseVectorDTO sparseVector = bm25TokenizerService.toDocumentSparseVector(bm25Text, 100);
+            // Vector 3: text_bm25 (Sparse Vector có Field Boosting giữa Core và Description)
+            SparseVectorDTO sparseVector = bm25TokenizerService.toDocumentSparseVector(coreText, descText, 100);
 
             // 3. Chuẩn bị vector data (Hybrid: 2-Dense Vector Gemini AI + 1-Sparse Vector BM25)
             // Chỉ lưu những vector thực sự có dữ liệu, không mượn chéo để tránh méo mó điểm xếp hạng

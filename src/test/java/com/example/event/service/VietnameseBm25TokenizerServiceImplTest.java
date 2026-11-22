@@ -32,8 +32,8 @@ class VietnameseBm25TokenizerServiceImplTest {
 
         String query = "Concert Phùng Khánh Linh ở Hà Nội";
 
-        SparseVectorDTO vecHcm = tokenizerService.toDocumentSparseVector(docHcm, 100);
-        SparseVectorDTO vecHn = tokenizerService.toDocumentSparseVector(docHn, 100);
+        SparseVectorDTO vecHcm = tokenizerService.toDocumentSparseVector(docHcm, null, 100);
+        SparseVectorDTO vecHn = tokenizerService.toDocumentSparseVector(docHn, null, 100);
         SparseVectorDTO vecQuery = tokenizerService.toQuerySparseVector(query);
 
         // Tính Dot Product giữa query và document
@@ -88,18 +88,18 @@ class VietnameseBm25TokenizerServiceImplTest {
         assertFalse(tokens.contains("của"));
         assertFalse(tokens.contains("tại"));
 
-        // Kiểm tra ghép 2-gram chuẩn
-        assertTrue(tokens.contains("ca nhạc"));
-        assertTrue(tokens.contains("đen vâu"));
-        assertTrue(tokens.contains("hà nội"));
+        // Kiểm tra ghép 2-gram chuẩn dạng gạch dưới _
+        assertTrue(tokens.contains("ca_nhạc"));
+        assertTrue(tokens.contains("đen_vâu"));
+        assertTrue(tokens.contains("hà_nội"));
 
         // Kiểm tra KHÔNG ghép rác xuyên qua stop words
-        assertFalse(tokens.contains("nhạc của"));
-        assertFalse(tokens.contains("của đen"));
-        assertFalse(tokens.contains("nhạc đen"));
-        assertFalse(tokens.contains("vâu tại"));
-        assertFalse(tokens.contains("tại hà"));
-        assertFalse(tokens.contains("vâu hà"));
+        assertFalse(tokens.contains("nhạc_của"));
+        assertFalse(tokens.contains("của_đen"));
+        assertFalse(tokens.contains("nhạc_đen"));
+        assertFalse(tokens.contains("vâu_tại"));
+        assertFalse(tokens.contains("tại_hà"));
+        assertFalse(tokens.contains("vâu_hà"));
     }
 
     @Test
@@ -119,22 +119,22 @@ class VietnameseBm25TokenizerServiceImplTest {
         assertTrue(tokens.contains("minh"));
 
         // 2-gram
-        assertTrue(tokens.contains("hà anh"));
-        assertTrue(tokens.contains("anh tuấn"));
-        assertTrue(tokens.contains("hồ chí"));
-        assertTrue(tokens.contains("chí minh"));
+        assertTrue(tokens.contains("hà_anh"));
+        assertTrue(tokens.contains("anh_tuấn"));
+        assertTrue(tokens.contains("hồ_chí"));
+        assertTrue(tokens.contains("chí_minh"));
 
         // 3-gram
-        assertTrue(tokens.contains("hà anh tuấn"), "Phải bắt được tên nghệ sĩ 3 từ: hà anh tuấn");
-        assertTrue(tokens.contains("hồ chí minh"), "Phải bắt được địa danh 3 từ: hồ chí minh");
+        assertTrue(tokens.contains("hà_anh_tuấn"), "Phải bắt được tên nghệ sĩ 3 từ: hà_anh_tuấn");
+        assertTrue(tokens.contains("hồ_chí_minh"), "Phải bắt được địa danh 3 từ: hồ_chí_minh");
 
         // Ngắt nhịp: không được ghép xuyên stopword 'của' và 'tại'
-        assertFalse(tokens.contains("nhạc của hà"));
-        assertFalse(tokens.contains("của hà anh"));
-        assertFalse(tokens.contains("nhạc hà anh"));
-        assertFalse(tokens.contains("tuấn tại hồ"));
-        assertFalse(tokens.contains("tại hồ chí"));
-        assertFalse(tokens.contains("tuấn hồ chí"));
+        assertFalse(tokens.contains("nhạc_của_hà"));
+        assertFalse(tokens.contains("của_hà_anh"));
+        assertFalse(tokens.contains("nhạc_hà_anh"));
+        assertFalse(tokens.contains("tuấn_tại_hồ"));
+        assertFalse(tokens.contains("tại_hồ_chí"));
+        assertFalse(tokens.contains("tuấn_hồ_chí"));
     }
 
     @Test
@@ -154,7 +154,7 @@ class VietnameseBm25TokenizerServiceImplTest {
     @DisplayName("Sinh Document Sparse Vector với BM25 TF bão hòa và indices được sắp xếp tăng dần")
     void testToDocumentSparseVector_ValidStructureAndSorted() {
         String docText = "Đêm nhạc Chillies tại Sài Gòn. Chillies mang đến những giai điệu bùng nổ của Chillies.";
-        SparseVectorDTO vector = tokenizerService.toDocumentSparseVector(docText, 100);
+        SparseVectorDTO vector = tokenizerService.toDocumentSparseVector(docText, null, 100);
 
         assertNotNull(vector);
         assertFalse(vector.isEmpty());
@@ -166,7 +166,8 @@ class VietnameseBm25TokenizerServiceImplTest {
             assertTrue(indices.get(i) < indices.get(i + 1), "Indices phải được sắp xếp tăng dần và duy nhất");
         }
 
-        // Kiểm tra giá trị BM25 TF bão hòa (từ lặp 3 lần như chillies điểm phải cao hơn nhưng < 2.2)
+        // Kiểm tra giá trị BM25 TF bão hòa (từ lặp 3 lần như chillies điểm phải cao hơn
+        // nhưng < 2.2)
         for (Float val : vector.getValues()) {
             assertTrue(val > 0.0f, "TF score phải luôn dương");
             assertTrue(val <= 2.2f, "TF score với k1=1.2 không vượt quá 2.2");
@@ -196,7 +197,7 @@ class VietnameseBm25TokenizerServiceImplTest {
         assertTrue(tokenizerService.extractTokens("   ").isEmpty());
         assertTrue(tokenizerService.extractTokens("!@#$%^&*()").isEmpty());
 
-        SparseVectorDTO docEmpty = tokenizerService.toDocumentSparseVector("", 100);
+        SparseVectorDTO docEmpty = tokenizerService.toDocumentSparseVector("", null, 100);
         assertTrue(docEmpty.isEmpty());
 
         SparseVectorDTO queryEmpty = tokenizerService.toQuerySparseVector(null);
@@ -211,20 +212,20 @@ class VietnameseBm25TokenizerServiceImplTest {
 
         assertNotNull(tokens);
 
-        // Kiểm tra giữ đủ tokens có dấu chuẩn
+        // Kiểm tra giữ đủ tokens có dấu chuẩn dạng gạch dưới _
         assertTrue(tokens.contains("phùng"));
         assertTrue(tokens.contains("khánh"));
         assertTrue(tokens.contains("linh"));
-        assertTrue(tokens.contains("phùng khánh"));
-        assertTrue(tokens.contains("khánh linh"));
-        assertTrue(tokens.contains("phùng khánh linh"));
+        assertTrue(tokens.contains("phùng_khánh"));
+        assertTrue(tokens.contains("khánh_linh"));
+        assertTrue(tokens.contains("phùng_khánh_linh"));
     }
 
     @Test
     @DisplayName("Query không dấu khớp chính xác với Document có dấu qua Sparse Vector")
     void testUnaccentedQueryMatchesAccentedDocument() {
         String docText = "Đại nhạc hội 'Giữa một vạn tour' - Phùng Khánh Linh";
-        SparseVectorDTO docVector = tokenizerService.toDocumentSparseVector(docText, 100);
+        SparseVectorDTO docVector = tokenizerService.toDocumentSparseVector(docText, null, 100);
 
         String unaccentedQuery = "phung khanh linh";
         SparseVectorDTO queryVector = tokenizerService.toQuerySparseVector(unaccentedQuery);
@@ -235,7 +236,7 @@ class VietnameseBm25TokenizerServiceImplTest {
         // Kiểm tra tất cả indices của query không dấu đều nằm trong Document vector
         Set<Integer> docIndices = new HashSet<>(docVector.getIndices());
         for (Integer queryIndex : queryVector.getIndices()) {
-            assertTrue(docIndices.contains(queryIndex), 
+            assertTrue(docIndices.contains(queryIndex),
                     "Index của query không dấu phải khớp với token tương ứng trong Document vector");
         }
     }
@@ -244,7 +245,7 @@ class VietnameseBm25TokenizerServiceImplTest {
     @DisplayName("In ra kết quả chi tiết từng bước tách từ của một đoạn văn bản mẫu")
     void testVisualInspectionSample() {
         String sample = "Liveshow 'Giữa Một Vạn Tour' - Phùng Khánh Linh cùng Hoàng Dũng tại Nhà hát Lớn Hà Nội! " +
-                        "Đêm nhạc sống bùng nổ của Phùng Khánh Linh.";
+                "Đêm nhạc sống bùng nổ của Phùng Khánh Linh.";
 
         System.out.println("================================================================================");
         System.out.println("VĂN BẢN ĐẦU VÀO:");
@@ -269,11 +270,12 @@ class VietnameseBm25TokenizerServiceImplTest {
         System.out.println("Tổng số: " + unaccentedTokens.size());
         System.out.println(unaccentedTokens);
 
-        SparseVectorDTO docVector = tokenizerService.toDocumentSparseVector(sample, 100);
+        SparseVectorDTO docVector = tokenizerService.toDocumentSparseVector(sample, null, 100);
         System.out.println("\n3. VECTOR DOCUMENT QDRANT (indices & values):");
         System.out.println("Số chiều vector: " + docVector.getIndices().size());
         for (int i = 0; i < Math.min(10, docVector.getIndices().size()); i++) {
-            System.out.println("   Index: " + docVector.getIndices().get(i) + " -> Value (TF): " + docVector.getValues().get(i));
+            System.out.println(
+                    "   Index: " + docVector.getIndices().get(i) + " -> Value (TF): " + docVector.getValues().get(i));
         }
 
         System.out.println("\n4. TEST TRUY VẤN KHÔNG DẤU: 'phung khanh linh'");
@@ -299,5 +301,61 @@ class VietnameseBm25TokenizerServiceImplTest {
         System.out.println("Values:  " + qTrienLam.getValues());
         System.out.println("================================================================================");
     }
-}
 
+    @Test
+    @DisplayName("Bảo tồn nghệ danh có gạch nối và số đặc biệt (M-TP, 1589, 2026, 500k, 30/4)")
+    void testSpecialTokensAndNumbers() {
+        String input = "Concert 1589 của ca sĩ Sơn Tùng M-TP nhân dịp 30/4 với giá vé 500k tại Countdown 2026 cổng 1 tầng 3";
+        List<String> tokens = tokenizerService.extractTokens(input);
+
+        assertNotNull(tokens);
+        // Nghệ danh có gạch nối
+        assertTrue(tokens.contains("m_tp") || tokens.contains("sơn_tùng"), "Phải giữ lại nghệ danh m_tp");
+        // Số đặc biệt và số năm
+        assertTrue(tokens.contains("1589"), "Phải giữ lại số định danh show 1589");
+        assertTrue(tokens.contains("2026"), "Phải giữ lại năm 2026");
+        assertTrue(tokens.contains("500k"), "Phải giữ lại giá tiền 500k");
+        assertTrue(tokens.contains("30_4"), "Phải chuẩn hóa ngày lễ 30/4 thành 30_4");
+
+        // Loại bỏ số trôi nổi 1 chữ số
+        assertFalse(tokens.contains("1"), "Không được giữ số trôi nổi 1 chữ số '1'");
+        assertFalse(tokens.contains("3"), "Không được giữ số trôi nổi 1 chữ số '3'");
+    }
+
+    @Test
+    @DisplayName("Query không dấu 'ha anh tuan' và viết liền 'haanhtuan' đều khớp với Document 'Hà Anh Tuấn'")
+    void testUnaccentedAndCompactQueriesMatchProperNoun() {
+        String docText = "Đêm nhạc đặc biệt của Hà Anh Tuấn tại Đà Lạt";
+        SparseVectorDTO docVector = tokenizerService.toDocumentSparseVector(docText, null, 100);
+
+        // 1. Query có khoảng trắng không dấu: "ha anh tuan"
+        SparseVectorDTO querySpaced = tokenizerService.toQuerySparseVector("ha anh tuan");
+        float scoreSpaced = calculateDotProduct(querySpaced, docVector);
+        assertTrue(scoreSpaced > 0.0f, "Query 'ha anh tuan' phải khớp có điểm dương");
+
+        // 2. Query viết liền không dấu: "haanhtuan"
+        SparseVectorDTO queryCompact = tokenizerService.toQuerySparseVector("haanhtuan");
+        float scoreCompact = calculateDotProduct(queryCompact, docVector);
+        assertTrue(scoreCompact > 0.0f, "Query 'haanhtuan' phải khớp có điểm dương");
+
+        // 3. Query có dấu "Hà Anh Tuấn" phải có điểm cao hơn không dấu "ha anh tuan"
+        SparseVectorDTO queryAccented = tokenizerService.toQuerySparseVector("Hà Anh Tuấn");
+        float scoreAccented = calculateDotProduct(queryAccented, docVector);
+        assertTrue(scoreAccented > scoreSpaced, "Query có dấu chuẩn phải có điểm cao hơn query không dấu");
+    }
+
+    @Test
+    @DisplayName("Field Boosting: Từ khóa trong Core Field (Title, Artist) được ưu tiên hơn Description")
+    void testFieldBoostingCoreVsDesc() {
+        String coreText = "Concert Mỹ Tâm";
+        String descText = "Chương trình ca nhạc hấp dẫn cuối tuần với nhiều khách mời đặc biệt.";
+
+        SparseVectorDTO boostedVec = tokenizerService.toDocumentSparseVector(coreText, descText, 100);
+        assertNotNull(boostedVec);
+        assertFalse(boostedVec.isEmpty());
+
+        SparseVectorDTO queryMyTam = tokenizerService.toQuerySparseVector("Mỹ Tâm");
+        float score = calculateDotProduct(queryMyTam, boostedVec);
+        assertTrue(score > 0.0f, "Phải tìm thấy sự kiện Mỹ Tâm");
+    }
+}

@@ -7,9 +7,8 @@ import java.util.List;
 public interface VietnameseBm25TokenizerService {
 
     /**
-     * Tách văn bản tiếng Việt thành danh sách token 1-gram, 2-gram và 3-gram sau khi chuẩn hóa và loại bỏ Stop Words.
-     * Áp dụng nguyên tắc ngắt nhịp (không ghép n-gram xuyên qua Stop Words).
-     * Bắt chính xác tên nghệ sĩ và địa danh 3 từ (ví dụ: "Hà Anh Tuấn", "Hồ Chí Minh").
+     * Tách văn bản tiếng Việt thành danh sách token sạch (Tên riêng, Từ ghép từ điển, Từ đơn).
+     * Áp dụng Maximum Matching và nhận diện thực thể (Proper Nouns), loại bỏ Stop Words và số trôi nổi.
      *
      * @param text Văn bản nguồn
      * @return Danh sách token đã làm sạch
@@ -17,14 +16,15 @@ public interface VietnameseBm25TokenizerService {
     List<String> extractTokens(String text);
 
     /**
-     * Chuyển đổi văn bản sự kiện thành Sparse Vector theo chuẩn Okapi BM25 Term Frequency Saturation:
-     * value = f * (k1 + 1) / (f + k1 * (1 - b + b * (docLen / avgDocLen)))
+     * Chuyển đổi văn bản sự kiện có phân tầng trọng số trường (Field Boosting):
+     * Các token trong coreText (Title, Artist, Location) được nhân hệ số ưu tiên (coreBoost).
      *
-     * @param text Văn bản tổng hợp của sự kiện (tên, ca sĩ, địa điểm, mô tả)
+     * @param coreText Văn bản nòng cốt (Tên sự kiện, ca sĩ, địa điểm, danh mục)
+     * @param descText Văn bản mô tả chi tiết (nếu không có, truyền null)
      * @param avgDocLength Độ dài trung bình tham chiếu (nếu <= 0, lấy mặc định 100)
-     * @return SparseVectorDTO chứa danh sách indices và values
+     * @return SparseVectorDTO
      */
-    SparseVectorDTO toDocumentSparseVector(String text, int avgDocLength);
+    SparseVectorDTO toDocumentSparseVector(String coreText, String descText, int avgDocLength);
 
     /**
      * Chuyển đổi câu truy vấn tìm kiếm của người dùng thành Sparse Vector.
