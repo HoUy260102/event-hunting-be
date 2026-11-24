@@ -358,4 +358,119 @@ class VietnameseBm25TokenizerServiceImplTest {
         float score = calculateDotProduct(queryMyTam, boostedVec);
         assertTrue(score > 0.0f, "Phải tìm thấy sự kiện Mỹ Tâm");
     }
+
+    @Test
+    @DisplayName("Tách tên riêng lớn hơn 3 từ (4-5 từ) sinh đầy đủ n-grams tự nhiên")
+    void testExtractTokens_ProperNounsGreaterThan3Words() {
+        String input = "Vở kịch Nguyễn Thị Minh Khai cùng nghệ sĩ Nguyễn Hoàng Gia Bảo Long";
+        List<String> tokens = tokenizerService.extractTokens(input);
+
+        assertNotNull(tokens);
+        // Tên 4 từ: Nguyễn Thị Minh Khai
+        assertTrue(tokens.contains("nguyễn_thị_minh_khai"), "Phải có full 4-gram nguyễn_thị_minh_khai");
+        assertTrue(tokens.contains("minh_khai"), "Phải có 2-gram tên gọi minh_khai");
+        assertTrue(tokens.contains("thị_minh_khai"), "Phải có 3-gram thị_minh_khai");
+        assertTrue(tokens.contains("khai"), "Phải có từ đơn khai");
+
+        // Tên 5 từ: Nguyễn Hoàng Gia Bảo Long
+        assertTrue(tokens.contains("nguyễn_hoàng_gia_bảo_long"), "Phải có full 5-gram nguyễn_hoàng_gia_bảo_long");
+        assertTrue(tokens.contains("gia_bảo_long"), "Phải có 3-gram gia_bảo_long");
+        assertTrue(tokens.contains("bảo_long"), "Phải có 2-gram bảo_long");
+        assertTrue(tokens.contains("long"), "Phải có từ đơn long");
+    }
+
+    @Test
+    @DisplayName("Tách Segment độc lập ngăn chặn ghép dính nghệ sĩ và địa danh có dấu gạch ngang")
+    void testExtractTokens_HyphenSeparatedArtistsAndLocations() {
+        String input = "Đen Vâu - Hà Anh Tuấn | Liveshow tại Bà Rịa - Vũng Tàu";
+        List<String> tokens = tokenizerService.extractTokens(input);
+
+        assertNotNull(tokens);
+        // Bắt độc lập các nghệ sĩ và địa danh
+        assertTrue(tokens.contains("đen_vâu"));
+        assertTrue(tokens.contains("hà_anh_tuấn"));
+        assertTrue(tokens.contains("bà_rịa"));
+        assertTrue(tokens.contains("vũng_tàu"));
+
+        // Tuyệt đối không sinh từ ghép rác qua dấu gạch ngang hoặc ranh giới
+        assertFalse(tokens.contains("vâu_hà"), "Không được ghép vâu với hà");
+        assertFalse(tokens.contains("đen_vâu_hà_anh_tuấn"), "Không được ghép 2 nghệ sĩ thành 1 tên riêng");
+        assertFalse(tokens.contains("tuấn_liveshow"), "Không được ghép qua ranh giới |");
+        assertFalse(tokens.contains("rịa_vũng"), "Không được sinh rác rịa_vũng");
+    }
+
+    @Test
+    @DisplayName("Xử lý dấu gạch ngang viết liền Bà Rịa-Vũng Tàu và Phan Rang-Tháp Chàm")
+    void testExtractTokens_HyphenWithoutSpaces() {
+        String input = "Chuyến lưu diễn tại Bà Rịa-Vũng Tàu và Phan Rang-Tháp Chàm";
+        List<String> tokens = tokenizerService.extractTokens(input);
+
+        assertNotNull(tokens);
+        assertTrue(tokens.contains("bà_rịa"), "Phải bắt được bà_rịa");
+        assertTrue(tokens.contains("vũng_tàu"), "Phải bắt được vũng_tàu");
+        assertTrue(tokens.contains("phan_rang"), "Phải bắt được phan_rang");
+        assertTrue(tokens.contains("tháp_chàm"), "Phải bắt được tháp_chàm");
+
+        // Không bị tác dụng phụ của regex cũ biến thành rịa_vũng
+        assertFalse(tokens.contains("rịa_vũng"), "Không được sinh rịa_vũng");
+        assertFalse(tokens.contains("rang_tháp"), "Không được sinh rang_tháp");
+    }
+
+    @Test
+    @DisplayName("Query tìm kiếm 'vũng tàu', 'bà rịa' hoặc 'bà rịa vũng tàu' đều khớp Document")
+    void testQueryMatchesHyphenatedProvince() {
+        String docText = "Đại nhạc hội EDM bãi biển Bà Rịa - Vũng Tàu bùng nổ cuối tuần";
+        SparseVectorDTO docVector = tokenizerService.toDocumentSparseVector(docText, null, 100);
+
+        // 1. Query "vũng tàu"
+        SparseVectorDTO qVungTau = tokenizerService.toQuerySparseVector("vũng tàu");
+        float scoreVungTau = calculateDotProduct(qVungTau, docVector);
+        assertTrue(scoreVungTau > 0.0f, "Query 'vũng tàu' phải có điểm dương");
+
+        // 2. Query "bà rịa"
+        SparseVectorDTO qBaRia = tokenizerService.toQuerySparseVector("bà rịa");
+        float scoreBaRia = calculateDotProduct(qBaRia, docVector);
+        assertTrue(scoreBaRia > 0.0f, "Query 'bà rịa' phải có điểm dương");
+
+        // 3. Query "bà rịa vũng tàu"
+        SparseVectorDTO qFull = tokenizerService.toQuerySparseVector("bà rịa vũng tàu");
+        float scoreFull = calculateDotProduct(qFull, docVector);
+        assertTrue(scoreFull > scoreVungTau, "Query đầy đủ phải có điểm cao hơn chỉ tìm 'vũng tàu'");
+    }
+
+    @Test
+    @DisplayName("Kiểm tra tách từ và khớp điểm cho query 'nhà thi đấu'")
+    void testSearchNhaThiDau() {
+        String query = "nhà thi đấu";
+        List<String> queryTokens = tokenizerService.extractTokens(query);
+        System.out.println(">>> Query Tokens 'nhà thi đấu': " + queryTokens);
+
+        String docPhuTho = "'GIỮA MỘT VẠN TOUR (MỞ RỘNG)' - PHÙNG KHÁNH LINH | CHAPTER 5: LIVE EXPERIENCE IN HCMC Liveshow & Concert BLACK SWAN LABEL Hồ Chí Minh Nhà Thi Đấu Phú Thọ Số 1, Lữ Gia, Phường Phú Thọ, Thành phố Hồ Chí Minh";
+        String docThanhNien = "[Nhà hát kịch Thanh Niên] Hài kịch: Tung Hoành Pattaya Sân Khấu Nhà Thiếu Nhi TP.HCM";
+        String docDienKinh = "HIỆN DIỆN - UPRIZE CONCERT Cung Thể Thao Điền Kinh Mỹ Đình";
+
+        List<String> tokensPhuTho = tokenizerService.extractTokens(docPhuTho);
+        List<String> tokensThanhNien = tokenizerService.extractTokens(docThanhNien);
+        List<String> tokensDienKinh = tokenizerService.extractTokens(docDienKinh);
+
+        System.out.println(">>> Doc Phú Thọ tokens: " + tokensPhuTho);
+        System.out.println(">>> Doc Thanh Niên tokens: " + tokensThanhNien);
+
+        SparseVectorDTO qVec = tokenizerService.toQuerySparseVector(query);
+        SparseVectorDTO docVecPhuTho = tokenizerService.toDocumentSparseVector(docPhuTho, null, 100);
+        SparseVectorDTO docVecThanhNien = tokenizerService.toDocumentSparseVector(docThanhNien, null, 100);
+        SparseVectorDTO docVecDienKinh = tokenizerService.toDocumentSparseVector(docDienKinh, null, 100);
+
+        float scorePhuTho = calculateDotProduct(qVec, docVecPhuTho);
+        float scoreThanhNien = calculateDotProduct(qVec, docVecThanhNien);
+        float scoreDienKinh = calculateDotProduct(qVec, docVecDienKinh);
+
+        System.out.println(">>> BM25 Score Phú Thọ ('Nhà Thi Đấu Phú Thọ'): " + scorePhuTho);
+        System.out.println(">>> BM25 Score Thanh Niên ('Nhà hát', 'Nhà Thiếu Nhi'): " + scoreThanhNien);
+        System.out.println(">>> BM25 Score Cung Điền Kinh: " + scoreDienKinh);
+
+        assertTrue(scorePhuTho > 0, "Phú Thọ phải có điểm BM25 dương");
+        assertTrue(scorePhuTho > scoreThanhNien, "Phú Thọ có 'nhà thi đấu' phải cao điểm hơn Thanh Niên");
+        assertEquals(0.0f, scoreDienKinh, "Cung Điền Kinh không có từ 'nhà', 'thi', 'đấu' nên BM25 phải là 0");
+    }
 }

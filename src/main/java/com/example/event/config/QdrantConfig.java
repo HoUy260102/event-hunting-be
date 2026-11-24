@@ -30,16 +30,13 @@ public class QdrantConfig {
     @Value("${qdrant.search.hybrid.score-threshold:0.0}")
     private double hybridScoreThreshold;
 
-    @Value("${qdrant.search.hybrid.rrf-k:2}")
-    private int rrfK;
-
-    @Value("${qdrant.search.hybrid.weights.core-dense:2.0}")
+    @Value("${qdrant.search.hybrid.weights.core-dense:0.7}")
     private double weightCoreDense;
 
-    @Value("${qdrant.search.hybrid.weights.desc-dense:1.0}")
+    @Value("${qdrant.search.hybrid.weights.desc-dense:0.3}")
     private double weightDescDense;
 
-    @Value("${qdrant.search.hybrid.weights.text-bm25:3.0}")
+    @Value("${qdrant.search.hybrid.weights.text-bm25:2.0}")
     private double weightTextBm25;
 
     @Value("${gemini.api-key:}")

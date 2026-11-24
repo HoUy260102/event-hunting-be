@@ -367,52 +367,60 @@ public class QdrantClientServiceImpl implements QdrantClientService {
             boolean hasKeyword = req.getKeyword() != null && !req.getKeyword().trim().isEmpty();
 
             if (hasKeyword) {
-                // === HYBRID SEARCH: 2-DENSE (GEMINI) + 1-SPARSE (BM25) VỚI WEIGHTED RRF ===
+                // === HYBRID SEARCH: DBSF CHUẨN HÓA TỪNG NHÁNH + FORMULA QUERY NHÂN TRỌNG SỐ ===
                 String keyword = req.getKeyword().trim();
                 List<Float> queryDense = geminiEmbeddingService.getEmbedding(keyword);
                 SparseVectorDTO querySparse = bm25TokenizerService.toQuerySparseVector(keyword);
 
                 List<Map<String, Object>> prefetchList = new ArrayList<>();
-                List<Double> rrfWeights = new ArrayList<>();
+                List<Map<String, Object>> formulaSum = new ArrayList<>();
 
-                // Prefetch limit động theo offset + fetchLimit để đảm bảo phân trang sâu không
-                // bị hụt kết quả
+                // Prefetch limit động theo offset + fetchLimit để đảm bảo phân trang sâu không bị hụt kết quả
                 int prefetchLimit = Math.max(100, offset + fetchLimit + 20);
 
                 if (!queryDense.isEmpty()) {
-                    // Nhánh 0: core_dense
+                    // Nhánh 0: core_dense (chuẩn hóa DBSF)
+                    int coreIdx = prefetchList.size();
                     prefetchList.add(Map.of(
-                            "query", queryDense,
-                            "using", "core_dense",
+                            "prefetch", List.of(Map.of(
+                                    "query", queryDense,
+                                    "using", "core_dense",
+                                    "limit", prefetchLimit)),
+                            "query", Map.of("fusion", "dbsf"),
                             "limit", prefetchLimit));
-                    rrfWeights.add(qdrantConfig.getWeightCoreDense());
+                    formulaSum.add(Map.of("mult", List.of(qdrantConfig.getWeightCoreDense(), "$score[" + coreIdx + "]")));
 
-                    // Nhánh 1: desc_dense
+                    // Nhánh 1: desc_dense (chuẩn hóa DBSF)
+                    int descIdx = prefetchList.size();
                     prefetchList.add(Map.of(
-                            "query", queryDense,
-                            "using", "desc_dense",
+                            "prefetch", List.of(Map.of(
+                                    "query", queryDense,
+                                    "using", "desc_dense",
+                                    "limit", prefetchLimit)),
+                            "query", Map.of("fusion", "dbsf"),
                             "limit", prefetchLimit));
-                    rrfWeights.add(qdrantConfig.getWeightDescDense());
+                    formulaSum.add(Map.of("mult", List.of(qdrantConfig.getWeightDescDense(), "$score[" + descIdx + "]")));
                 }
 
                 if (querySparse != null && !querySparse.isEmpty()) {
-                    // Nhánh 2: text_bm25
+                    // Nhánh 2: text_bm25 (chuẩn hóa DBSF)
+                    int bm25Idx = prefetchList.size();
                     prefetchList.add(Map.of(
-                            "query", Map.of(
-                                    "indices", querySparse.getIndices(),
-                                    "values", querySparse.getValues()),
-                            "using", "text_bm25",
+                            "prefetch", List.of(Map.of(
+                                    "query", Map.of(
+                                            "indices", querySparse.getIndices(),
+                                            "values", querySparse.getValues()),
+                                    "using", "text_bm25",
+                                    "limit", prefetchLimit)),
+                            "query", Map.of("fusion", "dbsf"),
                             "limit", prefetchLimit));
-                    rrfWeights.add(qdrantConfig.getWeightTextBm25());
+                    formulaSum.add(Map.of("mult", List.of(qdrantConfig.getWeightTextBm25(), "$score[" + bm25Idx + "]")));
                 }
 
                 Map<String, Object> queryBody = new HashMap<>();
                 if (!prefetchList.isEmpty()) {
                     queryBody.put("prefetch", prefetchList);
-                    Map<String, Object> rrfMap = new HashMap<>();
-                    rrfMap.put("k", qdrantConfig.getRrfK());
-                    rrfMap.put("weights", rrfWeights);
-                    queryBody.put("query", Map.of("rrf", rrfMap));
+                    queryBody.put("query", Map.of("formula", Map.of("sum", formulaSum)));
                     if (qdrantConfig.getHybridScoreThreshold() > 0) {
                         queryBody.put("score_threshold", qdrantConfig.getHybridScoreThreshold());
                     }
@@ -430,7 +438,13 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                         .body(JsonNode.class);
 
                 if (response != null && response.has("result") && response.get("result").has("points")) {
-                    response.get("result").get("points").forEach(pointNodes::add);
+                    response.get("result").get("points").forEach(point -> {
+                        log.info("[QDRANT-SCORE] Điểm Qdrant: {} | Sự kiện: {} | Địa điểm: {}",
+                                point.path("score").asDouble(),
+                                point.path("payload").path("name").asText(),
+                                point.path("payload").path("location").asText());
+                        pointNodes.add(point);
+                    });
                 }
 
             } else {
@@ -448,7 +462,13 @@ public class QdrantClientServiceImpl implements QdrantClientService {
                         .body(JsonNode.class);
 
                 if (response != null && response.has("result") && response.get("result").has("points")) {
-                    response.get("result").get("points").forEach(pointNodes::add);
+                    response.get("result").get("points").forEach(point -> {
+                        log.info("[QDRANT-SCORE] Điểm Qdrant: {} | Sự kiện: {} | Địa điểm: {}",
+                                point.path("score").asDouble(),
+                                point.path("payload").path("name").asText(),
+                                point.path("payload").path("location").asText());
+                        pointNodes.add(point);
+                    });
                 }
             }
 

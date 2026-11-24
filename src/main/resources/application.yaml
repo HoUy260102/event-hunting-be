@@ -57,11 +57,10 @@ qdrant:
   search:
     hybrid:
       score-threshold: ${QDRANT_HYBRID_SCORE_THRESHOLD:0.0}
-      rrf-k: ${QDRANT_RRF_K:2}
       weights:
-        core-dense: ${QDRANT_WEIGHT_CORE:2.0}
-        desc-dense: ${QDRANT_WEIGHT_DESC:1.0}
-        text-bm25: ${QDRANT_WEIGHT_BM25:3.0}
+        core-dense: ${QDRANT_WEIGHT_CORE:0.7}
+        desc-dense: ${QDRANT_WEIGHT_DESC:0.3}
+        text-bm25: ${QDRANT_WEIGHT_BM25:2.0}
 
 logging:
   charset:

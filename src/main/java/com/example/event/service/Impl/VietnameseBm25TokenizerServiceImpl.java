@@ -35,8 +35,12 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
 
     private static final Pattern DIACRITICAL_MARKS = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
 
-    // Giữ lại dấu gạch ngang của nghệ danh: M-TP -> M_TP, G-Dragon -> G_Dragon
-    private static final Pattern HYPHEN_ARTIST_PATTERN = Pattern.compile("(?<=\\w)-(?=\\w)");
+    // Giữ lại dấu gạch ngang của nghệ danh viết tắt ngắn (1 trong 2 vế <= 2 ký tự): M-TP -> M_TP, G-Dragon -> G_Dragon, B-Ray -> B_Ray
+    private static final Pattern HYPHEN_ARTIST_PATTERN = Pattern.compile(
+            "(?U)(?<!\\p{L})(\\p{L}{1,2})-(\\p{L}+)(?!\\p{L})|(?U)(?<!\\p{L})(\\p{L}+)-(\\p{L}{1,2})(?!\\p{L})");
+
+    // Ranh giới phân tách các Segment độc lập (dấu gạch ngang, gạch đứng, phẩy, hai chấm, chấm phẩy, gạch chéo, ngoặc...)
+    private static final Pattern SEGMENT_DELIMITER_PATTERN = Pattern.compile("\\s*[-–—|,:;/~()\\[\\]{}'\"]+\\s*");
 
     // Chuẩn hóa giá tiền: 500 k -> 500k, 1 tr -> 1tr
     private static final Pattern PRICE_PATTERN = Pattern.compile("(?i)(\\d+)\\s*(k|tr|triệu|vnd|đ)\\b");
@@ -46,10 +50,6 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
 
     // Chuẩn hóa thứ tự/mùa: mùa 2 -> mua_2, số 5 -> so_5, vol 1 -> vol_1
     private static final Pattern SERIES_PATTERN = Pattern.compile("(?i)\\b(mùa|tập|số|vol|season)\\s+(\\d+)\\b");
-
-    // Nhận diện cụm từ viết hoa liên tiếp (Tên riêng 2-3 từ: Hà Anh Tuấn, Đen Vâu, Phùng Khánh Linh, Hồ Chí Minh)
-    private static final Pattern PROPER_NOUN_PATTERN = Pattern.compile(
-            "(?U)(?<!\\p{L})\\p{Lu}\\p{L}*(?:\\s+\\p{Lu}\\p{L}*){1,2}(?!\\p{L})");
 
     // Nhận diện số 1 chữ số đứng đơn lẻ (0-9) để lọc bỏ số trôi nổi (tầng 3, cổng 1)
     private static final Pattern SINGLE_DIGIT_PATTERN = Pattern.compile("^\\d$");
@@ -143,7 +143,14 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
         if (text == null || text.isBlank()) {
             return "";
         }
-        String result = HYPHEN_ARTIST_PATTERN.matcher(text).replaceAll("_");
+        String result = HYPHEN_ARTIST_PATTERN.matcher(text).replaceAll(mr -> {
+            String g1 = mr.group(1);
+            String g2 = mr.group(2);
+            if (g1 != null && g2 != null) {
+                return g1 + "_" + g2;
+            }
+            return mr.group(3) + "_" + mr.group(4);
+        });
         result = PRICE_PATTERN.matcher(result).replaceAll("$1$2");
         result = DATE_PATTERN.matcher(result).replaceAll("$1_$2");
         result = SERIES_PATTERN.matcher(result).replaceAll("$1_$2");
@@ -151,7 +158,7 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
     }
 
     // =========================================================================
-    // LÕI TÁCH TỪ (EXTRACT TOKENS) - VIẾT THEO 4 BƯỚC RÕ RÀNG, DỄ ĐỌC
+    // LÕI TÁCH TỪ (EXTRACT TOKENS) - PHƯƠNG PHÁP SEGMENT & SINGLE PASS
     // =========================================================================
 
     @Override
@@ -165,102 +172,62 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
         // Bước 1: Chuẩn hóa ký tự đặc biệt (M-TP -> m_tp, 30/4 -> 30_4, 500k)
         String preprocessed = normalizeSpecialTokens(text);
 
-        // Bước 2: Lọc các cụm tên riêng viết hoa từ text -> add thẳng vào tokens
-        extractProperNouns(preprocessed, tokens);
+        // Bước 2: Tách thành các Segment độc lập theo dấu câu/ký tự ngắt
+        String[] segments = SEGMENT_DELIMITER_PATTERN.split(preprocessed);
 
-        // Bước 3: Tách từ ghép theo từ điển có sẵn (Maximum Matching)
-        String[] words = splitToWords(preprocessed);
-        if (words.length > 0) {
-            tokenizeWords(words, tokens);
+        // Bước 3: Duyệt từng segment độc lập theo phương pháp Single Pass (Duyệt 1 lượt con trỏ nhảy cóc)
+        for (String segment : segments) {
+            if (segment.isBlank()) {
+                continue;
+            }
+            tokenizeSegment(segment, tokens);
         }
 
         return tokens;
     }
 
     /**
-     * Quét các cụm từ viết hoa liên tiếp (Tên riêng: Hà Anh Tuấn, Đen Vâu, Phùng Khánh Linh)
-     * và trực tiếp bổ sung vào danh sách tokens (bỏ qua nếu đã có sẵn trong từ điển).
+     * Tách từ cho một phân đoạn (Segment) theo phương pháp Single Pass (Duyệt 1 lượt con trỏ):
+     * 1. Xử lý từ đã tiền xử lý gạch dưới (m_tp, 30_4)
+     * 2. Ưu tiên 1: Từ ghép trong từ điển Maximum Matching (từ 4 từ -> 2 từ)
+     * 3. Ưu tiên 2: Cụm từ viết hoa liên tiếp (Tên riêng, Nghệ danh, Địa danh tự do không giới hạn số từ)
+     * 4. Ưu tiên 3: Từ đơn 1-gram
      */
-    private void extractProperNouns(String text, List<String> tokens) {
-        Matcher matcher = PROPER_NOUN_PATTERN.matcher(text);
-        while (matcher.find()) {
-            String phrase = matcher.group().trim().toLowerCase();
-            // Nếu đã có trong từ điển từ ghép hoặc toàn stop words thì bỏ qua (bước tokenizeWords sẽ tự xử lý)
-            if (compoundDictionary.contains(phrase) || isAllStopWords(phrase)) {
-                continue;
-            }
-
-            String[] subWords = phrase.split("\\s+");
-            if (subWords.length < 2) {
-                continue;
-            }
-
-            // Thêm token tên riêng: chuẩn dạng gạch dưới
-            tokens.add(phrase.replace(" ", "_"));
-
-            // Nếu là 3 từ: sinh thêm 2 bigram con dạng gạch dưới (vd: phùng_khánh, khánh_linh)
-            if (subWords.length == 3) {
-                String biSpace1 = subWords[0] + " " + subWords[1];
-                String biSpace2 = subWords[1] + " " + subWords[2];
-                if (!stopWords.contains(biSpace1)) {
-                    tokens.add(subWords[0] + "_" + subWords[1]);
-                }
-                if (!stopWords.contains(biSpace2)) {
-                    tokens.add(subWords[1] + "_" + subWords[2]);
-                }
-            }
+    private void tokenizeSegment(String segment, List<String> tokens) {
+        String clean = segment.replaceAll("[^\\p{L}\\p{Nd}_\\s]", " ").trim();
+        if (clean.isEmpty()) {
+            return;
         }
-    }
+        String[] words = clean.split("\\s+");
 
-    /**
-     * Kiểm tra xem một cụm từ có phải toàn bộ là stop words hay không.
-     */
-    private boolean isAllStopWords(String phrase) {
-        for (String w : phrase.split("\\s+")) {
-            if (!stopWords.contains(w)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Làm sạch ký tự lạ và cắt văn bản thành mảng từ đơn.
-     */
-    private String[] splitToWords(String text) {
-        String clean = text.toLowerCase()
-                .replaceAll("[^\\p{L}\\p{Nd}_\\s]", " ")
-                .trim();
-        return clean.isEmpty() ? new String[0] : clean.split("\\s+");
-    }
-
-    /**
-     * Quét mảng từ theo thuật toán Maximum Matching:
-     * 1. Xử lý từ đã có gạch dưới sẵn (m_tp, 30_4)
-     * 2. Dò từ ghép dài nhất trong từ điển (3 từ -> 2 từ)
-     * 3. Xử lý từ đơn (1-gram)
-     */
-    private void tokenizeWords(String[] words, List<String> tokens) {
         int i = 0;
         while (i < words.length) {
             String word = words[i];
+            String lower = word.toLowerCase();
 
             // 1. Nếu từ đã có gạch dưới sẵn (do tiền xử lý M_TP, 30_4)
-            if (word.contains("_")) {
-                addPreprocessedToken(word, tokens);
+            if (lower.contains("_")) {
+                addPreprocessedToken(lower, tokens);
                 i++;
                 continue;
             }
 
-            // 2. Thử ghép từ dài nhất trong từ điển (từ 3 từ -> 2 từ)
-            int matchedWords = tryMatchCompound(words, i, tokens);
-            if (matchedWords > 0) {
-                i += matchedWords; // Nhảy cóc qua số từ đã ghép thành công
+            // 2. ƯU TIÊN 1: Thử ghép từ trong Từ điển tiếng Việt (Maximum Matching 4 -> 2 từ)
+            int matchedDictWords = tryMatchCompound(words, i, tokens);
+            if (matchedDictWords > 0) {
+                i += matchedDictWords;
                 continue;
             }
 
-            // 3. Từ đơn (1-gram)
-            addSingleWord(word, tokens);
+            // 3. ƯU TIÊN 2: Quét chuỗi từ viết hoa liên tiếp (Tên riêng, Nghệ danh không giới hạn số từ)
+            int matchedProperWords = tryMatchProperNoun(words, i, tokens);
+            if (matchedProperWords > 0) {
+                i += matchedProperWords;
+                continue;
+            }
+
+            // 4. ƯU TIÊN 3: Từ đơn thông thường (1-gram)
+            addSingleWord(lower, tokens);
             i++;
         }
     }
@@ -279,37 +246,123 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
 
     /**
      * Dò từ ghép trong từ điển từ độ dài lớn nhất giảm dần xuống 2 từ.
-     * Lưu dạng gạch dưới (_) chuẩn NLP (vd: đêm_nhạc, hà_nội).
+     * Lưu dạng gạch dưới (_) chuẩn NLP (vd: đêm_nhạc, hà_nội, bà_rịa_vũng_tàu).
      */
     private int tryMatchCompound(String[] words, int startIndex, List<String> tokens) {
         int maxK = Math.min(maxCompoundWordCount, words.length - startIndex);
         for (int k = maxK; k >= 2; k--) {
-            String candidate = String.join(" ", Arrays.copyOfRange(words, startIndex, startIndex + k));
-            if (compoundDictionary.contains(candidate) && !stopWords.contains(candidate)) {
-                // Thêm dạng gạch dưới (chuẩn NLP duy nhất)
-                tokens.add(candidate.replace(" ", "_")); // vd: đêm_nhạc, hà_nội
+            String[] lowerSlice = new String[k];
+            for (int j = 0; j < k; j++) {
+                lowerSlice[j] = words[startIndex + j].toLowerCase();
+            }
+            String candidate = String.join(" ", lowerSlice);
 
-                String[] subWords = candidate.split("\\s+");
-                // Nếu là 3-gram: sinh thêm 2 bigram con dạng gạch dưới
-                if (subWords.length == 3) {
-                    String biSpace1 = subWords[0] + " " + subWords[1];
-                    String biSpace2 = subWords[1] + " " + subWords[2];
-                    if (!stopWords.contains(biSpace1)) {
-                        tokens.add(subWords[0] + "_" + subWords[1]);
+            if (compoundDictionary.contains(candidate) && !stopWords.contains(candidate)) {
+                // Thêm cụm từ ghép đầy đủ dạng gạch dưới
+                tokens.add(candidate.replace(" ", "_"));
+
+                // 2. Sinh các 2-grams con nếu k >= 3 (vd: hà_anh, anh_tuấn; bà_rịa, vũng_tàu)
+                if (k >= 3) {
+                    for (int j = 0; j < k - 1; j++) {
+                        String biSpace = lowerSlice[j] + " " + lowerSlice[j + 1];
+                        if (!stopWords.contains(biSpace)) {
+                            tokens.add(lowerSlice[j] + "_" + lowerSlice[j + 1]);
+                        }
                     }
-                    if (!stopWords.contains(biSpace2)) {
-                        tokens.add(subWords[1] + "_" + subWords[2]);
+                }
+
+                // 3. Sinh các 3-grams con nếu k >= 4 (vd: bà_rịa_vũng, rịa_vũng_tàu)
+                if (k >= 4) {
+                    for (int j = 0; j < k - 2; j++) {
+                        tokens.add(lowerSlice[j] + "_" + lowerSlice[j + 1] + "_" + lowerSlice[j + 2]);
                     }
                 }
 
                 // Thêm các từ đơn thành phần (vd: hà, nội)
-                for (String sub : subWords) {
+                for (String sub : lowerSlice) {
                     addSingleWord(sub, tokens);
                 }
                 return k; // Ghép thành công k từ
             }
         }
-        return 0; // Không ghép được cụm nào
+        return 0;
+    }
+
+    /**
+     * Nhận diện chuỗi từ viết hoa liên tiếp (Tên riêng, Nghệ danh, Địa danh tự do).
+     * Không giới hạn số lượng từ, tự động sinh n-grams (full, 3-gram, 2-gram, 1-gram).
+     */
+    private int tryMatchProperNoun(String[] words, int startIndex, List<String> tokens) {
+        if (!isCapitalized(words[startIndex])) {
+            return 0;
+        }
+
+        // Đếm số từ viết hoa liên tiếp
+        int m = 0;
+        while (startIndex + m < words.length && isCapitalized(words[startIndex + m])) {
+            String lower = words[startIndex + m].toLowerCase();
+            if (stopWords.contains(lower)) {
+                break;
+            }
+            m++;
+        }
+
+        if (m < 2) {
+            return 0; // Cần tối thiểu 2 từ viết hoa liên tiếp
+        }
+
+        String[] lowerWords = new String[m];
+        for (int j = 0; j < m; j++) {
+            lowerWords[j] = words[startIndex + j].toLowerCase();
+        }
+
+        if (isAllStopWords(lowerWords)) {
+            return 0;
+        }
+
+        // 1. Thêm Cụm Full-gram (vd: đen_vâu, hà_anh_tuấn, nguyễn_thị_minh_khai, nguyễn_hoàng_gia_bảo_long)
+        tokens.add(String.join("_", lowerWords));
+
+        // 2. Thêm các 2-grams con nếu m >= 3 (vd: hà_anh, anh_tuấn; nguyễn_thị, thị_minh, minh_khai)
+        if (m >= 3) {
+            for (int j = 0; j < m - 1; j++) {
+                String biSpace = lowerWords[j] + " " + lowerWords[j + 1];
+                if (!stopWords.contains(biSpace)) {
+                    tokens.add(lowerWords[j] + "_" + lowerWords[j + 1]);
+                }
+            }
+        }
+
+        // 3. Thêm các 3-grams con nếu m >= 4 (vd: nguyễn_thị_minh, thị_minh_khai)
+        if (m >= 4) {
+            for (int j = 0; j < m - 2; j++) {
+                tokens.add(lowerWords[j] + "_" + lowerWords[j + 1] + "_" + lowerWords[j + 2]);
+            }
+        }
+
+        // 4. Thêm các từ đơn 1-gram
+        for (String sub : lowerWords) {
+            addSingleWord(sub, tokens);
+        }
+
+        return m; // Tiêu thụ m từ
+    }
+
+    private boolean isCapitalized(String word) {
+        if (word == null || word.isEmpty()) {
+            return false;
+        }
+        int codePoint = word.codePointAt(0);
+        return Character.isUpperCase(codePoint);
+    }
+
+    private boolean isAllStopWords(String[] words) {
+        for (String w : words) {
+            if (!stopWords.contains(w)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -438,6 +491,25 @@ public class VietnameseBm25TokenizerServiceImpl implements VietnameseBm25Tokeniz
                 if (compact.length() >= 3) {
                     expandedQueryTokens.add(compact);
                 }
+            }
+        }
+
+        // Bổ sung các cụm n-grams (2-gram, 3-gram) liền kề cho truy vấn người dùng gõ thường không viết hoa (vd: "den vau", "ha anh tuan")
+        String[] queryWords = query.toLowerCase().replaceAll("[^\\p{L}\\p{Nd}_\\s]", " ").trim().split("\\s+");
+        List<String> validWords = new ArrayList<>();
+        for (String w : queryWords) {
+            if (isValidSingleWord(w)) {
+                validWords.add(w);
+            }
+        }
+        for (int j = 0; j < validWords.size() - 1; j++) {
+            String bi = validWords.get(j) + "_" + validWords.get(j + 1);
+            expandedQueryTokens.add(bi);
+            expandedQueryTokens.add(removeAccents(bi));
+            if (j < validWords.size() - 2) {
+                String tri = validWords.get(j) + "_" + validWords.get(j + 1) + "_" + validWords.get(j + 2);
+                expandedQueryTokens.add(tri);
+                expandedQueryTokens.add(removeAccents(tri));
             }
         }
 
